@@ -1,0 +1,88 @@
+[gd_scene format=3 uid="uid://bxcjuuitl3e6j"]
+
+[ext_resource type="Script" uid="uid://c0pbbjpj0pmuh" path="res://scripts/world.gd" id="1"]
+[ext_resource type="Script" uid="uid://c6qqm1wwkmghh" path="res://scripts/player.gd" id="2"]
+[ext_resource type="Script" uid="uid://btplgwbixbrvw" path="res://scripts/weapon.gd" id="4"]
+[ext_resource type="Texture2D" uid="uid://dhoeaofuhsdkv" path="res://assets/tiles/tree.png" id="5"]
+
+[sub_resource type="RectangleShape2D" id="1"]
+size = Vector2(70, 70)
+
+[node name="World" type="Node2D" unique_id=57319914]
+script = ExtResource("1")
+
+[node name="BaseFloor" type="ColorRect" parent="." unique_id=818608211]
+z_index = -20
+offset_left = -4997.0
+offset_top = -5008.0
+offset_right = 5003.0
+offset_bottom = 4992.0
+color = Color(0.12, 0.22, 0.13, 1)
+
+[node name="Player" type="CharacterBody2D" parent="." unique_id=1295017612 groups=["player"]]
+script = ExtResource("2")
+
+[node name="Sprite2D" type="Sprite2D" parent="Player" unique_id=500441673]
+position = Vector2(-4, 177)
+scale = Vector2(0.75, 0.75)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player" unique_id=656189857]
+shape = SubResource("1")
+
+[node name="Camera2D" type="Camera2D" parent="Player" unique_id=1330851374]
+position_smoothing_enabled = true
+position_smoothing_speed = 8.0
+
+[node name="Weapon" type="Node2D" parent="Player" unique_id=1442221308]
+script = ExtResource("4")
+
+[node name="Tree1" type="Sprite2D" parent="." unique_id=874059011]
+position = Vector2(-420, -220)
+texture = ExtResource("5")
+
+[node name="Tree2" type="Sprite2D" parent="." unique_id=988015655]
+position = Vector2(520, 140)
+texture = ExtResource("5")
+
+[node name="Tree3" type="Sprite2D" parent="." unique_id=757682718]
+position = Vector2(210, -420)
+texture = ExtResource("5")
+
+[node name="Tree2" type="Sprite2D" parent="Tree3" unique_id=884241230]
+position = Vector2(924, 624)
+texture = ExtResource("5")
+
+[node name="Tree2" type="Sprite2D" parent="Tree3/Tree2" unique_id=1542802526]
+position = Vector2(-1400, 313)
+texture = ExtResource("5")
+
+[node name="Tree3" type="Sprite2D" parent="Tree3/Tree2" unique_id=1288686927]
+position = Vector2(1300, -1085)
+texture = ExtResource("5")
+
+[node name="Tree2" type="Sprite2D" parent="Tree3/Tree2/Tree3" unique_id=942254280]
+position = Vector2(-1400, 313)
+texture = ExtResource("5")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=724132703]
+
+[node name="HUD" type="Label" parent="CanvasLayer" unique_id=503703763]
+offset_left = -570.0
+offset_top = -47.0
+offset_right = 306.0
+offset_bottom = -5.0
+theme_override_font_sizes/font_size = 24
+
+[node name="Help" type="Label" parent="CanvasLayer" unique_id=1981835140]
+offset_left = -574.0
+offset_top = -314.0
+offset_right = 302.0
+offset_bottom = -274.0
+theme_override_font_sizes/font_size = 16
+text = "WASD ou setas para mover. Ataque automatico. Colete cristais azuis."
+
+[node name="SpawnTimer" type="Timer" parent="." unique_id=1525697966]
+wait_time = 0.585
+autostart = true
+
+[connection signal="timeout" from="SpawnTimer" to="." method="_on_spawn_timer_timeout"]
