@@ -2,6 +2,8 @@ extends CharacterBody2D
 
 @export var speed: float = 300.0
 var last_direction := Vector2.RIGHT
+var hp := 100
+var max_hp := 100
 
 @onready var anim = $AnimatedSprite2D
 @onready var sword_slash = $SwordSlash
@@ -35,6 +37,8 @@ func _physics_process(_delta):
 	var direction = Vector2.ZERO
 	direction.x = Input.get_action_strength("move_right") - Input.get_action_strength("move_left")
 	direction.y = Input.get_action_strength("move_down") - Input.get_action_strength("move_up")
+	if direction != Vector2.ZERO:
+		last_direction = direction.normalized()
 	velocity = direction.normalized() * speed
 	move_and_slide()
 	if direction != Vector2.ZERO:
@@ -45,8 +49,18 @@ func _physics_process(_delta):
 		anim.flip_h = true
 	else:
 		anim.flip_h = false
-	if direction != Vector2.ZERO:
-		last_direction = direction.normalized()
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud:
+		hud.update_hp(hp, max_hp)
+
+func take_damage(amount):
+	hp -= amount
+	if hp <= 0:
+		hp = 0
+		die()
+
+func die():
+	queue_free()
 
 func _do_attack(target):
 	if last_direction.x < 0:

@@ -17,3 +17,13 @@ texture = SubResource("PlaceholderTexture2D_6xk8f")
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1801585419]
 position = Vector2(4, 45)
 shape = SubResource("CircleShape2D_ykcao")
+
+[node name="HealthBar" type="ProgressBar" parent="." unique_id=1514596596]
+offset_top = -1.0
+offset_right = 4.976696
+offset_bottom = 36.891174
+rotation = -1.5707964
+theme_override_colors/font_color = Color(0.56966984, 0.113007836, 4.813075e-08, 1)
+max_value = 3.0
+value = 3.0
+show_percentage = false
