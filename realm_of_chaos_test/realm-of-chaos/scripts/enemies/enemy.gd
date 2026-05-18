@@ -4,7 +4,7 @@ var speed = 80.0
 var hp = 3
 var max_hp = 3
 var player = null
-
+var world = null
 @onready var health_bar = $HealthBar
 
 func _ready():
@@ -30,10 +30,13 @@ func _physics_process(delta):
 	if dist < 40 and damage_cooldown <= 0:
 		player.take_damage(10)
 		damage_cooldown = 1.0
+
 func take_damage(amount):
 	hp -= amount
 	health_bar.value = hp
 	if hp <= 0:
+		if world != null:
+			world.enemy_died()
 		queue_free()
 
 func _on_body_entered(body):

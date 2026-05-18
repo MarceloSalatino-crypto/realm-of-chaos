@@ -1,0 +1,28 @@
+[gd_scene format=3 uid="uid://cgib8au8f3t44"]
+
+[ext_resource type="Script" uid="uid://eo07amgo3uoh" path="res://scenes/enemies/enemy_elite.gd" id="1_xgu8v"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_v6p2e"]
+radius = 20.0
+
+[node name="EnemyElite" type="CharacterBody2D" unique_id=105389511]
+script = ExtResource("1_xgu8v")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1527253489]
+shape = SubResource("CircleShape2D_v6p2e")
+
+[node name="HealthBar" type="ProgressBar" parent="." unique_id=491086229]
+offset_left = -20.0
+offset_top = -25.0
+offset_right = 20.0
+offset_bottom = -19.0
+max_value = 10.0
+value = 10.0
+show_percentage = false
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=1412688562]
+offset_left = -15.0
+offset_top = -15.0
+offset_right = 15.0
+offset_bottom = 15.0
+color = Color(0.8001294, 0.4765448, 0.099743865, 0.80784315)

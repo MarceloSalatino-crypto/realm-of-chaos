@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://bwr258kcjufxb"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_qihyl"]
+radius = 8.0
+
+[node name="IceBlast" type="Area2D" unique_id=1191436291]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=465837108]
+shape = SubResource("CircleShape2D_qihyl")
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=2021182747]
+offset_left = -8.0
+offset_top = -8.0
+offset_right = 8.0
+offset_bottom = 8.0
+color = Color(0.26691276, 0.44335786, 1, 1)
