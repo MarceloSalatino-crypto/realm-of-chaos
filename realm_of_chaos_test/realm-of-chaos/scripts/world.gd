@@ -2,6 +2,7 @@ extends Node2D
 
 var enemy_scene = preload("res://scenes/enemies/enemy.tscn")
 var elite_scene = preload("res://scenes/enemies/enemy_elite.tscn")
+var mage_scene = preload("res://scenes/enemies/enemy_mage.tscn")
 var spawn_timer = 0.0
 var spawn_interval = 2.0
 var spawn_count = 1
@@ -21,7 +22,6 @@ func _process(delta):
 	
 	time_survived += delta
 	
-	# A cada 10 segundos reduz o intervalo e aumenta a quantidade
 	spawn_interval = max(0.5, 2.0 - (time_survived / 10.0) * 0.2)
 	spawn_count = 1 + int(time_survived / 15.0)
 	
@@ -29,7 +29,10 @@ func _process(delta):
 	if spawn_timer >= spawn_interval:
 		spawn_timer = 0.0
 		for i in range(spawn_count):
-			spawn_enemy()
+			if randf() < 0.2:
+				spawn_mage()
+			else:
+				spawn_enemy()
 	
 	elite_timer += delta
 	if elite_timer >= elite_interval:
@@ -43,8 +46,7 @@ func spawn_enemy():
 	enemy.world = self
 	add_child(enemy)
 	var angle = randf() * TAU
-	var distance = 400.0
-	var offset = Vector2(cos(angle), sin(angle)) * distance
+	var offset = Vector2(cos(angle), sin(angle)) * 400.0
 	enemy.global_position = player.global_position + offset
 
 func spawn_elite():
@@ -54,9 +56,18 @@ func spawn_elite():
 	elite.world = self
 	add_child(elite)
 	var angle = randf() * TAU
-	var distance = 400.0
-	var offset = Vector2(cos(angle), sin(angle)) * distance
+	var offset = Vector2(cos(angle), sin(angle)) * 400.0
 	elite.global_position = player.global_position + offset
+
+func spawn_mage():
+	if player == null:
+		return
+	var mage = mage_scene.instantiate()
+	mage.world = self
+	add_child(mage)
+	var angle = randf() * TAU
+	var offset = Vector2(cos(angle), sin(angle)) * 400.0
+	mage.global_position = player.global_position + offset
 
 func enemy_died():
 	enemies_killed += 1
