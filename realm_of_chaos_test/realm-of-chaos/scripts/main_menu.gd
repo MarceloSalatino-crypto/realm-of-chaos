@@ -22,7 +22,7 @@ func _on_creditos():
 
 func show_panel(titulo: String, conteudo: String):
 	var overlay = ColorRect.new()
-	overlay.color = Color(0, 0, 0, 0.85)
+	overlay.color = Color(0.05, 0.02, 0.08, 1.0)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(overlay)
 	

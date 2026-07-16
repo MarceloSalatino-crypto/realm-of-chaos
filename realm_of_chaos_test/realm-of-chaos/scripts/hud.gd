@@ -10,7 +10,7 @@ func update_hp(current, maximum):
 func update_timer(time: float):
 	var minutes = int(time) / 60
 	var seconds = int(time) % 60
-	info.text = "FASE 1 pronta | WASD ou setas para mover | Câmera suave | Player animado | %02d:%02d" % [minutes, seconds]
+	info.text = "%02d:%02d" % [minutes, seconds]
 
 func show_game_over(time_survived: float, enemies_killed: int):
 	var overlay = ColorRect.new()
@@ -48,6 +48,12 @@ func show_game_over(time_survived: float, enemies_killed: int):
 	button.add_theme_font_size_override("font_size", 24)
 	button.pressed.connect(_on_restart_pressed)
 	vbox.add_child(button)
+	
+	var menu_button = Button.new()
+	menu_button.text = "Menu"
+	menu_button.add_theme_font_size_override("font_size", 24)
+	menu_button.pressed.connect(_on_menu_pressed)
+	vbox.add_child(menu_button)
 
 func show_victory(enemies_killed: int):
 	var overlay = ColorRect.new()
@@ -89,4 +95,4 @@ func _on_restart_pressed():
 	get_tree().reload_current_scene()
 
 func _on_menu_pressed():
-	get_tree().change_scene_to_file("res://scenes/UI/main_menu.tscn")
+	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
