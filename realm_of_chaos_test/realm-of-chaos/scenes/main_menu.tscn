@@ -1,68 +1,217 @@
-[gd_scene format=3 uid="uid://0kmdhg0bwc2d"]
+[gd_scene load_steps=8 format=3]
 
-[ext_resource type="Script" uid="uid://dvqv83mj6hiat" path="res://scripts/main_menu.gd" id="1_l6cm7"]
+[ext_resource type="Script" path="res://scripts/main_menu.gd" id="1_menu"]
+[ext_resource type="Texture2D" path="res://assets/generated/corrupted_forest_ground.png" id="2_ground"]
+[ext_resource type="Texture2D" path="res://assets/generated/hero_chaos_warden.png" id="3_hero"]
 
-[node name="MainMenu" type="Control" unique_id=1005812311]
+[sub_resource type="StyleBoxFlat" id="Button_normal"]
+bg_color = Color(0.085, 0.048, 0.14, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.39, 0.24, 0.59, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="Button_hover"]
+bg_color = Color(0.19, 0.09, 0.29, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.78, 0.51, 1, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0.45, 0.18, 0.8, 0.35)
+shadow_size = 9
+
+[sub_resource type="StyleBoxFlat" id="Button_pressed"]
+bg_color = Color(0.31, 0.16, 0.42, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1, 0.81, 0.44, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="Gradient" id="Gradient_fade"]
+offsets = PackedFloat32Array(0, 0.52, 1)
+colors = PackedColorArray(0.02, 0.01, 0.045, 0.98, 0.025, 0.012, 0.06, 0.86, 0.03, 0.012, 0.055, 0.38)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture_fade"]
+gradient = SubResource("Gradient_fade")
+width = 1280
+height = 720
+fill_from = Vector2(0, 0.5)
+fill_to = Vector2(1, 0.5)
+
+[node name="MainMenu" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_l6cm7")
+script = ExtResource("1_menu")
 
-[node name="ColorRect" type="ColorRect" parent="." unique_id=1744160563]
+[node name="Background" type="TextureRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 2.0
-offset_top = -1.0
-offset_right = 2.0
-offset_bottom = -1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.050980393, 0.039215688, 0.101960786, 1)
+mouse_filter = 2
+texture = ExtResource("2_ground")
+expand_mode = 1
+stretch_mode = 6
+modulate = Color(0.68, 0.70, 0.82, 1)
 
-[node name="Label" type="Label" parent="." unique_id=1958279477]
+[node name="Fade" type="TextureRect" parent="."]
 layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -294.0
-offset_top = 47.0
-offset_right = 268.0
-offset_bottom = 181.0
-grow_horizontal = 2
-theme_override_colors/font_color = Color(0.78431374, 0.627451, 0.15686275, 1)
-theme_override_font_sizes/font_size = 72
-text = "Realm of Chaos"
-
-[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=46247092]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -216.0
-offset_top = -99.0
-offset_right = 171.0
-offset_bottom = 137.0
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
+texture = SubResource("GradientTexture_fade")
+expand_mode = 1
 
-[node name="Button" type="Button" parent="VBoxContainer" unique_id=1535431491]
-layout_mode = 2
-theme_override_font_sizes/font_size = 40
-text = "JOGAR"
+[node name="Runes" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.55, 0.27, 0.94, 0.12)
+theme_override_font_sizes/font_size = 64
+text = "⌁       ◇             ⬟\n       ✦       ◉\n  △              ☼          ◆\n          ⬟            ⌁\n◇                ✦"
+horizontal_alignment = 1
+vertical_alignment = 1
 
-[node name="Button2" type="Button" parent="VBoxContainer" unique_id=757685596]
-layout_mode = 2
-theme_override_font_sizes/font_size = 40
-text = "INSTRUÇÕES"
+[node name="Hero" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_left = 0.48
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 25.0
+offset_top = 50.0
+offset_right = -25.0
+offset_bottom = 55.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture_filter = 1
+texture = ExtResource("3_hero")
+expand_mode = 1
+stretch_mode = 5
 
-[node name="Button3" type="Button" parent="VBoxContainer" unique_id=591342941]
+[node name="Eyebrow" type="Label" parent="."]
+layout_mode = 0
+offset_left = 70.0
+offset_top = 65.0
+offset_right = 560.0
+offset_bottom = 95.0
+theme_override_colors/font_color = Color(0.66, 0.47, 0.91, 1)
+theme_override_font_sizes/font_size = 17
+text = "UM SURVIVOR DE FANTASIA SOMBRIA"
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 0
+offset_left = 64.0
+offset_top = 98.0
+offset_right = 720.0
+offset_bottom = 250.0
+theme_override_colors/font_color = Color(1, 0.82, 0.39, 1)
+theme_override_colors/font_shadow_color = Color(0.12, 0.01, 0.18, 1)
+theme_override_constants/shadow_offset_x = 4
+theme_override_constants/shadow_offset_y = 4
+theme_override_font_sizes/font_size = 69
+text = "REALM\nOF CHAOS"
+
+[node name="Subtitle" type="Label" parent="."]
+layout_mode = 0
+offset_left = 70.0
+offset_top = 296.0
+offset_right = 610.0
+offset_bottom = 352.0
+theme_override_colors/font_color = Color(0.79, 0.74, 0.86, 1)
+theme_override_font_sizes/font_size = 19
+text = "O véu se rompeu. Transforme a horda\nno combustível da sua ascensão."
+
+[node name="Menu" type="VBoxContainer" parent="."]
+layout_mode = 0
+offset_left = 70.0
+offset_top = 382.0
+offset_right = 508.0
+offset_bottom = 691.0
+theme_override_constants/separation = 13
+
+[node name="Play" type="Button" parent="Menu"]
+custom_minimum_size = Vector2(0, 68)
 layout_mode = 2
-theme_override_font_sizes/font_size = 40
+theme_override_colors/font_color = Color(1, 0.84, 0.52, 1)
+theme_override_colors/font_hover_color = Color(1, 0.94, 0.77, 1)
+theme_override_font_sizes/font_size = 27
+theme_override_styles/normal = SubResource("Button_normal")
+theme_override_styles/hover = SubResource("Button_hover")
+theme_override_styles/pressed = SubResource("Button_pressed")
+theme_override_styles/focus = SubResource("Button_hover")
+text = "INICIAR RITUAL"
+
+[node name="Instructions" type="Button" parent="Menu"]
+custom_minimum_size = Vector2(0, 54)
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+theme_override_styles/normal = SubResource("Button_normal")
+theme_override_styles/hover = SubResource("Button_hover")
+theme_override_styles/pressed = SubResource("Button_pressed")
+theme_override_styles/focus = SubResource("Button_hover")
+text = "COMO JOGAR"
+
+[node name="Credits" type="Button" parent="Menu"]
+custom_minimum_size = Vector2(0, 54)
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+theme_override_styles/normal = SubResource("Button_normal")
+theme_override_styles/hover = SubResource("Button_hover")
+theme_override_styles/pressed = SubResource("Button_pressed")
+theme_override_styles/focus = SubResource("Button_hover")
 text = "CRÉDITOS"
+
+[node name="Records" type="Label" parent="Menu"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.50, 0.68, 1)
+theme_override_font_sizes/font_size = 13
+text = "SEU PRIMEIRO RITUAL AGUARDA"
+horizontal_alignment = 1
+
+[node name="Version" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -250.0
+offset_top = -42.0
+offset_right = -26.0
+offset_bottom = -18.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.52, 0.45, 0.60, 1)
+theme_override_font_sizes/font_size = 13
+text = "VERTICAL SLICE · 2026"
+horizontal_alignment = 2

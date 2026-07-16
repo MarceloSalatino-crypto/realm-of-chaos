@@ -1,0 +1,538 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
+
+[sub_resource type="StyleBoxFlat" id="Panel_dark"]
+bg_color = Color(0.045, 0.027, 0.075, 0.94)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.40, 0.24, 0.62, 0.92)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+shadow_color = Color(0, 0, 0, 0.55)
+shadow_size = 10
+
+[sub_resource type="StyleBoxFlat" id="Bar_bg"]
+bg_color = Color(0.025, 0.018, 0.04, 0.90)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.34, 0.25, 0.42, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="Health_fill"]
+bg_color = Color(0.77, 0.12, 0.27, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="XP_fill"]
+bg_color = Color(0.44, 0.21, 0.91, 1)
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="Boss_fill"]
+bg_color = Color(0.67, 0.16, 0.83, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="Button_normal"]
+bg_color = Color(0.095, 0.06, 0.15, 0.98)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.37, 0.24, 0.55, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="Button_hover"]
+bg_color = Color(0.18, 0.10, 0.28, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.73, 0.47, 1, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+shadow_color = Color(0.39, 0.16, 0.68, 0.35)
+shadow_size = 8
+
+[sub_resource type="StyleBoxFlat" id="Button_pressed"]
+bg_color = Color(0.30, 0.17, 0.42, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.91, 0.72, 1, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxEmpty" id="Empty"]
+
+[node name="HUD" type="CanvasLayer"]
+process_mode = 3
+script = ExtResource("1_hud")
+
+[node name="Top" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 112.0
+grow_horizontal = 2
+
+[node name="HealthBar" type="ProgressBar" parent="Top"]
+layout_mode = 0
+offset_left = 26.0
+offset_top = 24.0
+offset_right = 302.0
+offset_bottom = 54.0
+theme_override_styles/background = SubResource("Bar_bg")
+theme_override_styles/fill = SubResource("Health_fill")
+value = 100.0
+show_percentage = false
+
+[node name="Label" type="Label" parent="Top/HealthBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 0.93, 0.94, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 15
+text = "125 / 125"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Level" type="Label" parent="Top"]
+offset_left = 26.0
+offset_top = 62.0
+offset_right = 172.0
+offset_bottom = 92.0
+theme_override_colors/font_color = Color(0.84, 0.75, 0.95, 1)
+theme_override_font_sizes/font_size = 18
+text = "NÍVEL 01"
+
+[node name="Timer" type="Label" parent="Top"]
+layout_mode = 1
+anchors_preset = 10
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -105.0
+offset_top = 15.0
+offset_right = 105.0
+offset_bottom = 62.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 0.83, 0.42, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 34
+text = "10:00"
+horizontal_alignment = 1
+
+[node name="Stage" type="Label" parent="Top"]
+layout_mode = 1
+anchors_preset = 10
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -245.0
+offset_top = 61.0
+offset_right = 245.0
+offset_bottom = 91.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.70, 0.58, 0.83, 1)
+theme_override_font_sizes/font_size = 16
+text = "I · BOSQUE PROFANADO"
+horizontal_alignment = 1
+
+[node name="Kills" type="Label" parent="Top"]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -198.0
+offset_top = 25.0
+offset_right = -28.0
+offset_bottom = 61.0
+grow_horizontal = 0
+theme_override_colors/font_color = Color(0.92, 0.87, 0.96, 1)
+theme_override_font_sizes/font_size = 22
+text = "☠  0000"
+horizontal_alignment = 2
+
+[node name="XPBar" type="ProgressBar" parent="."]
+layout_mode = 3
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 9.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("Bar_bg")
+theme_override_styles/fill = SubResource("XP_fill")
+value = 0.0
+show_percentage = false
+
+[node name="Weapons" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -440.0
+offset_top = -48.0
+offset_right = 440.0
+offset_bottom = -18.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.73, 0.66, 0.82, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 16
+text = "Seta 1"
+horizontal_alignment = 1
+
+[node name="Boss" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 10
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -310.0
+offset_top = 112.0
+offset_right = 310.0
+offset_bottom = 164.0
+grow_horizontal = 2
+
+[node name="Name" type="Label" parent="Boss"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 24.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.91, 0.73, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_font_sizes/font_size = 17
+text = "ARAUTO DO VAZIO"
+horizontal_alignment = 1
+
+[node name="Bar" type="ProgressBar" parent="Boss"]
+layout_mode = 1
+anchors_preset = 12
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -21.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_styles/background = SubResource("Bar_bg")
+theme_override_styles/fill = SubResource("Boss_fill")
+value = 100.0
+show_percentage = false
+
+[node name="StageBanner" type="Label" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -510.0
+offset_top = -170.0
+offset_right = 510.0
+offset_bottom = -105.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 0.82, 0.39, 1)
+theme_override_colors/font_shadow_color = Color(0.12, 0.01, 0.18, 1)
+theme_override_constants/shadow_offset_x = 3
+theme_override_constants/shadow_offset_y = 3
+theme_override_font_sizes/font_size = 35
+text = "I · BOSQUE PROFANADO"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="DamageFlash" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.65, 0.02, 0.12, 0)
+
+[node name="UpgradeOverlay" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Shade" type="ColorRect" parent="UpgradeOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.015, 0.008, 0.035, 0.92)
+
+[node name="Panel" type="PanelContainer" parent="UpgradeOverlay"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -560.0
+offset_top = -300.0
+offset_right = 560.0
+offset_bottom = 300.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("Panel_dark")
+
+[node name="Margin" type="MarginContainer" parent="UpgradeOverlay/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 28
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 30
+
+[node name="VBox" type="VBoxContainer" parent="UpgradeOverlay/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="Title" type="Label" parent="UpgradeOverlay/Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.82, 0.39, 1)
+theme_override_font_sizes/font_size = 30
+text = "NÍVEL 2 · ESCOLHA SEU PODER"
+horizontal_alignment = 1
+
+[node name="Hint" type="Label" parent="UpgradeOverlay/Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.58, 0.74, 1)
+theme_override_font_sizes/font_size = 15
+text = "Use o mouse, as setas ou o controle"
+horizontal_alignment = 1
+
+[node name="Cards" type="HBoxContainer" parent="UpgradeOverlay/Panel/Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 18
+
+[node name="Card1" type="Button" parent="UpgradeOverlay/Panel/Margin/VBox/Cards"]
+custom_minimum_size = Vector2(334, 390)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.91, 0.88, 0.96, 1)
+theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("Button_normal")
+theme_override_styles/hover = SubResource("Button_hover")
+theme_override_styles/pressed = SubResource("Button_pressed")
+theme_override_styles/focus = SubResource("Button_hover")
+text = "✦\n\nSETA DO CAOS\nNÍVEL 2\n\nMais dano e perfuração."
+autowrap_mode = 2
+
+[node name="Card2" type="Button" parent="UpgradeOverlay/Panel/Margin/VBox/Cards"]
+custom_minimum_size = Vector2(334, 390)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.91, 0.88, 0.96, 1)
+theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("Button_normal")
+theme_override_styles/hover = SubResource("Button_hover")
+theme_override_styles/pressed = SubResource("Button_pressed")
+theme_override_styles/focus = SubResource("Button_hover")
+text = "◆\n\nLÂMINAS SOMBRIAS\nNÍVEL 1\n\nRajada contra a horda."
+autowrap_mode = 2
+
+[node name="Card3" type="Button" parent="UpgradeOverlay/Panel/Margin/VBox/Cards"]
+custom_minimum_size = Vector2(334, 390)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.91, 0.88, 0.96, 1)
+theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("Button_normal")
+theme_override_styles/hover = SubResource("Button_hover")
+theme_override_styles/pressed = SubResource("Button_pressed")
+theme_override_styles/focus = SubResource("Button_hover")
+text = "♥\n\nSANGUE ANCESTRAL\nNÍVEL 1\n\nMais vida máxima."
+autowrap_mode = 2
+
+[node name="PauseOverlay" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Shade" type="ColorRect" parent="PauseOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.01, 0.006, 0.025, 0.88)
+
+[node name="Panel" type="PanelContainer" parent="PauseOverlay"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -240.0
+offset_top = -225.0
+offset_right = 240.0
+offset_bottom = 225.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("Panel_dark")
+
+[node name="VBox" type="VBoxContainer" parent="PauseOverlay/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 18
+alignment = 1
+
+[node name="Title" type="Label" parent="PauseOverlay/Panel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.82, 0.39, 1)
+theme_override_font_sizes/font_size = 38
+text = "RITUAL PAUSADO"
+horizontal_alignment = 1
+
+[node name="Resume" type="Button" parent="PauseOverlay/Panel/VBox"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("Button_normal")
+theme_override_styles/hover = SubResource("Button_hover")
+theme_override_styles/focus = SubResource("Button_hover")
+text = "CONTINUAR"
+
+[node name="Restart" type="Button" parent="PauseOverlay/Panel/VBox"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("Button_normal")
+theme_override_styles/hover = SubResource("Button_hover")
+theme_override_styles/focus = SubResource("Button_hover")
+text = "REINICIAR"
+
+[node name="Menu" type="Button" parent="PauseOverlay/Panel/VBox"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("Button_normal")
+theme_override_styles/hover = SubResource("Button_hover")
+theme_override_styles/focus = SubResource("Button_hover")
+text = "MENU PRINCIPAL"
+
+[node name="EndOverlay" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Shade" type="ColorRect" parent="EndOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.01, 0.004, 0.025, 0.94)
+
+[node name="Panel" type="PanelContainer" parent="EndOverlay"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -370.0
+offset_top = -270.0
+offset_right = 370.0
+offset_bottom = 270.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("Panel_dark")
+
+[node name="Margin" type="MarginContainer" parent="EndOverlay/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 50
+theme_override_constants/margin_top = 42
+theme_override_constants/margin_right = 50
+theme_override_constants/margin_bottom = 42
+
+[node name="VBox" type="VBoxContainer" parent="EndOverlay/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Title" type="Label" parent="EndOverlay/Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.82, 0.39, 1)
+theme_override_font_sizes/font_size = 38
+text = "O VÉU FOI SELADO"
+horizontal_alignment = 1
+
+[node name="Summary" type="Label" parent="EndOverlay/Panel/Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.88, 0.84, 0.93, 1)
+theme_override_font_sizes/font_size = 22
+text = "Tempo sobrevivido  10:00\nInimigos banidos  0\nNível alcançado  1"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Restart" type="Button" parent="EndOverlay/Panel/Margin/VBox"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("Button_normal")
+theme_override_styles/hover = SubResource("Button_hover")
+theme_override_styles/focus = SubResource("Button_hover")
+text = "JOGAR NOVAMENTE"
+
+[node name="Menu" type="Button" parent="EndOverlay/Panel/Margin/VBox"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("Button_normal")
+theme_override_styles/hover = SubResource("Button_hover")
+theme_override_styles/focus = SubResource("Button_hover")
+text = "MENU PRINCIPAL"
