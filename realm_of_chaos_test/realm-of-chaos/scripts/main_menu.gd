@@ -18,7 +18,7 @@ func _on_instrucoes():
 
 func _on_creditos():
 	show_panel("CRÉDITOS",
-	"Desenvolvido por Marcelo Galimberti Salatino e Bruno Aloy \n\nEngine: Godot 4.6\n\nInspirado em Vampire Survivors\n\nArte: Em desenvolvimento\n\nMúsica: Em desenvolvimento")
+	"Desenvolvido por Marcelo Galimberti Salatino e Bruno Aloy\n\nEngine: Godot 4.6\n\nInspirado em Vampire Survivors\n\nArte: Em desenvolvimento\n\nMúsica: Em desenvolvimento")
 
 func show_panel(titulo: String, conteudo: String):
 	var overlay = ColorRect.new()
