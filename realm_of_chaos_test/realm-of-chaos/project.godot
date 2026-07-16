@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Realm of Chaos - Fase 1"
-run/main_scene="res://scenes/world.tscn"
+run/main_scene="uid://0kmdhg0bwc2d"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://assets/characters/player_sheet.png"
 
