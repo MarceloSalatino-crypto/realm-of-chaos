@@ -12,6 +12,7 @@ var player = null
 var enemies_killed = 0
 var time_survived = 0.0
 var game_over = false
+var max_time = 25.0 * 60.0
 
 func _ready():
 	player = get_tree().get_first_node_in_group("player")
@@ -22,8 +23,31 @@ func _process(delta):
 	
 	time_survived += delta
 	
-	spawn_interval = max(0.5, 2.0 - (time_survived / 10.0) * 0.2)
-	spawn_count = 1 + int(time_survived / 15.0)
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud:
+		hud.update_timer(time_survived)
+	
+	if time_survived >= max_time:
+		show_victory()
+		return
+	
+	# Dificuldade por fase de tempo
+	if time_survived < 300:
+		spawn_interval = max(1.5, 2.0 - (time_survived / 10.0) * 0.1)
+		spawn_count = 1 + int(time_survived / 30.0)
+		elite_interval = 20.0
+	elif time_survived < 600:
+		spawn_interval = max(0.8, 1.5 - (time_survived / 600.0) * 0.5)
+		spawn_count = 2 + int(time_survived / 60.0)
+		elite_interval = 12.0
+	elif time_survived < 900:
+		spawn_interval = max(0.5, 1.0)
+		spawn_count = 4
+		elite_interval = 8.0
+	else:
+		spawn_interval = 0.4
+		spawn_count = 6
+		elite_interval = 5.0
 	
 	spawn_timer += delta
 	if spawn_timer >= spawn_interval:
@@ -77,6 +101,12 @@ func show_game_over():
 	var hud = get_tree().get_first_node_in_group("hud")
 	if hud:
 		hud.show_game_over(time_survived, enemies_killed)
+
+func show_victory():
+	game_over = true
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud:
+		hud.show_victory(enemies_killed)
 
 func _draw():
 	var grid_size := 128
