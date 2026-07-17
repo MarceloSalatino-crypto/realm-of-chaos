@@ -39,6 +39,7 @@ func _load_records() -> void:
 	var best_time := float(config.get_value("record", "best_time", 0.0))
 	var best_kills := int(config.get_value("record", "best_kills", 0))
 	var victories := int(config.get_value("record", "victories", 0))
+	@warning_ignore("integer_division")
 	records_label.text = "RECORDE  %02d:%02d   ·   %d BANIDOS   ·   %d VITÓRIAS" % [int(best_time) / 60, int(best_time) % 60, best_kills, victories]
 
 

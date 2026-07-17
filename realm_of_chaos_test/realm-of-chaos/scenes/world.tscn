@@ -1,9 +1,9 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene format=3 uid="uid://bwg4g2fh8mne"]
 
-[ext_resource type="Script" path="res://scripts/world.gd" id="1_world"]
-[ext_resource type="Script" path="res://scripts/player.gd" id="2_player"]
-[ext_resource type="Texture2D" path="res://assets/generated/corrupted_forest_ground.png" id="3_ground"]
-[ext_resource type="Texture2D" path="res://assets/generated/hero_chaos_warden.png" id="4_hero"]
+[ext_resource type="Script" uid="uid://dgrj3a2al8q4u" path="res://scripts/world.gd" id="1_world"]
+[ext_resource type="Script" uid="uid://j68vmoh5u010" path="res://scripts/player.gd" id="2_player"]
+[ext_resource type="Texture2D" uid="uid://bgkgc0j37rwjn" path="res://assets/generated/corrupted_forest_ground.png" id="3_ground"]
+[ext_resource type="Texture2D" uid="uid://c4v0bqhtxvwkr" path="res://assets/generated/hero_chaos_warden.png" id="4_hero"]
 [ext_resource type="PackedScene" path="res://scenes/bullet.tscn" id="5_bullet"]
 [ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="6_hud"]
 
@@ -11,63 +11,59 @@
 radius = 16.0
 height = 42.0
 
-[sub_resource type="Gradient" id="Gradient_vignette"]
-colors = PackedColorArray(0.22, 0.1, 0.34, 0.14, 0, 0, 0, 0)
-
-[node name="World" type="Node2D" groups=["world"]]
+[node name="World" type="Node2D" unique_id=1627836972 groups=["world"]]
 script = ExtResource("1_world")
 
-[node name="Ground" type="Sprite2D" parent="."]
-texture_repeat = 2
+[node name="Ground" type="Sprite2D" parent="." unique_id=339431621]
+modulate = Color(0.82, 0.86, 0.92, 1)
 z_index = -100
+texture_repeat = 2
+position = Vector2(33, 10)
 texture = ExtResource("3_ground")
 region_enabled = true
 region_rect = Rect2(-6000, -6000, 12000, 12000)
-modulate = Color(0.82, 0.86, 0.92, 1)
 
-[node name="Decorations" type="Node2D" parent="."]
+[node name="Decorations" type="Node2D" parent="." unique_id=2083607233]
 
-[node name="Pickups" type="Node2D" parent="."]
+[node name="Pickups" type="Node2D" parent="." unique_id=2127889104]
 z_index = 2
 
-[node name="Enemies" type="Node2D" parent="."]
+[node name="Enemies" type="Node2D" parent="." unique_id=4862803]
 z_index = 4
 
-[node name="Projectiles" type="Node2D" parent="."]
+[node name="Projectiles" type="Node2D" parent="." unique_id=443724873]
 z_index = 12
 
-[node name="EnemyProjectiles" type="Node2D" parent="."]
+[node name="EnemyProjectiles" type="Node2D" parent="." unique_id=2085387807]
 z_index = 11
 
-[node name="Effects" type="Node2D" parent="."]
+[node name="Effects" type="Node2D" parent="." unique_id=811499464]
 z_index = 14
 
-[node name="Player" type="CharacterBody2D" parent="." groups=["player"]]
+[node name="Player" type="CharacterBody2D" parent="." unique_id=778651700 groups=["player"]]
 z_index = 10
-collision_layer = 1
-collision_mask = 1
 script = ExtResource("2_player")
 bullet_scene = ExtResource("5_bullet")
 
-[node name="Shadow" type="Polygon2D" parent="Player"]
+[node name="Shadow" type="Polygon2D" parent="Player" unique_id=1496603875]
 position = Vector2(0, 20)
-polygon = PackedVector2Array(-25, 0, -18, -8, 18, -8, 25, 0, 18, 8, -18, 8)
 color = Color(0.015, 0.01, 0.035, 0.48)
+polygon = PackedVector2Array(-25, 0, -18, -8, 18, -8, 25, 0, 18, 8, -18, 8)
 
-[node name="Visual" type="Node2D" parent="Player"]
+[node name="Visual" type="Node2D" parent="Player" unique_id=1080294368]
 
-[node name="Sprite2D" type="Sprite2D" parent="Player/Visual"]
-position = Vector2(0, -17)
-scale = Vector2(0.092, 0.092)
+[node name="Sprite2D" type="Sprite2D" parent="Player/Visual" unique_id=1276457199]
 texture_filter = 1
+position = Vector2(1, -15)
+scale = Vector2(0.092, 0.092)
 texture = ExtResource("4_hero")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player" unique_id=1157126383]
 position = Vector2(0, 6)
 shape = SubResource("Capsule_player")
 
-[node name="Camera2D" type="Camera2D" parent="Player"]
+[node name="Camera2D" type="Camera2D" parent="Player" unique_id=1681997266]
 position_smoothing_enabled = true
 position_smoothing_speed = 9.0
 
-[node name="HUD" parent="." instance=ExtResource("6_hud")]
+[node name="HUD" parent="." unique_id=659912922 instance=ExtResource("6_hud")]
