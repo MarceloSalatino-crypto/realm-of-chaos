@@ -29,8 +29,8 @@ func _run() -> void:
 		if int(world.player.weapon_levels[weapon_id]) > 0:
 			starting_weapon_count += 1
 	_check(starting_weapon_count == 1 and world.player.equipped_weapon_id in world.player.WEAPON_IDS, "arma inicial não foi sorteada corretamente")
-	_check(world.player.weapon_sprite.texture != null, "arma sorteada não apareceu na mão do jogador")
-	_check(world.player.front_arm != null and world.player.front_leg != null, "jogador não usa rig articulado")
+	_check(world.player.sprite.texture != null, "a aparência da arma sorteada não foi aplicada ao jogador")
+	_check(world.player.sprite.hframes == 4 and world.player.sprite.vframes == 2, "jogador não usa a folha de animação 4x2")
 	_check(is_equal_approx(world.RUN_DURATION, 1500.0), "partida não está configurada para 25 minutos")
 	_check(world.BOSS_TIMES.size() == 5 and is_equal_approx(world.BOSS_TIMES[-1], 1440.0), "agenda de chefes incompleta")
 	var normal := GameDefs.difficulty_data(0.0)
@@ -52,21 +52,25 @@ func _run() -> void:
 	var animated_enemy = world.spawn_enemy("bat")
 	animated_enemy.global_position = world.player.global_position + Vector2(310, 0)
 	var initial_sprite_position: Vector2 = animated_enemy.sprite.position
-	var initial_wing_rotation: float = animated_enemy.front_arm.rotation
 	for _frame in range(6):
 		await process_frame
 	_check(not animated_enemy.sprite.position.is_equal_approx(initial_sprite_position), "inimigo permaneceu visualmente estático")
-	_check(not is_equal_approx(animated_enemy.front_arm.rotation, initial_wing_rotation), "asas ou braços inimigos permaneceram estáticos")
+	animated_enemy.animation_clock = 0.0
+	animated_enemy.attack_pulse = 0.0
+	animated_enemy.cast_pulse = 0.0
+	animated_enemy._animate_sprite(0.15)
+	_check(animated_enemy.sprite.hframes == 4 and animated_enemy.sprite.frame == 1, "asas ou braços inimigos permaneceram estáticos")
 
 	var target = world.spawn_enemy("prowler")
 	target.global_position = world.player.global_position + Vector2(90, 0)
-	var arm_before_attack: float = target.front_arm.rotation
-	target.attack_pulse = 0.55
-	target._animate_limb_rig(1.0, target.movement_age)
-	_check(not is_equal_approx(target.front_arm.rotation, arm_before_attack), "braço inimigo não executou o golpe")
+	target.attack_pulse = 1.0
+	target._animate_sprite(0.01)
+	_check(target.sprite.frame >= 2, "inimigo não exibiu o quadro de preparação do golpe")
 	world.player.weapon_levels.chaos_bolt = maxi(1, int(world.player.weapon_levels.chaos_bolt))
 	world.player._fire_chaos_bolt()
 	_check(world.player.attack_flash > 0.0 and world.player.attack_recoil > 0.0, "jogador não reagiu visualmente ao ataque")
+	world.player._animate_character(0.01, Vector2.RIGHT, false)
+	_check(world.player.sprite.frame_coords.y == 1, "jogador não exibiu a sequência visual da arma ao atacar")
 	await process_frame
 	_check(world.projectiles.get_child_count() > 0, "arma principal não criou projétil")
 

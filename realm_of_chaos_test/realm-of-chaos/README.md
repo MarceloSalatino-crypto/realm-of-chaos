@@ -19,9 +19,10 @@ Uma evolução completa do protótipo original para um loop no estilo survivor: 
 
 - Sessão completa de 25 minutos: Normal (0–5), Difícil (5–10), Caos (10–15) e Modo Inferno (15–25).
 - Seis arquétipos visuais: espreitador, morcego, mago, brutamonte, crânio de brasa e chefe.
-- Guardião modular com braços, pernas, capa e arma animados independentemente.
-- Arma inicial sorteada entre Besta do Caos, Lâmina Sombria, Cetro das Almas e Cajado da Nova, sempre visível na mão.
-- Animações procedurais por arquétipo, com membros/asas articulados, passada, ataque, impacto e morte.
+- Novo protagonista **Caçador do Eclipse**, com cabelo branco, meia-máscara de osso, sobretudo azul-noturno e cachecol carmesim.
+- Arma inicial sorteada entre Besta do Caos, Lâmina Sombria, Cetro das Almas e Cajado da Nova; cada resultado troca a aparência completa da personagem.
+- Animações quadro a quadro: caminhada em quatro poses e ataque em quatro poses específicas para cada arma, sem deformação artificial dos membros.
+- Seis folhas de animação inimigas com locomoção, preparação e golpe/conjuração próprios de cada arquétipo.
 - Chefes nas transições e no confronto final, elites aleatórios e escalada de vida/dano/quantidade.
 - Quatro armas evolutivas: Seta do Caos, Lâminas Sombrias, Órbita de Almas e Nova do Vazio.
 - Oito passivos para dano, velocidade, vida, coleta, armadura, regeneração e crítico.
@@ -42,7 +43,7 @@ godot --headless --path . --fixed-fps 60 --script res://tests/smoke_test.gd
 Saída esperada:
 
 ```text
-SMOKE TEST OK: mundo, 6 inimigos, combate, drops e upgrades validados
+SMOKE TEST OK: 25 minutos, 4 fases, animações, combate, upgrades e telas finais validados
 ```
 
 ## Estrutura principal

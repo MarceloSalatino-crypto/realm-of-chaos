@@ -1,16 +1,33 @@
 # Assets originais gerados
 
-Estes assets foram criados especificamente para **Realm of Chaos** com o gerador de imagens integrado do Codex e depois processados/localizados no projeto.
+Estes assets foram criados especificamente para **Realm of Chaos** com o gerador de imagens integrado do Codex e processados para uso direto no Godot.
 
-- `hero_chaos_warden.png`: Guardião do Caos em pixel art, fundo chroma removido para alfa.
-- `enemy_atlas.png`: atlas 3×2 com seis arquétipos; fundo chroma removido para alfa.
-- `corrupted_forest_ground.png`: terreno ortográfico de floresta corrompida usado com repetição na arena.
-- `hero_modular.png`: kit 2×2 do Guardião com torso, braço, perna e capa separados para animação articulada.
-- `weapon_chaos_bolt.png`: besta arcana de uma mão.
-- `weapon_shadow_blades.png`: lâmina sombria curva.
-- `weapon_soul_orbit.png`: cetro ritual com lâminas orbitais.
-- `weapon_chaos_nova.png`: cajado de cristal do vazio.
+## Protagonista
 
-Direção visual dos prompts: pixel art de fantasia sombria, paleta preta/bronze/violeta, silhuetas legíveis em escala de gameplay, sem texto, marcas ou elementos de terceiros. O kit modular preserva o Guardião original e separa as partes em quadrantes; cada arma foi solicitada isoladamente, com empunhadura clara e orientação própria para encaixe no rig.
+- `hero_eclipse_hunter.png`: arte principal do novo Caçador do Eclipse.
+- `hero_anim_chaos_bolt.png`: folha 4×2 com caminhada e disparo da Besta do Caos.
+- `hero_anim_shadow_blades.png`: folha 4×2 com caminhada e sequência de corte da Lâmina Sombria.
+- `hero_anim_soul_orbit.png`: folha 4×2 com caminhada e conjuração do Cetro das Almas.
+- `hero_anim_chaos_nova.png`: folha 4×2 com caminhada e conjuração do Cajado da Nova.
 
-Os PNGs transparentes foram validados com canal alfa e cantos totalmente transparentes. O terreno é opaco por design.
+Em cada folha da protagonista, a linha superior contém quatro poses de locomoção e a inferior quatro poses de ataque. A arma sorteada troca a folha inteira, portanto corpo, mãos e arma permanecem visualmente coerentes.
+
+## Inimigos
+
+- `enemy_anim_prowler.png`: passada, preparação e golpe de cutelo.
+- `enemy_anim_bat.png`: ciclo de asas e mergulho.
+- `enemy_anim_mage.png`: flutuação e conjuração.
+- `enemy_anim_brute.png`: marcha pesada e esmagamento.
+- `enemy_anim_ember.png`: oscilação das chamas e investida.
+- `enemy_anim_void_knight.png`: passada, preparação e corte do chefe.
+
+Cada inimigo usa quatro quadros horizontais: dois de locomoção, um de preparação e um de ataque/conjuração.
+
+## Mundo e legado
+
+- `corrupted_forest_ground.png`: terreno ortográfico repetível da floresta corrompida.
+- Os PNGs anteriores do Guardião, atlas e peças modulares foram preservados como material de legado, mas não são usados pela animação atual.
+
+Direção visual: pixel art de fantasia sombria, silhuetas legíveis na escala de gameplay, protagonista em azul-noturno/prata/carmesim e inimigos com identidades cromáticas próprias. Sem texto, marcas ou elementos de terceiros.
+
+Os sprites ativos possuem canal alfa e cantos transparentes. As dimensões das folhas foram validadas para divisão exata em seus quadros.

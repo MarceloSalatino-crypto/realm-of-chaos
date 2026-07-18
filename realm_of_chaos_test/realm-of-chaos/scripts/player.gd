@@ -6,16 +6,10 @@ signal died
 const GameDefs = preload("res://scripts/game_defs.gd")
 const WEAPON_IDS: Array[String] = ["chaos_bolt", "shadow_blades", "soul_orbit", "chaos_nova"]
 const WEAPON_TEXTURES := {
-	"chaos_bolt": preload("res://assets/generated/weapon_chaos_bolt.png"),
-	"shadow_blades": preload("res://assets/generated/weapon_shadow_blades.png"),
-	"soul_orbit": preload("res://assets/generated/weapon_soul_orbit.png"),
-	"chaos_nova": preload("res://assets/generated/weapon_chaos_nova.png")
-}
-const WEAPON_VISUALS := {
-	"chaos_bolt": {"scale": 0.044, "offset": Vector2(20.0, -6.0), "rotation": 0.0},
-	"shadow_blades": {"scale": 0.043, "offset": Vector2(14.0, -13.0), "rotation": 0.0},
-	"soul_orbit": {"scale": 0.044, "offset": Vector2(9.0, -14.0), "rotation": 0.0},
-	"chaos_nova": {"scale": 0.044, "offset": Vector2(12.0, -17.0), "rotation": 0.0}
+	"chaos_bolt": preload("res://assets/generated/hero_anim_chaos_bolt.png"),
+	"shadow_blades": preload("res://assets/generated/hero_anim_shadow_blades.png"),
+	"soul_orbit": preload("res://assets/generated/hero_anim_soul_orbit.png"),
+	"chaos_nova": preload("res://assets/generated/hero_anim_chaos_nova.png")
 }
 const WEAPON_TITLES := {
 	"chaos_bolt": "BESTA DO CAOS",
@@ -49,6 +43,7 @@ var attack_flash := 0.0
 var hurt_recoil := 0.0
 var death_started := false
 var equipped_weapon_id := ""
+var walk_animation_clock := 0.0
 
 var weapon_levels := {
 	"chaos_bolt": 0,
@@ -68,15 +63,7 @@ var orbit_angle := 0.0
 var orbit_hit_times: Dictionary = {}
 
 @onready var visual: Node2D = $Visual
-@onready var rig: Node2D = $Visual/Rig
-@onready var sprite: Sprite2D = $Visual/Rig/Body
-@onready var cape: Sprite2D = $Visual/Rig/Cape
-@onready var front_arm: Node2D = $Visual/Rig/FrontArm
-@onready var back_arm: Node2D = $Visual/Rig/BackArm
-@onready var front_leg: Node2D = $Visual/Rig/FrontLeg
-@onready var back_leg: Node2D = $Visual/Rig/BackLeg
-@onready var weapon_pivot: Node2D = $Visual/Rig/FrontArm/WeaponPivot
-@onready var weapon_sprite: Sprite2D = $Visual/Rig/FrontArm/WeaponPivot/Weapon
+@onready var sprite: Sprite2D = $Visual/Sprite2D
 @onready var shadow: Polygon2D = $Shadow
 @onready var collision_shape: CollisionShape2D = $CollisionShape2D
 
@@ -104,11 +91,10 @@ func _equip_weapon_visual(weapon_id: String) -> void:
 	if not WEAPON_TEXTURES.has(weapon_id):
 		return
 	equipped_weapon_id = weapon_id
-	var visual_data: Dictionary = WEAPON_VISUALS[weapon_id]
-	weapon_sprite.texture = WEAPON_TEXTURES[weapon_id]
-	weapon_sprite.scale = Vector2.ONE * float(visual_data.scale)
-	weapon_sprite.position = visual_data.offset
-	weapon_sprite.rotation = float(visual_data.rotation)
+	sprite.texture = WEAPON_TEXTURES[weapon_id]
+	sprite.hframes = 4
+	sprite.vframes = 2
+	sprite.frame_coords = Vector2i.ZERO
 
 
 func equipped_weapon_title() -> String:
@@ -142,65 +128,42 @@ func _physics_process(delta: float) -> void:
 
 
 func _animate_character(delta: float, direction: Vector2, is_moving: bool) -> void:
-	attack_recoil = move_toward(attack_recoil, 0.0, delta * 7.5)
+	attack_recoil = move_toward(attack_recoil, 0.0, delta * 4.0)
 	attack_flash = move_toward(attack_flash, 0.0, delta * 8.5)
 	hurt_recoil = move_toward(hurt_recoil, 0.0, delta * 6.0)
-	rig.scale.x = -1.0 if last_direction.x < 0.0 else 1.0
-	rig.scale.y = 1.0
+	sprite.flip_h = last_direction.x < 0.0
+
+	if attack_recoil > 0.0:
+		var attack_progress := clampf(1.0 - attack_recoil, 0.0, 0.999)
+		sprite.frame_coords = Vector2i(mini(3, int(attack_progress * 4.0)), 1)
+	elif is_moving:
+		walk_animation_clock += delta * 8.2
+		sprite.frame_coords = Vector2i(int(floor(walk_animation_clock)) % 4, 0)
+	else:
+		walk_animation_clock = 0.0
+		sprite.frame_coords = Vector2i.ZERO
 
 	var breathe := sin(motion_age * 2.35)
-	var stride := sin(motion_age * 10.5)
-	var hop: float = absf(sin(motion_age * 10.5)) if is_moving else (breathe + 1.0) * 0.5
+	var stride := sin(motion_age * 8.2)
+	var hop: float = absf(stride) if is_moving else (breathe + 1.0) * 0.5
 	var target_scale := Vector2(1.0, 1.0)
 	var target_rotation := 0.0
 	var target_position := Vector2.ZERO
 	if is_moving:
-		target_scale = Vector2(1.0 + stride * 0.025, 1.0 - stride * 0.035)
-		target_rotation = stride * 0.028 + direction.x * 0.018
-		target_position = Vector2(-last_direction.x * attack_recoil * 3.5, -hop * 4.0)
+		target_rotation = direction.x * 0.008
+		target_position = Vector2(-last_direction.x * attack_recoil * 1.5, -hop * 0.65)
 	else:
-		target_scale = Vector2(1.0 - breathe * 0.012, 1.0 + breathe * 0.018)
-		target_rotation = breathe * 0.006
-		target_position = Vector2(-last_direction.x * attack_recoil * 3.5, -hop * 1.4)
+		target_scale = Vector2(1.0 - breathe * 0.004, 1.0 + breathe * 0.006)
+		target_rotation = breathe * 0.002
+		target_position = Vector2(-last_direction.x * attack_recoil * 1.5, -hop * 0.35)
 	if hurt_recoil > 0.0:
-		target_scale += Vector2(hurt_recoil * 0.09, -hurt_recoil * 0.09)
-		target_rotation += sin(motion_age * 42.0) * hurt_recoil * 0.055
+		target_scale += Vector2(hurt_recoil * 0.035, -hurt_recoil * 0.035)
+		target_rotation += sin(motion_age * 42.0) * hurt_recoil * 0.025
 
 	var smoothing := 1.0 - exp(-delta * 15.0)
 	visual.scale = visual.scale.lerp(target_scale, smoothing)
 	visual.rotation = lerpf(visual.rotation, target_rotation, smoothing)
 	visual.position = visual.position.lerp(target_position, smoothing)
-
-	var walk_weight := 1.0 if is_moving else 0.0
-	var front_leg_target := stride * 0.30 * walk_weight
-	var back_leg_target := -stride * 0.30 * walk_weight
-	var front_arm_target := -stride * 0.20 * walk_weight + breathe * 0.025
-	var back_arm_target := stride * 0.22 * walk_weight - breathe * 0.025
-	var weapon_target := 0.0
-	if attack_recoil > 0.0:
-		var attack_progress := 1.0 - attack_recoil
-		match equipped_weapon_id:
-			"shadow_blades":
-				front_arm_target += sin(attack_progress * PI) * 1.35 - attack_recoil * 0.42
-				back_arm_target -= sin(attack_progress * PI) * 0.28
-			"chaos_nova":
-				front_arm_target -= attack_recoil * 1.05
-				back_arm_target += attack_recoil * 0.62
-				weapon_target = sin(attack_progress * PI) * 0.18
-			"soul_orbit":
-				front_arm_target += sin(attack_progress * TAU) * 0.58
-			"chaos_bolt":
-				front_arm_target -= attack_recoil * 0.58
-				back_arm_target += attack_recoil * 0.20
-				weapon_target = -front_arm_target * 0.55
-	if equipped_weapon_id == "soul_orbit":
-		weapon_target += sin(motion_age * 2.8) * 0.10
-	front_leg.rotation = lerpf(front_leg.rotation, front_leg_target, smoothing)
-	back_leg.rotation = lerpf(back_leg.rotation, back_leg_target, smoothing)
-	front_arm.rotation = lerpf(front_arm.rotation, front_arm_target, smoothing)
-	back_arm.rotation = lerpf(back_arm.rotation, back_arm_target, smoothing)
-	weapon_pivot.rotation = lerpf(weapon_pivot.rotation, weapon_target, smoothing)
-	cape.rotation = lerpf(cape.rotation, -stride * 0.035 * walk_weight + breathe * 0.012, smoothing)
 	var shadow_scale := Vector2(1.0 + hop * 0.035, 1.0 - hop * 0.045)
 	shadow.scale = shadow.scale.lerp(shadow_scale, 1.0 - exp(-delta * 10.0))
 	shadow.color.a = lerpf(shadow.color.a, 0.40 - hop * 0.035, smoothing)
@@ -309,6 +272,7 @@ func _damage_orbit(weapon_level: int) -> void:
 			var blade_position := global_position + Vector2.RIGHT.rotated(orbit_angle + TAU * index / blade_count) * radius
 			if blade_position.distance_to(enemy.global_position) <= 28.0 + enemy.hit_radius:
 				orbit_hit_times[enemy_id] = now
+				attack_recoil = 1.0
 				enemy.take_damage((8.0 + weapon_level * 3.0) * damage_multiplier, (enemy.global_position - global_position).normalized() * 8.0)
 				break
 

@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://dgrj3a2al8q4u" path="res://scripts/world.gd" id="1_world"]
 [ext_resource type="Script" uid="uid://j68vmoh5u010" path="res://scripts/player.gd" id="2_player"]
 [ext_resource type="Texture2D" uid="uid://bgkgc0j37rwjn" path="res://assets/generated/corrupted_forest_ground.png" id="3_ground"]
-[ext_resource type="Texture2D" uid="uid://c4v0bqhtxvwkr" path="res://assets/generated/hero_chaos_warden.png" id="4_hero"]
+[ext_resource type="Texture2D" path="res://assets/generated/hero_anim_chaos_bolt.png" id="4_hero"]
 [ext_resource type="PackedScene" path="res://scenes/bullet.tscn" id="5_bullet"]
 [ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="6_hud"]
 
@@ -54,9 +54,11 @@ polygon = PackedVector2Array(-25, 0, -18, -8, 18, -8, 25, 0, 18, 8, -18, 8)
 
 [node name="Sprite2D" type="Sprite2D" parent="Player/Visual" unique_id=1276457199]
 texture_filter = 1
-position = Vector2(1, -15)
-scale = Vector2(0.092, 0.092)
+position = Vector2(0, -18)
+scale = Vector2(0.19, 0.19)
 texture = ExtResource("4_hero")
+hframes = 4
+vframes = 2
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Player" unique_id=1157126383]
 position = Vector2(0, 6)
