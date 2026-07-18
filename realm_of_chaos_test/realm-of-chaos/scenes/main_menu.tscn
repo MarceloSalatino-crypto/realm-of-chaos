@@ -154,10 +154,10 @@ text = "O véu se rompeu. Transforme a horda\nno combustível da sua ascensão."
 [node name="Menu" type="VBoxContainer" parent="."]
 layout_mode = 0
 offset_left = 70.0
-offset_top = 382.0
+offset_top = 370.0
 offset_right = 508.0
-offset_bottom = 691.0
-theme_override_constants/separation = 13
+offset_bottom = 704.0
+theme_override_constants/separation = 10
 
 [node name="Play" type="Button" parent="Menu"]
 custom_minimum_size = Vector2(0, 68)
@@ -180,6 +180,16 @@ theme_override_styles/hover = SubResource("Button_hover")
 theme_override_styles/pressed = SubResource("Button_pressed")
 theme_override_styles/focus = SubResource("Button_hover")
 text = "COMO JOGAR"
+
+[node name="Meta" type="Button" parent="Menu"]
+custom_minimum_size = Vector2(0, 54)
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+theme_override_styles/normal = SubResource("Button_normal")
+theme_override_styles/hover = SubResource("Button_hover")
+theme_override_styles/pressed = SubResource("Button_pressed")
+theme_override_styles/focus = SubResource("Button_hover")
+text = "LEGADO E MELHORIAS"
 
 [node name="Credits" type="Button" parent="Menu"]
 custom_minimum_size = Vector2(0, 54)

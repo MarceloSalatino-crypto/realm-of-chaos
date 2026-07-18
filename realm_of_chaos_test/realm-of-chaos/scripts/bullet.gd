@@ -10,6 +10,11 @@ var lifetime := 2.2
 var projectile_color := Color("a96cff")
 var critical := false
 var hit_targets: Dictionary = {}
+var world: Node
+
+
+func _ready() -> void:
+	world = get_tree().get_first_node_in_group("world")
 
 
 func setup(
@@ -43,7 +48,8 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	var candidates: Array[Node] = world.get_enemies_near(global_position, hit_radius + 64.0) if world and world.has_method("get_enemies_near") else get_tree().get_nodes_in_group("enemies")
+	for enemy in candidates:
 		if not is_instance_valid(enemy):
 			continue
 		var enemy_id := enemy.get_instance_id()

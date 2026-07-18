@@ -20,6 +20,8 @@ func _run() -> void:
 	var world = world_scene.instantiate()
 	root.add_child(world)
 	await process_frame
+	world.suppress_save = true
+	world.audio.enabled = false
 
 	_check(is_instance_valid(world.player), "player não foi instanciado")
 	_check(world.decorations.get_child_count() == 310, "mundo procedural incompleto")
@@ -32,7 +34,11 @@ func _run() -> void:
 	_check(world.player.sprite.texture != null, "a aparência da arma sorteada não foi aplicada ao jogador")
 	_check(world.player.sprite.hframes == 4 and world.player.sprite.vframes == 2, "jogador não usa a folha de animação 4x2")
 	_check(is_equal_approx(world.RUN_DURATION, 1500.0), "partida não está configurada para 25 minutos")
-	_check(world.BOSS_TIMES.size() == 5 and is_equal_approx(world.BOSS_TIMES[-1], 1440.0), "agenda de chefes incompleta")
+	_check(world.BOSS_TIMES.size() == 5 and is_equal_approx(world.BOSS_TIMES[-1], 1500.0), "agenda de chefes incompleta")
+	var boss_schedule := GameDefs.boss_schedule()
+	_check(boss_schedule.size() == 5, "sequência de mini-chefes e chefe final incompleta")
+	_check(float(boss_schedule[0].time) == 300.0 and float(boss_schedule[1].time) == 600.0 and float(boss_schedule[2].time) == 900.0 and float(boss_schedule[3].time) == 1200.0 and float(boss_schedule[4].time) == 1500.0, "chefes não estão agendados em 5, 10, 15, 20 e 25 minutos")
+	_check(str(boss_schedule[4].kind) == "chaos_sovereign" and bool(boss_schedule[4].final), "Soberano do Caos não é o chefe final")
 	var normal := GameDefs.difficulty_data(0.0)
 	var hard := GameDefs.difficulty_data(300.0)
 	var chaos := GameDefs.difficulty_data(600.0)
@@ -42,13 +48,16 @@ func _run() -> void:
 	_check(int(normal.batch) < int(hard.batch) and int(hard.batch) < int(chaos.batch) and int(chaos.batch) < int(inferno.batch), "volume das hordas não cresce entre as fases")
 	_check(float(normal.power) < float(hard.power) and float(hard.power) < float(chaos.power) and float(chaos.power) < float(inferno.power), "poder inimigo não cresce entre as fases")
 
-	for kind in ["prowler", "bat", "mage", "brute", "ember", "void_knight"]:
+	for kind in ["prowler", "bat", "mage", "brute", "ember", "bomber", "necromancer", "archer", "assassin", "swarm", "guardian"]:
 		var enemy = world.spawn_enemy(kind)
 		_check(enemy != null, "falha ao criar inimigo: " + kind)
 		if enemy:
 			enemy.global_position = world.player.global_position + Vector2(280, 0)
 	await process_frame
-	_check(world.enemies.get_child_count() >= 6, "diretor não manteve o bestiário ativo")
+	_check(world.enemies.get_child_count() >= 11, "diretor não manteve o bestiário expandido ativo")
+	world._rebuild_spatial_grid()
+	_check(world.get_enemies_near(world.player.global_position, 400.0).size() >= 11, "índice espacial não encontrou a horda próxima")
+	_check(world.get_nearest_enemy(world.player.global_position) != null, "busca espacial não encontrou o alvo mais próximo")
 	var animated_enemy = world.spawn_enemy("bat")
 	animated_enemy.global_position = world.player.global_position + Vector2(310, 0)
 	var initial_sprite_position: Vector2 = animated_enemy.sprite.position
@@ -85,19 +94,47 @@ func _run() -> void:
 	_check(world.player.damage_multiplier > old_damage, "upgrade passivo não foi aplicado")
 	world.player.apply_upgrade("soul_orbit", "RARO")
 	_check(world.player.weapon_levels.soul_orbit > 0, "arma desbloqueável não foi aplicada")
+	world.player.weapon_levels.chaos_bolt = 8
+	world.player.passive_levels.critical = 3
+	world.player._check_weapon_evolutions()
+	_check(world.player.evolved_weapons.chaos_bolt, "Balista Abissal não evoluiu com a combinação correta")
+	_check("BALISTA" in world.player.weapon_summary(), "HUD não identifica a arma evoluída")
 	_check(world.player.get_upgrade_options(3).size() == 3, "seleção de upgrades incompleta")
 	world._on_level_up_requested()
 	await process_frame
 	_check(world.upgrade_active and world.hud.upgrade_overlay.visible, "fluxo visual de level-up não abriu")
 	world._on_upgrade_selected("magnet", "COMUM")
 	_check(not paused and not world.hud.upgrade_overlay.visible, "fluxo de level-up não retomou a partida")
+	var old_pickup_radius: float = world.player.pickup_radius
+	world._trigger_world_event("soul_storm")
+	_check(world.current_event == "soul_storm" and world.player.pickup_radius > old_pickup_radius, "evento Tempestade de Almas não foi aplicado")
+	world._end_world_event()
+	_check(is_equal_approx(world.player.pickup_radius, old_pickup_radius), "bônus temporário do evento não foi removido")
+	var old_meta_damage: float = world.player.damage_multiplier
+	world.player.apply_meta_bonuses({"power": 2, "vitality": 1, "speed": 1, "fortune": 1})
+	_check(world.player.damage_multiplier > old_meta_damage and world.player.max_hp >= 135.0, "metaprogressão não aplicou bônus permanentes")
+
+	for index in range(boss_schedule.size()):
+		var scheduled_boss = world._spawn_scheduled_boss(boss_schedule[index], index)
+		_check(scheduled_boss != null and scheduled_boss.boss and scheduled_boss.sprite.hframes == 4, "falha ao criar chefe agendado: " + str(boss_schedule[index].kind))
+		if scheduled_boss:
+			scheduled_boss.set_physics_process(false)
+	_check(world.boss_spawn_log.size() == 5 and world.final_boss_spawned, "diretor não registrou os cinco confrontos")
+	var final_boss = world.active_boss
+	_check(final_boss.final_boss and final_boss.enemy_type == "chaos_sovereign", "chefe dos 25 minutos não foi marcado como final")
+	final_boss.hp = final_boss.max_hp * 0.30
+	final_boss._update_boss_phase()
+	_check(final_boss.boss_phase == 3, "chefe final não entrou na terceira fase")
+	var colossus = world.enemies.get_children().filter(func(candidate): return candidate.enemy_type == "ossuary_colossus")[0]
+	colossus._begin_special("slam", 0.8)
+	_check(colossus.pending_special == "slam" and colossus.telegraph_time > 0.0 and colossus.sprite.frame <= 3, "mini-chefe não sinalizou o ataque")
 
 	world.hud.show_end_screen(false, 742.0, 99, 12)
 	_check(world.hud.end_overlay.visible and world.hud.end_title.text == "GAME OVER", "tela de derrota não abriu")
 	_check("12:22" in world.hud.end_summary.text and "99" in world.hud.end_summary.text, "resumo da derrota não mostra tempo e eliminações")
 	world.hud.end_overlay.hide()
 	world.hud.show_end_screen(true, 1500.0, 321, 28)
-	_check(world.hud.end_title.text == "VITÓRIA!" and "25:00" in world.hud.end_summary.text, "tela de vitória dos 25 minutos incorreta")
+	_check(world.hud.end_title.text == "VITÓRIA!" and "25:00" in world.hud.end_summary.text and world.hud.get_node("EndOverlay/Panel/Margin/VBox/Restart").text == "PRÓXIMA FASE", "tela de vitória do chefe final incorreta")
 	_check(world.hud.get_node("EndOverlay/Panel/Margin/VBox/Restart") != null and world.hud.get_node("EndOverlay/Panel/Margin/VBox/Menu") != null, "telas finais sem reiniciar ou menu")
 	world.hud.end_overlay.hide()
 	world.hud.modal_open = false
@@ -112,7 +149,7 @@ func _run() -> void:
 	world.queue_free()
 	await process_frame
 	if failures.is_empty():
-		print("SMOKE TEST OK: 25 minutos, 4 fases, animações, combate, upgrades e telas finais validados")
+		print("SMOKE TEST OK: horda expandida, evoluções, eventos, metaprogressão, mini-chefes e chefe final validados")
 		quit(0)
 	else:
 		print("SMOKE TEST FALHOU: %d problema(s)" % failures.size())

@@ -14,8 +14,10 @@ var modal_open := false
 @onready var timer_label: Label = $Top/Timer
 @onready var level_label: Label = $Top/Level
 @onready var kills_label: Label = $Top/Kills
+@onready var essence_label: Label = $Top/Essence
 @onready var stage_label: Label = $Top/Stage
 @onready var weapons_label: Label = $Weapons
+@onready var world_event_label: Label = $WorldEvent
 @onready var boss_panel: Control = $Boss
 @onready var boss_bar: ProgressBar = $Boss/Bar
 @onready var boss_label: Label = $Boss/Name
@@ -47,7 +49,8 @@ func _ready() -> void:
 
 func update_run(
 	current_hp: float, maximum_hp: float, current_xp: int, needed_xp: int,
-	level: int, kills: int, remaining: float, stage: String, weapon_summary: String
+	level: int, kills: int, remaining: float, stage: String, weapon_summary: String,
+	essence := 0, event_title := ""
 ) -> void:
 	health_bar.max_value = maximum_hp
 	health_bar.value = current_hp
@@ -56,6 +59,8 @@ func update_run(
 	xp_bar.value = current_xp
 	level_label.text = "NÍVEL %02d" % level
 	kills_label.text = "☠  %04d" % kills
+	essence_label.text = "ESSÊNCIA  %03d" % essence
+	world_event_label.text = event_title
 	var minutes := int(remaining) / 60
 	var seconds := int(remaining) % 60
 	timer_label.text = "%02d:%02d" % [minutes, seconds]
@@ -78,6 +83,11 @@ func show_boss(name: String, current: float, maximum: float) -> void:
 	update_boss(current, maximum)
 
 
+func set_boss_phase(phase: int) -> void:
+	var base_name := boss_label.text.split(" · FASE")[0]
+	boss_label.text = "%s · FASE %d" % [base_name, phase]
+
+
 func update_boss(current: float, maximum: float) -> void:
 	boss_bar.max_value = maximum
 	boss_bar.value = maxf(0.0, current)
@@ -85,6 +95,15 @@ func update_boss(current: float, maximum: float) -> void:
 
 func hide_boss() -> void:
 	boss_panel.hide()
+
+
+func show_event(title: String, color: Color) -> void:
+	world_event_label.text = title
+	world_event_label.add_theme_color_override("font_color", color.lightened(0.25))
+	world_event_label.modulate = Color(1, 1, 1, 0)
+	var tween := create_tween()
+	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tween.tween_property(world_event_label, "modulate", Color.WHITE, 0.22)
 
 
 func show_level_up(new_level: int, options: Array[Dictionary]) -> void:
@@ -138,15 +157,16 @@ func flash_damage() -> void:
 	tween.tween_property(damage_flash, "color", Color(0.65, 0.02, 0.12, 0.0), 0.35)
 
 
-func show_end_screen(victory: bool, survived: float, kills: int, level: int) -> void:
+func show_end_screen(victory: bool, survived: float, kills: int, level: int, essence := 0, next_biome := "") -> void:
 	modal_open = true
 	end_overlay.show()
 	end_title.text = "VITÓRIA!" if victory else "GAME OVER"
 	end_title.add_theme_color_override("font_color", Color("ffd36b") if victory else Color("ff687d"))
 	var minutes := int(survived) / 60
 	var seconds := int(survived) % 60
-	var result_line := "Você sobreviveu aos 25 minutos e selou o Véu." if victory else "Sua jornada terminou, mas o próximo ritual aguarda."
-	end_summary.text = "%s\n\nTempo sobrevivido  %02d:%02d\nInimigos mortos  %d\nNível alcançado  %d" % [result_line, minutes, seconds, kills, level]
+	var result_line := "O chefe final caiu. A próxima fase foi aberta: %s." % next_biome if victory else "Sua jornada terminou, mas você pode reiniciar esta fase."
+	end_summary.text = "%s\n\nTempo sobrevivido  %02d:%02d\nInimigos mortos  %d\nNível alcançado  %d\nEssência conquistada  %d" % [result_line, minutes, seconds, kills, level, essence]
+	$EndOverlay/Panel/Margin/VBox/Restart.text = "PRÓXIMA FASE" if victory else "TENTAR NOVAMENTE"
 	$EndOverlay/Panel/Margin/VBox/Restart.grab_focus()
 
 

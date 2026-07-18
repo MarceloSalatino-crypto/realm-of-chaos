@@ -55,6 +55,12 @@ var passive_levels := {
 	"might": 0, "haste": 0, "vitality": 0, "swiftness": 0,
 	"magnet": 0, "armor": 0, "regeneration": 0, "critical": 0
 }
+var evolved_weapons := {
+	"chaos_bolt": false,
+	"shadow_blades": false,
+	"soul_orbit": false,
+	"chaos_nova": false
+}
 var bolt_timer := 0.15
 var blades_timer := 1.0
 var nova_timer := 4.0
@@ -202,33 +208,36 @@ func _update_weapons(delta: float) -> void:
 func _fire_chaos_bolt() -> void:
 	var target := _nearest_enemy()
 	var weapon_level: int = weapon_levels.chaos_bolt
-	bolt_timer = maxf(0.16, (0.68 - weapon_level * 0.045) * cooldown_multiplier)
+	var evolved := bool(evolved_weapons.chaos_bolt)
+	bolt_timer = maxf(0.12 if evolved else 0.16, (0.48 if evolved else 0.68 - weapon_level * 0.045) * cooldown_multiplier)
 	if not target:
 		return
-	var count := 1 + int((weapon_level - 1) / 3.0)
+	var count := (3 + int(weapon_level / 4.0)) if evolved else (1 + int((weapon_level - 1) / 3.0))
 	var base_direction := (target.global_position - global_position).normalized()
 	for index in range(count):
 		var offset := float(index) - float(count - 1) * 0.5
 		_spawn_player_projectile(
-			base_direction.rotated(offset * 0.12),
-			(14.0 + weapon_level * 4.2) * damage_multiplier,
-			650.0, int(weapon_level / 3.0), 8.0 + weapon_level * 0.7, Color("a96cff")
+			base_direction.rotated(offset * (0.09 if evolved else 0.12)),
+			(14.0 + weapon_level * 4.2) * damage_multiplier * (2.05 if evolved else 1.0),
+			760.0 if evolved else 650.0, 8 if evolved else int(weapon_level / 3.0),
+			14.0 if evolved else 8.0 + weapon_level * 0.7, Color("ffd36b") if evolved else Color("a96cff")
 		)
 
 
 func _fire_shadow_blades(weapon_level: int) -> void:
 	var target := _nearest_enemy()
-	blades_timer = maxf(0.45, (2.0 - weapon_level * 0.16) * cooldown_multiplier)
+	var evolved := bool(evolved_weapons.shadow_blades)
+	blades_timer = maxf(0.36 if evolved else 0.45, (0.78 if evolved else 2.0 - weapon_level * 0.16) * cooldown_multiplier)
 	if not target:
 		return
-	var count := 2 + weapon_level
+	var count := 16 if evolved else 2 + weapon_level
 	var base_direction := (target.global_position - global_position).normalized()
 	for index in range(count):
-		var offset := float(index) - float(count - 1) * 0.5
+		var direction := Vector2.RIGHT.rotated(TAU * index / count) if evolved else base_direction.rotated((float(index) - float(count - 1) * 0.5) * 0.13)
 		_spawn_player_projectile(
-			base_direction.rotated(offset * 0.13),
-			(10.0 + weapon_level * 3.0) * damage_multiplier,
-			760.0, 1, 6.0, Color("ff557d")
+			direction, (10.0 + weapon_level * 3.0) * damage_multiplier * (1.62 if evolved else 1.0),
+			820.0 if evolved else 760.0, 3 if evolved else 1, 8.0 if evolved else 6.0,
+			Color("df63ff") if evolved else Color("ff557d")
 		)
 
 
@@ -257,10 +266,11 @@ func _spawn_player_projectile(
 
 func _damage_orbit(weapon_level: int) -> void:
 	orbit_tick = 0.10
-	var radius := 72.0 + weapon_level * 8.0
-	var blade_count := 2 + int(weapon_level / 2.0)
+	var evolved := bool(evolved_weapons.soul_orbit)
+	var radius := 122.0 + weapon_level * 8.0 if evolved else 72.0 + weapon_level * 8.0
+	var blade_count := 6 + int(weapon_level / 2.0) if evolved else 2 + int(weapon_level / 2.0)
 	var now := Time.get_ticks_msec()
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in _enemies_near(radius + 60.0):
 		if not is_instance_valid(enemy):
 			continue
 		if global_position.distance_to(enemy.global_position) > radius + enemy.hit_radius:
@@ -273,37 +283,51 @@ func _damage_orbit(weapon_level: int) -> void:
 			if blade_position.distance_to(enemy.global_position) <= 28.0 + enemy.hit_radius:
 				orbit_hit_times[enemy_id] = now
 				attack_recoil = 1.0
-				enemy.take_damage((8.0 + weapon_level * 3.0) * damage_multiplier, (enemy.global_position - global_position).normalized() * 8.0)
+				var is_critical := randf() < crit_chance
+				var amount := (8.0 + weapon_level * 3.0) * damage_multiplier * (1.85 if evolved else 1.0) * (2.0 if is_critical else 1.0)
+				enemy.take_damage(amount, (enemy.global_position - global_position).normalized() * (18.0 if evolved else 8.0), is_critical)
+				if evolved:
+					heal(0.35, false)
 				break
 
 
 func _cast_nova(weapon_level: int) -> void:
-	var radius := 155.0 + weapon_level * 24.0
-	nova_timer = maxf(2.4, (6.2 - weapon_level * 0.48) * cooldown_multiplier)
+	var evolved := bool(evolved_weapons.chaos_nova)
+	var radius := 275.0 + weapon_level * 26.0 if evolved else 155.0 + weapon_level * 24.0
+	nova_timer = maxf(1.35 if evolved else 2.4, (3.1 if evolved else 6.2 - weapon_level * 0.48) * cooldown_multiplier)
 	attack_direction = last_direction
 	attack_recoil = 1.0
 	attack_flash = 1.0
 	queue_redraw()
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in _enemies_near(radius + 70.0):
 		if is_instance_valid(enemy) and global_position.distance_to(enemy.global_position) <= radius + enemy.hit_radius:
-			var force: Vector2 = (enemy.global_position - global_position).normalized() * 85.0
-			enemy.take_damage((25.0 + weapon_level * 9.0) * damage_multiplier, force)
+			var force: Vector2 = (enemy.global_position - global_position).normalized() * (155.0 if evolved else 85.0)
+			var is_critical := randf() < crit_chance
+			var amount := (25.0 + weapon_level * 9.0) * damage_multiplier * (2.1 if evolved else 1.0) * (2.0 if is_critical else 1.0)
+			enemy.take_damage(amount, force, is_critical)
 	var world := get_tree().get_first_node_in_group("world")
 	if world:
-		world.spawn_effect(global_position, Color("bd72ff"), radius, 0.55, true)
+		world.spawn_effect(global_position, Color("ffd36b") if evolved else Color("bd72ff"), radius, 0.72 if evolved else 0.55, true)
+		if evolved:
+			world.shake_camera(6.0, 0.24)
 
 
 func _nearest_enemy() -> Node2D:
-	var nearest: Node2D
-	var nearest_distance := INF
+	var world := get_tree().get_first_node_in_group("world")
+	if world and world.has_method("get_nearest_enemy"):
+		return world.get_nearest_enemy(global_position)
+	return null
+
+
+func _enemies_near(radius: float) -> Array[Node]:
+	var world := get_tree().get_first_node_in_group("world")
+	if world and world.has_method("get_enemies_near"):
+		return world.get_enemies_near(global_position, radius)
+	var fallback: Array[Node] = []
 	for enemy in get_tree().get_nodes_in_group("enemies"):
-		if not is_instance_valid(enemy):
-			continue
-		var distance := global_position.distance_squared_to(enemy.global_position)
-		if distance < nearest_distance:
-			nearest_distance = distance
-			nearest = enemy
-	return nearest
+		if is_instance_valid(enemy) and global_position.distance_to(enemy.global_position) <= radius:
+			fallback.append(enemy)
+	return fallback
 
 
 func take_damage(amount: float, source_direction := Vector2.ZERO) -> void:
@@ -349,6 +373,7 @@ func heal(amount: float, show_effect := true) -> void:
 		var world := get_tree().get_first_node_in_group("world")
 		if world:
 			world.spawn_effect(global_position, Color("65ff9a"), 55.0, 0.35)
+			world.spawn_damage_number(global_position, hp - old_hp, false, true)
 
 
 func collect_xp(amount: int) -> void:
@@ -393,9 +418,10 @@ func get_upgrade_level(upgrade_id: String) -> int:
 func apply_upgrade(upgrade_id: String, rarity := "COMUM") -> void:
 	var bonus := 2 if rarity == "LENDÁRIO" else 1
 	if weapon_levels.has(upgrade_id):
-		weapon_levels[upgrade_id] = mini(8, int(weapon_levels[upgrade_id]) + bonus)
+		weapon_levels[upgrade_id] = mini(_upgrade_max(upgrade_id), int(weapon_levels[upgrade_id]) + bonus)
+		_check_weapon_evolutions()
 		return
-	passive_levels[upgrade_id] = int(passive_levels.get(upgrade_id, 0)) + 1
+	passive_levels[upgrade_id] = mini(_upgrade_max(upgrade_id), int(passive_levels.get(upgrade_id, 0)) + bonus)
 	match upgrade_id:
 		"might":
 			damage_multiplier *= 1.15 if rarity == "COMUM" else 1.22
@@ -415,33 +441,77 @@ func apply_upgrade(upgrade_id: String, rarity := "COMUM") -> void:
 			regeneration += 0.65 if rarity == "COMUM" else 1.0
 		"critical":
 			crit_chance += 0.07 if rarity == "COMUM" else 0.11
+	_check_weapon_evolutions()
+
+
+func _upgrade_max(upgrade_id: String) -> int:
+	for definition in GameDefs.upgrades():
+		if str(definition.id) == upgrade_id:
+			return int(definition.max)
+	return 8
+
+
+func _check_weapon_evolutions() -> void:
+	for weapon_id in WEAPON_IDS:
+		if bool(evolved_weapons[weapon_id]):
+			continue
+		var evolution := GameDefs.evolution_data(weapon_id)
+		if evolution.is_empty():
+			continue
+		if int(weapon_levels[weapon_id]) < int(evolution.weapon_level):
+			continue
+		if int(passive_levels.get(str(evolution.passive), 0)) < int(evolution.passive_level):
+			continue
+		evolved_weapons[weapon_id] = true
+		var world := get_tree().get_first_node_in_group("world")
+		if world:
+			world.on_weapon_evolved(str(evolution.title))
+
+
+func apply_meta_bonuses(meta: Dictionary) -> void:
+	var power_level := int(meta.get("power", 0))
+	var vitality_level := int(meta.get("vitality", 0))
+	var speed_level := int(meta.get("speed", 0))
+	var fortune_level := int(meta.get("fortune", 0))
+	damage_multiplier *= 1.0 + power_level * 0.05
+	max_hp += vitality_level * 10.0
+	hp = max_hp
+	move_speed *= 1.0 + speed_level * 0.03
+	crit_chance += fortune_level * 0.015
+
+
+func grant_boss_reward(final_reward := false) -> void:
+	damage_multiplier *= 1.08 if final_reward else 1.045
+	max_hp += 12.0 if final_reward else 5.0
+	heal(max_hp * (0.35 if final_reward else 0.18))
 
 
 func weapon_summary() -> String:
 	var names: Array[String] = []
 	if weapon_levels.chaos_bolt > 0:
-		names.append("Besta %d" % weapon_levels.chaos_bolt)
+		names.append("BALISTA ✦" if evolved_weapons.chaos_bolt else "Besta %d" % weapon_levels.chaos_bolt)
 	if weapon_levels.shadow_blades > 0:
-		names.append("Lâmina %d" % weapon_levels.shadow_blades)
+		names.append("DANÇA ◆" if evolved_weapons.shadow_blades else "Lâmina %d" % weapon_levels.shadow_blades)
 	if weapon_levels.soul_orbit > 0:
-		names.append("Cetro %d" % weapon_levels.soul_orbit)
+		names.append("DEVORADOR ◉" if evolved_weapons.soul_orbit else "Cetro %d" % weapon_levels.soul_orbit)
 	if weapon_levels.chaos_nova > 0:
-		names.append("Cajado %d" % weapon_levels.chaos_nova)
+		names.append("COLAPSO ☼" if evolved_weapons.chaos_nova else "Cajado %d" % weapon_levels.chaos_nova)
 	return "  ·  ".join(names)
 
 
 func _draw() -> void:
 	var orbit_level: int = weapon_levels.soul_orbit
 	if orbit_level > 0:
-		var radius := 72.0 + orbit_level * 8.0
-		var blade_count := 2 + int(orbit_level / 2.0)
-		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 64, Color(0.63, 0.30, 1.0, 0.18), 2.0)
+		var evolved := bool(evolved_weapons.soul_orbit)
+		var radius := 122.0 + orbit_level * 8.0 if evolved else 72.0 + orbit_level * 8.0
+		var blade_count := 6 + int(orbit_level / 2.0) if evolved else 2 + int(orbit_level / 2.0)
+		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 64, Color(1.0, 0.72, 0.28, 0.24) if evolved else Color(0.63, 0.30, 1.0, 0.18), 3.0 if evolved else 2.0)
 		for index in range(blade_count):
 			var position := Vector2.RIGHT.rotated(orbit_angle + TAU * index / blade_count) * radius
 			draw_circle(position, 14.0, Color(0.53, 0.20, 0.95, 0.18))
 			draw_colored_polygon(PackedVector2Array([
 				position + Vector2(-3, -12), position + Vector2(5, 0), position + Vector2(-3, 12), position + Vector2(-8, 0)
-			]), Color("d9b3ff"))
+			]), Color("ffd36b") if evolved else Color("d9b3ff"))
 	if attack_flash > 0.0:
 		var muzzle := attack_direction * 39.0 + Vector2(0.0, -9.0)
 		var glow := Color(0.78, 0.38, 1.0, attack_flash * 0.34)

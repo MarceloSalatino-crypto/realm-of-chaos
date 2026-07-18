@@ -37,6 +37,9 @@ func _physics_process(delta: float) -> void:
 			player.heal(float(value))
 		else:
 			player.collect_xp(value)
+		var world := get_tree().get_first_node_in_group("world")
+		if world and (pickup_kind == "heal" or value >= 8):
+			world.audio.play_pickup()
 		queue_free()
 	queue_redraw()
 

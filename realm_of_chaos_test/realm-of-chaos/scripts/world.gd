@@ -4,22 +4,45 @@ const GameDefs = preload("res://scripts/game_defs.gd")
 const EnemyScene = preload("res://scenes/enemies/enemy.tscn")
 const GemScene = preload("res://scenes/xp_gem.tscn")
 const EffectScript = preload("res://scripts/effect.gd")
+const DamageNumberScript = preload("res://scripts/damage_number.gd")
+const AudioDirectorScript = preload("res://scripts/audio_director.gd")
 
 const RUN_DURATION := 25.0 * 60.0
-const BOSS_TIMES := [300.0, 600.0, 900.0, 1200.0, 1440.0]
+const BOSS_TIMES := [300.0, 600.0, 900.0, 1200.0, 1500.0]
+const EVENT_TIMES := [150.0, 450.0, 750.0, 1050.0, 1350.0]
 const SAVE_PATH := "user://realm_of_chaos.cfg"
+const GRID_CELL_SIZE := 180.0
+const MAX_PLAYER_PROJECTILES := 360
+const MAX_EFFECTS := 120
 
 var time_survived := 0.0
 var enemies_killed := 0
+var essence_earned := 0
 var spawn_timer := 0.2
 var boss_index := 0
+var event_index := 0
 var game_ended := false
 var pending_upgrades := 0
 var upgrade_active := false
 var active_boss: Node
 var last_stage := ""
+var run_cycle := 0
+var biome: Dictionary = {}
+var final_boss_spawned := false
+var boss_spawn_log: Array[String] = []
+var spatial_grid: Dictionary = {}
+var spatial_timer := 0.0
+var current_event := ""
+var current_event_title := ""
+var event_remaining := 0.0
+var enemy_speed_multiplier := 1.0
+var event_spawn_multiplier := 1.0
+var event_magnet_applied := false
+var suppress_save := false
+var audio: Node
 
 @onready var player = $Player
+@onready var ground: Sprite2D = $Ground
 @onready var enemies = $Enemies
 @onready var projectiles = $Projectiles
 @onready var enemy_projectiles = $EnemyProjectiles
@@ -32,6 +55,12 @@ var last_stage := ""
 func _ready() -> void:
 	randomize()
 	get_tree().paused = false
+	audio = AudioDirectorScript.new()
+	audio.name = "AudioDirector"
+	add_child(audio)
+	_load_progression()
+	_apply_biome()
+	audio.set_music_stage("normal")
 	player.level_up_requested.connect(_on_level_up_requested)
 	player.died.connect(_on_player_died)
 	hud.upgrade_selected.connect(_on_upgrade_selected)
@@ -40,23 +69,21 @@ func _ready() -> void:
 	hud.resume_requested.connect(_resume_run)
 	_generate_environment()
 	last_stage = GameDefs.stage_name(time_survived)
-	hud.show_stage_banner("ARMA SORTEADA · %s" % player.equipped_weapon_title())
+	hud.show_stage_banner("%s · ARMA SORTEADA: %s" % [str(biome.name), player.equipped_weapon_title()])
+	_rebuild_spatial_grid()
 
 
 func _process(delta: float) -> void:
-	if game_ended:
+	if game_ended or player.death_started:
 		return
-	# Congela o relógio assim que a queda começa; evita uma vitória acidental
-	# se o jogador morrer nos últimos quadros antes dos 25 minutos.
-	if player.death_started:
-		return
-	time_survived += delta
-	if time_survived >= RUN_DURATION:
-		_end_run(true)
-		return
-
+	time_survived = minf(RUN_DURATION, time_survived + delta)
+	spatial_timer -= delta
+	if spatial_timer <= 0.0:
+		_rebuild_spatial_grid()
+		spatial_timer = 0.14
 	_spawn_timer_update(delta)
 	_update_boss_schedule()
+	_update_world_events(delta)
 	_update_stage()
 	_update_hud()
 
@@ -71,7 +98,8 @@ func _spawn_timer_update(delta: float) -> void:
 	var current_count := enemies.get_child_count()
 	if current_count >= enemy_cap:
 		return
-	var batch := mini(int(difficulty.batch), enemy_cap - current_count)
+	var requested_batch := ceili(float(difficulty.batch) * event_spawn_multiplier)
+	var batch := mini(requested_batch, enemy_cap - current_count)
 	for _index in range(batch):
 		spawn_enemy(_pick_enemy_type(), false)
 
@@ -81,35 +109,39 @@ func _pick_enemy_type() -> String:
 	var choices: Array[String]
 	match phase_id:
 		"hard":
-			choices = ["prowler", "prowler", "bat", "bat", "mage", "brute", "ember"]
+			choices = ["prowler", "bat", "bat", "mage", "archer", "brute", "bomber", "swarm"]
 		"chaos":
-			choices = ["prowler", "bat", "mage", "mage", "brute", "brute", "ember", "ember", "ember"]
+			choices = ["bat", "mage", "archer", "brute", "brute", "ember", "bomber", "assassin", "necromancer", "swarm"]
 		"inferno":
-			choices = ["bat", "mage", "mage", "brute", "brute", "brute", "ember", "ember", "ember", "ember"]
+			choices = ["mage", "archer", "brute", "brute", "ember", "bomber", "assassin", "necromancer", "guardian", "swarm", "swarm"]
 		_:
 			choices = ["prowler", "prowler", "prowler"]
 			if time_survived >= 45.0:
-				choices.append_array(["bat", "bat"])
+				choices.append_array(["bat", "bat", "swarm"])
 			if time_survived >= 110.0:
-				choices.append("mage")
+				choices.append_array(["mage", "archer"])
 			if time_survived >= 190.0:
 				choices.append("brute")
 			if time_survived >= 250.0:
-				choices.append_array(["ember", "ember"])
+				choices.append_array(["ember", "bomber"])
 	return choices.pick_random()
 
 
-func spawn_enemy(kind: String, force_elite := false) -> Node:
+func spawn_enemy(kind: String, force_elite := false, power_override := -1.0) -> Node:
 	if game_ended or not is_instance_valid(player):
 		return null
 	var enemy = EnemyScene.instantiate()
 	var phase := GameDefs.difficulty_data(time_survived)
-	var difficulty := float(phase.power)
+	var data := GameDefs.enemy_data(kind)
+	var difficulty := float(phase.power) * float(biome.get("enemy_power", 1.0))
+	if power_override > 0.0:
+		difficulty = power_override
 	var elite_chance := float(phase.elite_chance)
-	var is_elite := force_elite or (kind != "void_knight" and randf() < elite_chance)
+	var is_boss := bool(data.get("boss", false))
+	var is_elite := force_elite or (not is_boss and randf() < elite_chance)
 	enemy.setup(kind, difficulty, is_elite, self)
 	enemies.add_child(enemy)
-	enemy.global_position = get_spawn_position()
+	enemy.global_position = get_spawn_position(580.0 if is_boss else 610.0, 670.0 if is_boss else 760.0)
 	return enemy
 
 
@@ -121,39 +153,52 @@ func get_spawn_position(minimum := 610.0, maximum := 760.0) -> Vector2:
 
 
 func _update_boss_schedule() -> void:
-	if boss_index >= BOSS_TIMES.size() or time_survived < BOSS_TIMES[boss_index]:
-		return
-	active_boss = spawn_enemy("void_knight")
-	if active_boss:
-		active_boss.max_hp *= 1.0 + boss_index * 0.48
-		active_boss.hp = active_boss.max_hp
-		active_boss.health_bar.max_value = active_boss.max_hp
-		active_boss.health_bar.value = active_boss.hp
-		hud.show_boss("ARAUTO DO VAZIO · ECO %d" % (boss_index + 1), active_boss.hp, active_boss.max_hp)
-		hud.show_stage_banner("UM CHEFE ATRAVESSOU O VÉU")
-	boss_index += 1
+	var schedule := GameDefs.boss_schedule()
+	while boss_index < schedule.size() and time_survived >= float(schedule[boss_index].time):
+		_spawn_scheduled_boss(schedule[boss_index], boss_index)
+		boss_index += 1
+
+
+func _spawn_scheduled_boss(entry: Dictionary, index: int) -> Node:
+	var boss_power := 1.0 + float(run_cycle) * 0.32
+	active_boss = spawn_enemy(str(entry.kind), false, boss_power)
+	if not active_boss:
+		return null
+	active_boss.global_position = get_spawn_position(520.0, 610.0)
+	boss_spawn_log.append(str(entry.kind))
+	if bool(entry.final):
+		final_boss_spawned = true
+	hud.show_boss(str(entry.name), active_boss.hp, active_boss.max_hp)
+	hud.show_stage_banner("CHEFE FINAL · O RITUAL EXIGE UMA VITÓRIA" if bool(entry.final) else "MINI-CHEFE %d/4 · %s" % [index + 1, str(entry.name)])
+	audio.play_boss_spawn()
+	audio.set_music_stage("boss")
+	shake_camera(9.0 if bool(entry.final) else 6.0, 0.38)
+	return active_boss
 
 
 func _update_stage() -> void:
 	var current_stage := GameDefs.stage_name(time_survived)
-	if current_stage != last_stage:
-		last_stage = current_stage
-		hud.show_stage_banner(current_stage)
-		var phase_id := str(GameDefs.difficulty_data(time_survived).id)
-		var surge_count := 4
-		if phase_id == "chaos":
-			surge_count = 8
-		elif phase_id == "inferno":
-			surge_count = 12
-		for _index in range(surge_count):
-			spawn_enemy("brute" if _index % 2 == 0 else "ember", true)
+	if current_stage == last_stage:
+		return
+	last_stage = current_stage
+	audio.set_music_stage(str(GameDefs.difficulty_data(time_survived).id))
+	hud.show_stage_banner(current_stage)
+	var phase_id := str(GameDefs.difficulty_data(time_survived).id)
+	var surge_count := 4
+	if phase_id == "chaos":
+		surge_count = 8
+	elif phase_id == "inferno":
+		surge_count = 12
+	for index in range(surge_count):
+		spawn_enemy("guardian" if index % 3 == 0 else ("bomber" if index % 2 == 0 else "assassin"), true)
 
 
 func _update_hud() -> void:
 	var remaining := maxf(0.0, RUN_DURATION - time_survived)
 	hud.update_run(
 		player.hp, player.max_hp, player.experience, player.experience_needed,
-		player.level, enemies_killed, remaining, last_stage, player.weapon_summary()
+		player.level, enemies_killed, remaining, last_stage, player.weapon_summary(),
+		essence_earned, current_event_title
 	)
 	if is_instance_valid(active_boss) and not active_boss.dead:
 		hud.update_boss(active_boss.hp, active_boss.max_hp)
@@ -161,8 +206,66 @@ func _update_hud() -> void:
 		hud.hide_boss()
 
 
+func _update_world_events(delta: float) -> void:
+	if event_remaining > 0.0:
+		event_remaining -= delta
+		if event_remaining <= 0.0:
+			_end_world_event()
+	while event_index < EVENT_TIMES.size() and time_survived >= EVENT_TIMES[event_index]:
+		var event_ids := ["blood_moon", "soul_storm", "eclipse", "blood_moon", "void_rain"]
+		_trigger_world_event(event_ids[event_index])
+		event_index += 1
+
+
+func _trigger_world_event(event_id: String) -> void:
+	_end_world_event()
+	current_event = event_id
+	event_remaining = 22.0
+	match event_id:
+		"blood_moon":
+			current_event_title = "EVENTO · LUA DE SANGUE"
+			event_spawn_multiplier = 1.65
+			ground.modulate = Color("dd7a82")
+			for _index in range(10):
+				spawn_enemy("assassin" if _index % 3 == 0 else "swarm", false)
+		"soul_storm":
+			current_event_title = "EVENTO · TEMPESTADE DE ALMAS"
+			player.pickup_radius *= 1.8
+			event_magnet_applied = true
+			ground.modulate = Color("aa8ee0")
+		"eclipse":
+			current_event_title = "EVENTO · ECLIPSE"
+			enemy_speed_multiplier = 1.28
+			ground.modulate = Color("9a75b7")
+		"void_rain":
+			current_event_title = "EVENTO · CHUVA DO VAZIO"
+			ground.modulate = Color("8e72b9")
+			for enemy in get_enemies_near(player.global_position, 900.0):
+				enemy.take_damage(enemy.max_hp * 0.08, Vector2.ZERO, false)
+	hud.show_event(current_event_title, GameDefs.difficulty_data(time_survived).color)
+
+
+func _end_world_event() -> void:
+	if event_magnet_applied:
+		player.pickup_radius /= 1.8
+	event_magnet_applied = false
+	enemy_speed_multiplier = 1.0
+	event_spawn_multiplier = 1.0
+	current_event = ""
+	current_event_title = ""
+	event_remaining = 0.0
+	if not biome.is_empty() and is_instance_valid(ground):
+		ground.modulate = biome.ground_modulate
+
+
 func handle_enemy_death(enemy: Node, xp_value: int, was_elite: bool, was_boss: bool) -> void:
 	enemies_killed += 1
+	if was_boss:
+		essence_earned += 50 if enemy.final_boss else 18
+	elif was_elite:
+		essence_earned += 3
+	elif enemies_killed % 7 == 0:
+		essence_earned += 1
 	var gem = GemScene.instantiate()
 	pickups.add_child(gem)
 	gem.setup(xp_value, enemy.global_position, "xp")
@@ -172,36 +275,132 @@ func handle_enemy_death(enemy: Node, xp_value: int, was_elite: bool, was_boss: b
 		var heart = GemScene.instantiate()
 		pickups.add_child(heart)
 		heart.setup(24 if not was_boss else 60, enemy.global_position + Vector2(18, 0), "heal")
-	if was_boss:
+	if not was_boss:
+		return
+	if active_boss == enemy:
 		active_boss = null
-		for _index in range(8):
-			var bonus = GemScene.instantiate()
-			pickups.add_child(bonus)
-			bonus.setup(12, enemy.global_position + Vector2.RIGHT.rotated(randf() * TAU) * randf_range(20.0, 80.0), "xp")
-		hud.show_stage_banner("ARAUTO BANIDO · PODER LIBERADO")
+	for index in range(10 if enemy.final_boss else 7):
+		var bonus = GemScene.instantiate()
+		pickups.add_child(bonus)
+		bonus.setup(18 if enemy.final_boss else 12, enemy.global_position + Vector2.RIGHT.rotated(TAU * index / 10.0) * randf_range(28.0, 92.0), "xp")
+	player.grant_boss_reward(enemy.final_boss)
+	shake_camera(12.0, 0.55)
+	if enemy.final_boss:
+		hud.show_stage_banner("SOBERANO DERROTADO · PRÓXIMA FASE DESBLOQUEADA")
+		call_deferred("_end_run", true)
+	else:
+		hud.show_stage_banner("MINI-CHEFE BANIDO · BÊNÇÃO ABSORVIDA")
+		audio.set_music_stage(str(GameDefs.difficulty_data(time_survived).id))
 
 
 func add_player_projectile(projectile: Node) -> void:
+	if projectiles.get_child_count() >= MAX_PLAYER_PROJECTILES:
+		var oldest := projectiles.get_child(0)
+		oldest.queue_free()
 	projectiles.add_child(projectile)
 
 
 func add_enemy_projectile(projectile: Node) -> void:
+	if enemy_projectiles.get_child_count() >= 260:
+		enemy_projectiles.get_child(0).queue_free()
 	enemy_projectiles.add_child(projectile)
 
 
 func spawn_effect(position: Vector2, color: Color, radius: float, duration := 0.35, filled := false) -> void:
+	if effects.get_child_count() >= MAX_EFFECTS:
+		return
 	var effect = EffectScript.new()
 	effects.add_child(effect)
 	effect.setup(position, color, radius, duration, filled)
 
 
+func spawn_damage_number(position: Vector2, amount: float, critical := false, healing := false) -> void:
+	if effects.get_child_count() >= MAX_EFFECTS:
+		return
+	var number = DamageNumberScript.new()
+	effects.add_child(number)
+	number.setup(position, amount, critical, healing)
+
+
+func on_enemy_hit(position: Vector2, amount: float, critical: bool, is_boss: bool) -> void:
+	spawn_damage_number(position, amount, critical)
+	audio.play_hit(critical)
+	if critical:
+		spawn_effect(position, Color("ffd86b"), 30.0, 0.16, true)
+	if critical and is_boss:
+		shake_camera(3.5, 0.10)
+
+
+func on_weapon_evolved(title: String) -> void:
+	hud.show_stage_banner("EVOLUÇÃO · %s" % title)
+	audio.play_evolution()
+	shake_camera(7.0, 0.32)
+	spawn_effect(player.global_position, Color("ffd36b"), 210.0, 0.72, true)
+
+
+func on_boss_phase_changed(enemy: Node, phase: int) -> void:
+	if active_boss == enemy:
+		hud.show_stage_banner("%s · FASE %d" % [str(GameDefs.enemy_data(enemy.enemy_type).name), phase])
+		hud.set_boss_phase(phase)
+		shake_camera(8.0, 0.28)
+
+
 func on_player_damaged() -> void:
 	hud.flash_damage()
+	audio.play_player_hurt()
+	shake_camera(7.0, 0.18)
+
+
+func shake_camera(strength: float, duration := 0.18) -> void:
+	if not is_instance_valid(player):
+		return
 	var camera: Camera2D = player.get_node("Camera2D")
-	var original := camera.offset
-	camera.offset = Vector2(randf_range(-7.0, 7.0), randf_range(-7.0, 7.0))
+	var original := Vector2.ZERO
+	camera.offset = Vector2(randf_range(-strength, strength), randf_range(-strength, strength))
 	var tween := create_tween()
-	tween.tween_property(camera, "offset", original, 0.18)
+	tween.tween_property(camera, "offset", original, duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+func _rebuild_spatial_grid() -> void:
+	spatial_grid.clear()
+	for enemy in enemies.get_children():
+		if not is_instance_valid(enemy) or enemy.dead:
+			continue
+		var cell := _grid_cell(enemy.global_position)
+		if not spatial_grid.has(cell):
+			spatial_grid[cell] = []
+		spatial_grid[cell].append(enemy)
+
+
+func _grid_cell(position: Vector2) -> Vector2i:
+	return Vector2i(floori(position.x / GRID_CELL_SIZE), floori(position.y / GRID_CELL_SIZE))
+
+
+func get_enemies_near(position: Vector2, radius: float) -> Array[Node]:
+	if spatial_grid.is_empty() and enemies.get_child_count() > 0:
+		_rebuild_spatial_grid()
+	var result: Array[Node] = []
+	var center := _grid_cell(position)
+	var reach := ceili(radius / GRID_CELL_SIZE)
+	var radius_squared := radius * radius
+	for x_offset in range(-reach, reach + 1):
+		for y_offset in range(-reach, reach + 1):
+			var cell := center + Vector2i(x_offset, y_offset)
+			for enemy in spatial_grid.get(cell, []):
+				if is_instance_valid(enemy) and not enemy.dead and position.distance_squared_to(enemy.global_position) <= radius_squared:
+					result.append(enemy)
+	return result
+
+
+func get_nearest_enemy(position: Vector2, maximum_distance := 1500.0) -> Node2D:
+	var nearest: Node2D
+	var nearest_distance := maximum_distance * maximum_distance
+	for enemy in get_enemies_near(position, maximum_distance):
+		var distance := position.distance_squared_to(enemy.global_position)
+		if distance < nearest_distance:
+			nearest_distance = distance
+			nearest = enemy
+	return nearest
 
 
 func _on_level_up_requested() -> void:
@@ -239,10 +438,13 @@ func _end_run(victory: bool) -> void:
 	game_ended = true
 	get_tree().paused = true
 	_save_record(victory)
-	hud.show_end_screen(victory, time_survived, enemies_killed, player.level)
+	var next_biome := str(GameDefs.biome_data(run_cycle + 1).name) if victory else str(biome.name)
+	hud.show_end_screen(victory, time_survived, enemies_killed, player.level, essence_earned, next_biome)
 
 
 func _save_record(victory: bool) -> void:
+	if suppress_save:
+		return
 	var config := ConfigFile.new()
 	config.load(SAVE_PATH)
 	var best_time := float(config.get_value("record", "best_time", 0.0))
@@ -250,7 +452,30 @@ func _save_record(victory: bool) -> void:
 	config.set_value("record", "best_time", maxf(best_time, time_survived))
 	config.set_value("record", "best_kills", maxi(best_kills, enemies_killed))
 	config.set_value("record", "victories", int(config.get_value("record", "victories", 0)) + (1 if victory else 0))
+	config.set_value("meta", "essence", int(config.get_value("meta", "essence", 0)) + essence_earned)
+	if victory:
+		config.set_value("progress", "active_cycle", run_cycle + 1)
+		config.set_value("progress", "highest_cycle", maxi(run_cycle + 1, int(config.get_value("progress", "highest_cycle", 0))))
 	config.save(SAVE_PATH)
+
+
+func _load_progression() -> void:
+	var config := ConfigFile.new()
+	config.load(SAVE_PATH)
+	run_cycle = int(config.get_value("progress", "active_cycle", 0))
+	biome = GameDefs.biome_data(run_cycle)
+	var meta := {
+		"power": int(config.get_value("meta", "power", 0)),
+		"vitality": int(config.get_value("meta", "vitality", 0)),
+		"speed": int(config.get_value("meta", "speed", 0)),
+		"fortune": int(config.get_value("meta", "fortune", 0))
+	}
+	player.apply_meta_bonuses(meta)
+
+
+func _apply_biome() -> void:
+	ground.texture = load(str(biome.ground))
+	ground.modulate = biome.ground_modulate
 
 
 func _restart_run() -> void:
@@ -268,31 +493,66 @@ func _resume_run() -> void:
 		get_tree().paused = false
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not OS.has_feature("editor") or not event is InputEventKey:
+		return
+	var key_event := event as InputEventKey
+	if not key_event.pressed or key_event.echo:
+		return
+	match key_event.keycode:
+		KEY_F7:
+			_debug_jump_to_next_boss()
+		KEY_F8:
+			_debug_unlock_evolved_build()
+		KEY_F9:
+			_debug_defeat_active_boss()
+
+
+func _debug_jump_to_next_boss() -> void:
+	if boss_index >= BOSS_TIMES.size() or game_ended:
+		return
+	time_survived = maxf(time_survived, BOSS_TIMES[boss_index] - 0.02)
+	spawn_timer = 0.5
+	hud.show_stage_banner("TESTE · PRÓXIMO CHEFE EM INSTANTES")
+
+
+func _debug_unlock_evolved_build() -> void:
+	for weapon_id in player.WEAPON_IDS:
+		player.weapon_levels[weapon_id] = player._upgrade_max(weapon_id)
+	for passive_id in ["critical", "swiftness", "regeneration", "might"]:
+		player.passive_levels[passive_id] = 5
+	player._check_weapon_evolutions()
+	hud.show_stage_banner("TESTE · QUATRO EVOLUÇÕES LIBERADAS")
+
+
+func _debug_defeat_active_boss() -> void:
+	if is_instance_valid(active_boss) and not active_boss.dead:
+		active_boss.take_damage(active_boss.max_hp * 2.0, Vector2.ZERO, true)
+
+
 func _generate_environment() -> void:
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 864210
+	rng.seed = 864210 + run_cycle * 913
 	var texture_paths := [
-		"res://assets/environment/Tree/Tree_1.png",
-		"res://assets/environment/Tree/Tree_2.png",
-		"res://assets/environment/Tree/Tree_3.png",
-		"res://assets/environment/props/bush/bush_01.png",
-		"res://assets/environment/props/bush/bush_02.png",
-		"res://assets/environment/props/Mushroom/Mushroom_03.png",
+		"res://assets/environment/Tree/Tree_1.png", "res://assets/environment/Tree/Tree_2.png",
+		"res://assets/environment/Tree/Tree_3.png", "res://assets/environment/props/bush/bush_01.png",
+		"res://assets/environment/props/bush/bush_02.png", "res://assets/environment/props/Mushroom/Mushroom_03.png",
 		"res://assets/environment/props/little stone/little stone_03.png"
 	]
 	var textures: Array[Texture2D] = []
 	for path in texture_paths:
 		textures.append(load(path))
+	var biome_tint := Color("9ec7df") if str(biome.id) == "frozen" else (Color("9e82bb") if str(biome.id) == "cathedral" else Color("b3c7bd"))
 	for index in range(310):
 		var sprite := Sprite2D.new()
 		sprite.texture = textures[rng.randi_range(0, textures.size() - 1)]
-		var position := Vector2(rng.randf_range(-5400.0, 5400.0), rng.randf_range(-5400.0, 5400.0))
-		if position.length() < 310.0:
-			position = position.normalized() * rng.randf_range(340.0, 700.0)
-		sprite.position = position
+		var decoration_position := Vector2(rng.randf_range(-5400.0, 5400.0), rng.randf_range(-5400.0, 5400.0))
+		if decoration_position.length() < 310.0:
+			decoration_position = decoration_position.normalized() * rng.randf_range(340.0, 700.0)
+		sprite.position = decoration_position
 		var scale_value := rng.randf_range(0.65, 1.15)
 		sprite.scale = Vector2.ONE * scale_value
 		sprite.flip_h = rng.randf() < 0.5
-		sprite.modulate = Color(0.70, 0.78, 0.74, rng.randf_range(0.42, 0.82))
+		sprite.modulate = Color(biome_tint, rng.randf_range(0.36, 0.72))
 		sprite.z_index = -4
 		decorations.add_child(sprite)

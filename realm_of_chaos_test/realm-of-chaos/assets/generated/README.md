@@ -23,9 +23,21 @@ Em cada folha da protagonista, a linha superior contém quatro poses de locomoç
 
 Cada inimigo usa quatro quadros horizontais: dois de locomoção, um de preparação e um de ataque/conjuração.
 
+## Mini-chefes e chefe final
+
+- `boss_ossuary_colossus.png`: Colosso do Ossuário, mini-chefe dos 5 minutos.
+- `boss_glacial_archon.png`: Arconte Glacial, mini-chefe dos 10 minutos.
+- `boss_infernal_reaper.png`: Ceifador Infernal, mini-chefe dos 15 minutos.
+- `boss_void_titan.png`: Titã do Vazio, mini-chefe dos 20 minutos.
+- `boss_chaos_sovereign.png`: Soberano do Caos, confronto final dos 25 minutos.
+
+Cada chefe usa quatro quadros horizontais: locomoção A/B, preparação e execução do ataque. Todos foram processados por chroma key, possuem alfa e dimensões divisíveis por quatro.
+
 ## Mundo e legado
 
 - `corrupted_forest_ground.png`: terreno ortográfico repetível da floresta corrompida.
+- `frozen_ruins_ground.png`: piso repetível das Ruínas Glaciais.
+- `void_cathedral_ground.png`: piso repetível da Catedral do Vazio.
 - Os PNGs anteriores do Guardião, atlas e peças modulares foram preservados como material de legado, mas não são usados pela animação atual.
 
 Direção visual: pixel art de fantasia sombria, silhuetas legíveis na escala de gameplay, protagonista em azul-noturno/prata/carmesim e inimigos com identidades cromáticas próprias. Sem texto, marcas ou elementos de terceiros.
