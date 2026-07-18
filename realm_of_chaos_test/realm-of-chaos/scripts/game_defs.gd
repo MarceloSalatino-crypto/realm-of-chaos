@@ -45,14 +45,14 @@ static func enemy_data(kind: String) -> Dictionary:
 
 static func upgrades() -> Array[Dictionary]:
 	return [
-		{"id": "chaos_bolt", "title": "Seta do Caos", "icon": "✦", "max": 8,
-		 "description": "Mais dano, projéteis e perfuração."},
+		{"id": "chaos_bolt", "title": "Besta do Caos", "icon": "✦", "max": 8,
+		 "description": "Dispara setas profanas; ganha dano, projéteis e perfuração."},
 		{"id": "shadow_blades", "title": "Lâminas Sombrias", "icon": "◆", "max": 6,
 		 "description": "Dispara uma rajada em leque contra a horda."},
-		{"id": "soul_orbit", "title": "Órbita de Almas", "icon": "◉", "max": 6,
-		 "description": "Lâminas orbitais ferem inimigos próximos."},
-		{"id": "chaos_nova", "title": "Nova do Vazio", "icon": "☼", "max": 6,
-		 "description": "Uma explosão periódica atinge toda a área."},
+		{"id": "soul_orbit", "title": "Cetro das Almas", "icon": "◉", "max": 6,
+		 "description": "Invoca lâminas orbitais que ferem inimigos próximos."},
+		{"id": "chaos_nova", "title": "Cajado da Nova", "icon": "☼", "max": 6,
+		 "description": "Conjura uma explosão periódica em toda a área."},
 		{"id": "might", "title": "Poder Profano", "icon": "▲", "max": 5,
 		 "description": "+15% de dano para todas as armas."},
 		{"id": "haste", "title": "Ritual Acelerado", "icon": "»", "max": 5,
@@ -73,10 +73,42 @@ static func upgrades() -> Array[Dictionary]:
 
 
 static func stage_name(elapsed: float) -> String:
-	if elapsed < 180.0:
-		return "I · BOSQUE PROFANADO"
-	if elapsed < 360.0:
-		return "II · LUA RUBRA"
-	if elapsed < 540.0:
-		return "III · RUPTURA DO VÉU"
-	return "IV · O ARAUTO DESPERTA"
+	return str(difficulty_data(elapsed).name)
+
+
+static func difficulty_data(elapsed: float) -> Dictionary:
+	if elapsed < 300.0:
+		var progress := clampf(elapsed / 300.0, 0.0, 1.0)
+		return {
+			"id": "normal", "name": "I · NORMAL", "color": Color("b995e8"),
+			"interval": lerpf(0.95, 0.52, progress),
+			"batch": 1 + int(progress * 2.0), "cap": 80 + int(progress * 40.0),
+			"power": lerpf(1.0, 1.9, progress),
+			"elite_chance": lerpf(0.02, 0.055, progress)
+		}
+	if elapsed < 600.0:
+		var progress := clampf((elapsed - 300.0) / 300.0, 0.0, 1.0)
+		return {
+			"id": "hard", "name": "II · DIFÍCIL", "color": Color("ffb454"),
+			"interval": lerpf(0.42, 0.28, progress),
+			"batch": 4 + int(progress * 2.0), "cap": 150 + int(progress * 50.0),
+			"power": lerpf(2.0, 3.1, progress),
+			"elite_chance": lerpf(0.07, 0.12, progress)
+		}
+	if elapsed < 900.0:
+		var progress := clampf((elapsed - 600.0) / 300.0, 0.0, 1.0)
+		return {
+			"id": "chaos", "name": "III · CAOS", "color": Color("df63ff"),
+			"interval": lerpf(0.20, 0.11, progress),
+			"batch": 7 + int(progress * 5.0), "cap": 230 + int(progress * 70.0),
+			"power": lerpf(3.3, 5.0, progress),
+			"elite_chance": lerpf(0.14, 0.21, progress)
+		}
+	var progress := clampf((elapsed - 900.0) / 600.0, 0.0, 1.0)
+	return {
+		"id": "inferno", "name": "IV · MODO INFERNO", "color": Color("ff4b52"),
+		"interval": lerpf(0.085, 0.05, progress),
+		"batch": 14 + int(progress * 6.0), "cap": 320 + int(progress * 60.0),
+		"power": lerpf(5.5, 10.0, progress),
+		"elite_chance": lerpf(0.23, 0.34, progress)
+	}

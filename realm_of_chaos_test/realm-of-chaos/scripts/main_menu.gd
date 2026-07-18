@@ -45,7 +45,7 @@ func _load_records() -> void:
 func _show_instructions() -> void:
 	_show_popup(
 		"COMO SOBREVIVER",
-		"WASD, SETAS OU ANALÓGICO\nMova o Guardião; todas as armas atacam automaticamente.\n\nCOLETE CRISTAIS\nCada nível oferece três poderes. Combine armas e passivos.\n\nENFRENTE O RITUAL\nSobreviva 10 minutos. Chefes surgem a cada 3 minutos.\n\nESC pausa o jogo. Corações restauram vida."
+		"WASD, SETAS OU ANALÓGICO\nMova o Guardião; a arma inicial é sorteada e ataca automaticamente.\n\nCOLETE CRISTAIS\nCada nível oferece três poderes. Combine armas e passivos.\n\nENFRENTE O RITUAL POR 25 MINUTOS\n0–5 Normal · 5–10 Difícil · 10–15 Caos · 15–25 Modo Inferno.\nChefes marcam as grandes transições do ritual.\n\nESC pausa o jogo. Corações restauram vida."
 	)
 
 

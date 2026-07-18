@@ -5,8 +5,8 @@ const EnemyScene = preload("res://scenes/enemies/enemy.tscn")
 const GemScene = preload("res://scenes/xp_gem.tscn")
 const EffectScript = preload("res://scripts/effect.gd")
 
-const RUN_DURATION := 600.0
-const BOSS_TIMES := [180.0, 360.0, 540.0]
+const RUN_DURATION := 25.0 * 60.0
+const BOSS_TIMES := [300.0, 600.0, 900.0, 1200.0, 1440.0]
 const SAVE_PATH := "user://realm_of_chaos.cfg"
 
 var time_survived := 0.0
@@ -40,11 +40,15 @@ func _ready() -> void:
 	hud.resume_requested.connect(_resume_run)
 	_generate_environment()
 	last_stage = GameDefs.stage_name(time_survived)
-	hud.show_stage_banner(last_stage)
+	hud.show_stage_banner("ARMA SORTEADA · %s" % player.equipped_weapon_title())
 
 
 func _process(delta: float) -> void:
 	if game_ended:
+		return
+	# Congela o relógio assim que a queda começa; evita uma vitória acidental
+	# se o jogador morrer nos últimos quadros antes dos 25 minutos.
+	if player.death_started:
 		return
 	time_survived += delta
 	if time_survived >= RUN_DURATION:
@@ -61,28 +65,37 @@ func _spawn_timer_update(delta: float) -> void:
 	spawn_timer -= delta
 	if spawn_timer > 0.0:
 		return
-	var interval := maxf(0.22, 0.92 - time_survived / 950.0)
-	spawn_timer += interval
-	var enemy_cap := mini(190, 75 + int(time_survived / 6.0))
-	if enemies.get_child_count() >= enemy_cap:
+	var difficulty := GameDefs.difficulty_data(time_survived)
+	spawn_timer += float(difficulty.interval)
+	var enemy_cap := int(difficulty.cap)
+	var current_count := enemies.get_child_count()
+	if current_count >= enemy_cap:
 		return
-	var batch := mini(7, 1 + int(time_survived / 95.0))
+	var batch := mini(int(difficulty.batch), enemy_cap - current_count)
 	for _index in range(batch):
 		spawn_enemy(_pick_enemy_type(), false)
 
 
 func _pick_enemy_type() -> String:
-	var choices: Array[String] = ["prowler", "prowler", "prowler"]
-	if time_survived >= 35.0:
-		choices.append_array(["bat", "bat"])
-	if time_survived >= 80.0:
-		choices.append("mage")
-	if time_survived >= 145.0:
-		choices.append("brute")
-	if time_survived >= 220.0:
-		choices.append_array(["ember", "ember"])
-	if time_survived >= 400.0:
-		choices.append_array(["brute", "mage", "ember"])
+	var phase_id := str(GameDefs.difficulty_data(time_survived).id)
+	var choices: Array[String]
+	match phase_id:
+		"hard":
+			choices = ["prowler", "prowler", "bat", "bat", "mage", "brute", "ember"]
+		"chaos":
+			choices = ["prowler", "bat", "mage", "mage", "brute", "brute", "ember", "ember", "ember"]
+		"inferno":
+			choices = ["bat", "mage", "mage", "brute", "brute", "brute", "ember", "ember", "ember", "ember"]
+		_:
+			choices = ["prowler", "prowler", "prowler"]
+			if time_survived >= 45.0:
+				choices.append_array(["bat", "bat"])
+			if time_survived >= 110.0:
+				choices.append("mage")
+			if time_survived >= 190.0:
+				choices.append("brute")
+			if time_survived >= 250.0:
+				choices.append_array(["ember", "ember"])
 	return choices.pick_random()
 
 
@@ -90,8 +103,9 @@ func spawn_enemy(kind: String, force_elite := false) -> Node:
 	if game_ended or not is_instance_valid(player):
 		return null
 	var enemy = EnemyScene.instantiate()
-	var difficulty := 1.0 + time_survived / 250.0
-	var elite_chance := clampf(0.025 + time_survived / 6000.0, 0.025, 0.13)
+	var phase := GameDefs.difficulty_data(time_survived)
+	var difficulty := float(phase.power)
+	var elite_chance := float(phase.elite_chance)
 	var is_elite := force_elite or (kind != "void_knight" and randf() < elite_chance)
 	enemy.setup(kind, difficulty, is_elite, self)
 	enemies.add_child(enemy)
@@ -111,7 +125,7 @@ func _update_boss_schedule() -> void:
 		return
 	active_boss = spawn_enemy("void_knight")
 	if active_boss:
-		active_boss.max_hp *= 1.0 + boss_index * 0.65
+		active_boss.max_hp *= 1.0 + boss_index * 0.48
 		active_boss.hp = active_boss.max_hp
 		active_boss.health_bar.max_value = active_boss.max_hp
 		active_boss.health_bar.value = active_boss.hp
@@ -125,8 +139,14 @@ func _update_stage() -> void:
 	if current_stage != last_stage:
 		last_stage = current_stage
 		hud.show_stage_banner(current_stage)
-		for _index in range(3):
-			spawn_enemy("brute", true)
+		var phase_id := str(GameDefs.difficulty_data(time_survived).id)
+		var surge_count := 4
+		if phase_id == "chaos":
+			surge_count = 8
+		elif phase_id == "inferno":
+			surge_count = 12
+		for _index in range(surge_count):
+			spawn_enemy("brute" if _index % 2 == 0 else "ember", true)
 
 
 func _update_hud() -> void:

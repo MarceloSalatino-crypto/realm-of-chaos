@@ -60,6 +60,15 @@ func update_run(
 	var seconds := int(remaining) % 60
 	timer_label.text = "%02d:%02d" % [minutes, seconds]
 	stage_label.text = stage
+	var stage_color := Color("b995e8")
+	if stage.begins_with("IV"):
+		stage_color = Color("ff4b52")
+	elif stage.begins_with("III"):
+		stage_color = Color("df63ff")
+	elif stage.begins_with("II"):
+		stage_color = Color("ffb454")
+	stage_label.add_theme_color_override("font_color", stage_color)
+	timer_label.add_theme_color_override("font_color", stage_color.lightened(0.18))
 	weapons_label.text = weapon_summary
 
 
@@ -132,11 +141,12 @@ func flash_damage() -> void:
 func show_end_screen(victory: bool, survived: float, kills: int, level: int) -> void:
 	modal_open = true
 	end_overlay.show()
-	end_title.text = "O VÉU FOI SELADO" if victory else "O CAOS PREVALECEU"
+	end_title.text = "VITÓRIA!" if victory else "GAME OVER"
 	end_title.add_theme_color_override("font_color", Color("ffd36b") if victory else Color("ff687d"))
 	var minutes := int(survived) / 60
 	var seconds := int(survived) % 60
-	end_summary.text = "Tempo sobrevivido  %02d:%02d\nInimigos banidos  %d\nNível alcançado  %d" % [minutes, seconds, kills, level]
+	var result_line := "Você sobreviveu aos 25 minutos e selou o Véu." if victory else "Sua jornada terminou, mas o próximo ritual aguarda."
+	end_summary.text = "%s\n\nTempo sobrevivido  %02d:%02d\nInimigos mortos  %d\nNível alcançado  %d" % [result_line, minutes, seconds, kills, level]
 	$EndOverlay/Panel/Margin/VBox/Restart.grab_focus()
 
 

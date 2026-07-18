@@ -1,6 +1,6 @@
 # Realm of Chaos — Survivor Vertical Slice
 
-Uma evolução completa do protótipo original para um loop no estilo survivor: movimento direto, ataques automáticos, hordas crescentes, experiência, escolhas de build e chefes em uma sessão de 10 minutos.
+Uma evolução completa do protótipo original para um loop no estilo survivor: movimento fluido, ataques automáticos, hordas crescentes, experiência, escolhas de build e chefes em uma sessão de 25 minutos.
 
 ## Como jogar
 
@@ -17,14 +17,17 @@ Uma evolução completa do protótipo original para um loop no estilo survivor: 
 
 ## Conteúdo implementado
 
-- Sessão completa de 10 minutos com quatro estágios de intensidade.
+- Sessão completa de 25 minutos: Normal (0–5), Difícil (5–10), Caos (10–15) e Modo Inferno (15–25).
 - Seis arquétipos visuais: espreitador, morcego, mago, brutamonte, crânio de brasa e chefe.
-- Chefes a cada três minutos, elites aleatórios e escalada de vida/dano/quantidade.
+- Guardião modular com braços, pernas, capa e arma animados independentemente.
+- Arma inicial sorteada entre Besta do Caos, Lâmina Sombria, Cetro das Almas e Cajado da Nova, sempre visível na mão.
+- Animações procedurais por arquétipo, com membros/asas articulados, passada, ataque, impacto e morte.
+- Chefes nas transições e no confronto final, elites aleatórios e escalada de vida/dano/quantidade.
 - Quatro armas evolutivas: Seta do Caos, Lâminas Sombrias, Órbita de Almas e Nova do Vazio.
 - Oito passivos para dano, velocidade, vida, coleta, armadura, regeneração e crítico.
 - Cristais de experiência, corações, níveis e três escolhas por nível com raridades.
 - HUD completo: vida, XP, tempo restante, estágio, abates, armas e barra de chefe.
-- Pausa, vitória, derrota, reinício, recordes e contagem de vitórias persistentes.
+- Game Over ou Vitória aos 25 minutos, com tempo, eliminações, nível, reinício, menu e recordes persistentes.
 - Arena de floresta corrompida com 310 elementos decorativos determinísticos.
 - Suporte a teclado e controle.
 

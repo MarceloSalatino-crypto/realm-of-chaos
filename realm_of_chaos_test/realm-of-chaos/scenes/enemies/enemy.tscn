@@ -29,9 +29,15 @@ position = Vector2(0, 21)
 polygon = PackedVector2Array(-25, 0, -17, -7, 17, -7, 25, 0, 17, 7, -17, 7)
 color = Color(0.01, 0.005, 0.02, 0.50)
 
+[node name="BackLimbs" type="Node2D" parent="."]
+z_index = -1
+
 [node name="Sprite2D" type="Sprite2D" parent="."]
 position = Vector2(0, -16)
 texture_filter = 1
+
+[node name="FrontLimbs" type="Node2D" parent="."]
+z_index = 1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 position = Vector2(0, 4)

@@ -4,6 +4,25 @@ signal level_up_requested
 signal died
 
 const GameDefs = preload("res://scripts/game_defs.gd")
+const WEAPON_IDS: Array[String] = ["chaos_bolt", "shadow_blades", "soul_orbit", "chaos_nova"]
+const WEAPON_TEXTURES := {
+	"chaos_bolt": preload("res://assets/generated/weapon_chaos_bolt.png"),
+	"shadow_blades": preload("res://assets/generated/weapon_shadow_blades.png"),
+	"soul_orbit": preload("res://assets/generated/weapon_soul_orbit.png"),
+	"chaos_nova": preload("res://assets/generated/weapon_chaos_nova.png")
+}
+const WEAPON_VISUALS := {
+	"chaos_bolt": {"scale": 0.044, "offset": Vector2(20.0, -6.0), "rotation": 0.0},
+	"shadow_blades": {"scale": 0.043, "offset": Vector2(14.0, -13.0), "rotation": 0.0},
+	"soul_orbit": {"scale": 0.044, "offset": Vector2(9.0, -14.0), "rotation": 0.0},
+	"chaos_nova": {"scale": 0.044, "offset": Vector2(12.0, -17.0), "rotation": 0.0}
+}
+const WEAPON_TITLES := {
+	"chaos_bolt": "BESTA DO CAOS",
+	"shadow_blades": "LÂMINA SOMBRIA",
+	"soul_orbit": "CETRO DAS ALMAS",
+	"chaos_nova": "CAJADO DA NOVA"
+}
 
 @export var bullet_scene: PackedScene
 
@@ -24,9 +43,15 @@ var disabled := false
 var invulnerability := 0.0
 var motion_age := 0.0
 var last_direction := Vector2.RIGHT
+var attack_direction := Vector2.RIGHT
+var attack_recoil := 0.0
+var attack_flash := 0.0
+var hurt_recoil := 0.0
+var death_started := false
+var equipped_weapon_id := ""
 
 var weapon_levels := {
-	"chaos_bolt": 1,
+	"chaos_bolt": 0,
 	"shadow_blades": 0,
 	"soul_orbit": 0,
 	"chaos_nova": 0
@@ -43,11 +68,51 @@ var orbit_angle := 0.0
 var orbit_hit_times: Dictionary = {}
 
 @onready var visual: Node2D = $Visual
-@onready var sprite: Sprite2D = $Visual/Sprite2D
+@onready var rig: Node2D = $Visual/Rig
+@onready var sprite: Sprite2D = $Visual/Rig/Body
+@onready var cape: Sprite2D = $Visual/Rig/Cape
+@onready var front_arm: Node2D = $Visual/Rig/FrontArm
+@onready var back_arm: Node2D = $Visual/Rig/BackArm
+@onready var front_leg: Node2D = $Visual/Rig/FrontLeg
+@onready var back_leg: Node2D = $Visual/Rig/BackLeg
+@onready var weapon_pivot: Node2D = $Visual/Rig/FrontArm/WeaponPivot
+@onready var weapon_sprite: Sprite2D = $Visual/Rig/FrontArm/WeaponPivot/Weapon
+@onready var shadow: Polygon2D = $Shadow
+@onready var collision_shape: CollisionShape2D = $CollisionShape2D
 
 
 func _ready() -> void:
 	hp = max_hp
+	_roll_starting_weapon()
+
+
+func _roll_starting_weapon() -> void:
+	for weapon_id in WEAPON_IDS:
+		weapon_levels[weapon_id] = 0
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	equipped_weapon_id = WEAPON_IDS[rng.randi_range(0, WEAPON_IDS.size() - 1)]
+	weapon_levels[equipped_weapon_id] = 1
+	_equip_weapon_visual(equipped_weapon_id)
+	bolt_timer = 0.12
+	blades_timer = 0.18
+	nova_timer = 0.65
+	orbit_tick = 0.05
+
+
+func _equip_weapon_visual(weapon_id: String) -> void:
+	if not WEAPON_TEXTURES.has(weapon_id):
+		return
+	equipped_weapon_id = weapon_id
+	var visual_data: Dictionary = WEAPON_VISUALS[weapon_id]
+	weapon_sprite.texture = WEAPON_TEXTURES[weapon_id]
+	weapon_sprite.scale = Vector2.ONE * float(visual_data.scale)
+	weapon_sprite.position = visual_data.offset
+	weapon_sprite.rotation = float(visual_data.rotation)
+
+
+func equipped_weapon_title() -> String:
+	return str(WEAPON_TITLES.get(equipped_weapon_id, "ARMA DO CAOS"))
 
 
 func _physics_process(delta: float) -> void:
@@ -64,10 +129,8 @@ func _physics_process(delta: float) -> void:
 	global_position.x = clampf(global_position.x, -5550.0, 5550.0)
 	global_position.y = clampf(global_position.y, -5550.0, 5550.0)
 
-	sprite.flip_h = last_direction.x < 0.0
 	var is_moving := direction.length_squared() > 0.01
-	visual.position.y = sin(motion_age * (8.0 if is_moving else 3.0)) * (2.3 if is_moving else 1.2)
-	visual.rotation = sin(motion_age * 6.0) * 0.018 if is_moving else 0.0
+	_animate_character(delta, direction, is_moving)
 	if invulnerability > 0.0:
 		visual.modulate.a = 0.45 if int(invulnerability * 18.0) % 2 == 0 else 1.0
 	else:
@@ -78,10 +141,79 @@ func _physics_process(delta: float) -> void:
 	_update_weapons(delta)
 
 
+func _animate_character(delta: float, direction: Vector2, is_moving: bool) -> void:
+	attack_recoil = move_toward(attack_recoil, 0.0, delta * 7.5)
+	attack_flash = move_toward(attack_flash, 0.0, delta * 8.5)
+	hurt_recoil = move_toward(hurt_recoil, 0.0, delta * 6.0)
+	rig.scale.x = -1.0 if last_direction.x < 0.0 else 1.0
+	rig.scale.y = 1.0
+
+	var breathe := sin(motion_age * 2.35)
+	var stride := sin(motion_age * 10.5)
+	var hop: float = absf(sin(motion_age * 10.5)) if is_moving else (breathe + 1.0) * 0.5
+	var target_scale := Vector2(1.0, 1.0)
+	var target_rotation := 0.0
+	var target_position := Vector2.ZERO
+	if is_moving:
+		target_scale = Vector2(1.0 + stride * 0.025, 1.0 - stride * 0.035)
+		target_rotation = stride * 0.028 + direction.x * 0.018
+		target_position = Vector2(-last_direction.x * attack_recoil * 3.5, -hop * 4.0)
+	else:
+		target_scale = Vector2(1.0 - breathe * 0.012, 1.0 + breathe * 0.018)
+		target_rotation = breathe * 0.006
+		target_position = Vector2(-last_direction.x * attack_recoil * 3.5, -hop * 1.4)
+	if hurt_recoil > 0.0:
+		target_scale += Vector2(hurt_recoil * 0.09, -hurt_recoil * 0.09)
+		target_rotation += sin(motion_age * 42.0) * hurt_recoil * 0.055
+
+	var smoothing := 1.0 - exp(-delta * 15.0)
+	visual.scale = visual.scale.lerp(target_scale, smoothing)
+	visual.rotation = lerpf(visual.rotation, target_rotation, smoothing)
+	visual.position = visual.position.lerp(target_position, smoothing)
+
+	var walk_weight := 1.0 if is_moving else 0.0
+	var front_leg_target := stride * 0.30 * walk_weight
+	var back_leg_target := -stride * 0.30 * walk_weight
+	var front_arm_target := -stride * 0.20 * walk_weight + breathe * 0.025
+	var back_arm_target := stride * 0.22 * walk_weight - breathe * 0.025
+	var weapon_target := 0.0
+	if attack_recoil > 0.0:
+		var attack_progress := 1.0 - attack_recoil
+		match equipped_weapon_id:
+			"shadow_blades":
+				front_arm_target += sin(attack_progress * PI) * 1.35 - attack_recoil * 0.42
+				back_arm_target -= sin(attack_progress * PI) * 0.28
+			"chaos_nova":
+				front_arm_target -= attack_recoil * 1.05
+				back_arm_target += attack_recoil * 0.62
+				weapon_target = sin(attack_progress * PI) * 0.18
+			"soul_orbit":
+				front_arm_target += sin(attack_progress * TAU) * 0.58
+			"chaos_bolt":
+				front_arm_target -= attack_recoil * 0.58
+				back_arm_target += attack_recoil * 0.20
+				weapon_target = -front_arm_target * 0.55
+	if equipped_weapon_id == "soul_orbit":
+		weapon_target += sin(motion_age * 2.8) * 0.10
+	front_leg.rotation = lerpf(front_leg.rotation, front_leg_target, smoothing)
+	back_leg.rotation = lerpf(back_leg.rotation, back_leg_target, smoothing)
+	front_arm.rotation = lerpf(front_arm.rotation, front_arm_target, smoothing)
+	back_arm.rotation = lerpf(back_arm.rotation, back_arm_target, smoothing)
+	weapon_pivot.rotation = lerpf(weapon_pivot.rotation, weapon_target, smoothing)
+	cape.rotation = lerpf(cape.rotation, -stride * 0.035 * walk_weight + breathe * 0.012, smoothing)
+	var shadow_scale := Vector2(1.0 + hop * 0.035, 1.0 - hop * 0.045)
+	shadow.scale = shadow.scale.lerp(shadow_scale, 1.0 - exp(-delta * 10.0))
+	shadow.color.a = lerpf(shadow.color.a, 0.40 - hop * 0.035, smoothing)
+	if attack_flash > 0.0 or weapon_levels.soul_orbit > 0:
+		queue_redraw()
+
+
 func _update_weapons(delta: float) -> void:
-	bolt_timer -= delta
-	if bolt_timer <= 0.0:
-		_fire_chaos_bolt()
+	var bolt_level: int = weapon_levels.chaos_bolt
+	if bolt_level > 0:
+		bolt_timer -= delta
+		if bolt_timer <= 0.0:
+			_fire_chaos_bolt()
 
 	var blade_level: int = weapon_levels.shadow_blades
 	if blade_level > 0:
@@ -143,6 +275,10 @@ func _spawn_player_projectile(
 ) -> void:
 	if not bullet_scene:
 		return
+	attack_direction = direction
+	attack_recoil = 1.0
+	attack_flash = 1.0
+	queue_redraw()
 	var bullet = bullet_scene.instantiate()
 	var is_critical := randf() < crit_chance
 	if is_critical:
@@ -180,6 +316,10 @@ func _damage_orbit(weapon_level: int) -> void:
 func _cast_nova(weapon_level: int) -> void:
 	var radius := 155.0 + weapon_level * 24.0
 	nova_timer = maxf(2.4, (6.2 - weapon_level * 0.48) * cooldown_multiplier)
+	attack_direction = last_direction
+	attack_recoil = 1.0
+	attack_flash = 1.0
+	queue_redraw()
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		if is_instance_valid(enemy) and global_position.distance_to(enemy.global_position) <= radius + enemy.hit_radius:
 			var force: Vector2 = (enemy.global_position - global_position).normalized() * 85.0
@@ -202,18 +342,40 @@ func _nearest_enemy() -> Node2D:
 	return nearest
 
 
-func take_damage(amount: float, _source_direction := Vector2.ZERO) -> void:
+func take_damage(amount: float, source_direction := Vector2.ZERO) -> void:
 	if disabled or invulnerability > 0.0:
 		return
 	var final_damage := maxf(1.0, amount - armor)
 	hp = maxf(0.0, hp - final_damage)
 	invulnerability = 0.58
+	hurt_recoil = 1.0
+	if source_direction.length_squared() > 0.01:
+		last_direction = -source_direction.normalized()
 	var world := get_tree().get_first_node_in_group("world")
 	if world:
 		world.on_player_damaged()
 	if hp <= 0.0:
-		disabled = true
-		died.emit()
+		_play_death_animation()
+
+
+func _play_death_animation() -> void:
+	if death_started:
+		return
+	death_started = true
+	disabled = true
+	velocity = Vector2.ZERO
+	collision_shape.set_deferred("disabled", true)
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.tween_property(visual, "rotation", -0.46 if last_direction.x < 0.0 else 0.46, 0.48)
+	tween.tween_property(visual, "position", Vector2(8.0 * signf(last_direction.x), 13.0), 0.48)
+	tween.tween_property(visual, "scale", Vector2(1.12, 0.72), 0.34)
+	tween.tween_property(visual, "modulate", Color(0.55, 0.30, 0.68, 0.0), 0.48)
+	tween.tween_property(shadow, "scale", Vector2(1.35, 0.45), 0.48)
+	tween.tween_property(shadow, "color", Color(0.01, 0.005, 0.02, 0.0), 0.48)
+	tween.chain().tween_callback(func(): died.emit())
 
 
 func heal(amount: float, show_effect := true) -> void:
@@ -294,26 +456,30 @@ func apply_upgrade(upgrade_id: String, rarity := "COMUM") -> void:
 func weapon_summary() -> String:
 	var names: Array[String] = []
 	if weapon_levels.chaos_bolt > 0:
-		names.append("Seta %d" % weapon_levels.chaos_bolt)
+		names.append("Besta %d" % weapon_levels.chaos_bolt)
 	if weapon_levels.shadow_blades > 0:
-		names.append("Lâminas %d" % weapon_levels.shadow_blades)
+		names.append("Lâmina %d" % weapon_levels.shadow_blades)
 	if weapon_levels.soul_orbit > 0:
-		names.append("Órbita %d" % weapon_levels.soul_orbit)
+		names.append("Cetro %d" % weapon_levels.soul_orbit)
 	if weapon_levels.chaos_nova > 0:
-		names.append("Nova %d" % weapon_levels.chaos_nova)
+		names.append("Cajado %d" % weapon_levels.chaos_nova)
 	return "  ·  ".join(names)
 
 
 func _draw() -> void:
 	var orbit_level: int = weapon_levels.soul_orbit
-	if orbit_level <= 0:
-		return
-	var radius := 72.0 + orbit_level * 8.0
-	var blade_count := 2 + int(orbit_level / 2.0)
-	draw_arc(Vector2.ZERO, radius, 0.0, TAU, 64, Color(0.63, 0.30, 1.0, 0.18), 2.0)
-	for index in range(blade_count):
-		var position := Vector2.RIGHT.rotated(orbit_angle + TAU * index / blade_count) * radius
-		draw_circle(position, 14.0, Color(0.53, 0.20, 0.95, 0.18))
-		draw_colored_polygon(PackedVector2Array([
-			position + Vector2(-3, -12), position + Vector2(5, 0), position + Vector2(-3, 12), position + Vector2(-8, 0)
-		]), Color("d9b3ff"))
+	if orbit_level > 0:
+		var radius := 72.0 + orbit_level * 8.0
+		var blade_count := 2 + int(orbit_level / 2.0)
+		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 64, Color(0.63, 0.30, 1.0, 0.18), 2.0)
+		for index in range(blade_count):
+			var position := Vector2.RIGHT.rotated(orbit_angle + TAU * index / blade_count) * radius
+			draw_circle(position, 14.0, Color(0.53, 0.20, 0.95, 0.18))
+			draw_colored_polygon(PackedVector2Array([
+				position + Vector2(-3, -12), position + Vector2(5, 0), position + Vector2(-3, 12), position + Vector2(-8, 0)
+			]), Color("d9b3ff"))
+	if attack_flash > 0.0:
+		var muzzle := attack_direction * 39.0 + Vector2(0.0, -9.0)
+		var glow := Color(0.78, 0.38, 1.0, attack_flash * 0.34)
+		draw_circle(muzzle, 19.0 * attack_flash, glow)
+		draw_line(muzzle - attack_direction * 9.0, muzzle + attack_direction * 16.0, Color(0.94, 0.76, 1.0, attack_flash), 3.0)

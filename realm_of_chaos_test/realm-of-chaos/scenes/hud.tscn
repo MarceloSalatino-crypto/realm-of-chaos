@@ -507,7 +507,7 @@ theme_override_constants/separation = 24
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.82, 0.39, 1)
 theme_override_font_sizes/font_size = 38
-text = "O VÉU FOI SELADO"
+text = "VITÓRIA!"
 horizontal_alignment = 1
 
 [node name="Summary" type="Label" parent="EndOverlay/Panel/Margin/VBox"]
@@ -515,7 +515,7 @@ layout_mode = 2
 size_flags_vertical = 3
 theme_override_colors/font_color = Color(0.88, 0.84, 0.93, 1)
 theme_override_font_sizes/font_size = 22
-text = "Tempo sobrevivido  10:00\nInimigos banidos  0\nNível alcançado  1"
+text = "Você sobreviveu aos 25 minutos e selou o Véu.\n\nTempo sobrevivido  25:00\nInimigos mortos  0\nNível alcançado  1"
 horizontal_alignment = 1
 vertical_alignment = 1
 
