@@ -131,6 +131,72 @@ static func meta_cost(definition: Dictionary, level: int) -> int:
 	return int(definition.base_cost) + level * level * 12
 
 
+static func relics() -> Array[Dictionary]:
+	return [
+		{"id": "glass_cannon", "title": "CANHÃO DE VIDRO", "icon": "◇", "max": 3,
+		 "description": "+30% de dano, mas -12% de vida máxima."},
+		{"id": "blood_fang", "title": "PRESA SANGRENTA", "icon": "♦", "max": 3,
+		 "description": "Rouba vida ao causar dano. Mais forte contra chefes."},
+		{"id": "storm_crown", "title": "COROA DA TEMPESTADE", "icon": "♛", "max": 2,
+		 "description": "+1 projétil para Besta e Lâminas; +8% de dano."},
+		{"id": "void_boots", "title": "BOTAS DO VAZIO", "icon": "➤", "max": 3,
+		 "description": "+12% de movimento e chance de esquiva."},
+		{"id": "magnet_core", "title": "NÚCLEO MAGNÉTICO", "icon": "⌁", "max": 3,
+		 "description": "+55% de alcance de coleta e +8% de velocidade."},
+		{"id": "boss_hunter", "title": "SELO DO CAÇADOR", "icon": "☠", "max": 3,
+		 "description": "+25% de dano contra mini-chefes e chefes."},
+		{"id": "phoenix_feather", "title": "PLUMA DA FÊNIX", "icon": "♨", "max": 1,
+		 "description": "Revive uma vez com 55% da vida e três segundos de proteção."},
+		{"id": "chrono_shard", "title": "FRAGMENTO CRONAL", "icon": "◷", "max": 3,
+		 "description": "Reduz em 12% o intervalo de todas as armas."},
+		{"id": "iron_heart", "title": "CORAÇÃO DE FERRO", "icon": "⬟", "max": 3,
+		 "description": "+30 de vida, +2 de armadura e cura imediata."},
+		{"id": "soul_lens", "title": "LENTE DAS ALMAS", "icon": "◉", "max": 3,
+		 "description": "+10% de crítico e críticos causam mais dano."}
+	]
+
+
+static func characters() -> Array[Dictionary]:
+	return [
+		{"id": "eclipse_hunter", "title": "CAÇADOR DO ECLIPSE", "role": "Equilibrado",
+		 "description": "+8% de dano e +5% de crítico.", "color": Color("ffffff")},
+		{"id": "glacial_oracle", "title": "ORÁCULO GLACIAL", "role": "Controle",
+		 "description": "+3 de armadura e 10% menos recarga.", "color": Color("a9e8ff")},
+		{"id": "crimson_knight", "title": "CAVALEIRO RUBRO", "role": "Resistência",
+		 "description": "+35 de vida e roubo de vida inicial.", "color": Color("ff9b9b")},
+		{"id": "void_automaton", "title": "AUTÔMATO DO VAZIO", "role": "Ofensivo",
+		 "description": "+18% de dano e +8% de movimento, -15 de vida.", "color": Color("d7a9ff")}
+	]
+
+
+static func character_data(character_id: String) -> Dictionary:
+	for definition in characters():
+		if str(definition.id) == character_id:
+			return definition
+	return characters()[0]
+
+
+static func achievements() -> Array[Dictionary]:
+	return [
+		{"id": "first_boss", "title": "PRIMEIRO SELO", "description": "Derrote um mini-chefe."},
+		{"id": "boss_slayer", "title": "RITUAL QUEBRADO", "description": "Derrote os cinco chefes na mesma partida."},
+		{"id": "survivor", "title": "SOBREVIVENTE", "description": "Vença uma fase de 25 minutos."},
+		{"id": "exterminator", "title": "EXTERMINADOR", "description": "Elimine 500 inimigos em uma partida."},
+		{"id": "arsenal", "title": "ARSENAL SUPREMO", "description": "Evolua as quatro armas na mesma partida."},
+		{"id": "untouchable", "title": "INTOCÁVEL", "description": "Vença recebendo no máximo 100 de dano."}
+	]
+
+
+static func default_settings() -> Dictionary:
+	return {
+		"music": 0.65,
+		"sfx": 0.80,
+		"shake": 0.75,
+		"flash": 0.70,
+		"fullscreen": false
+	}
+
+
 static func biome_data(cycle: int) -> Dictionary:
 	match cycle % 3:
 		1:

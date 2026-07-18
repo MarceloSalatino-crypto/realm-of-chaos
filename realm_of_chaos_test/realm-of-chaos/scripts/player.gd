@@ -21,6 +21,8 @@ const WEAPON_TITLES := {
 @export var bullet_scene: PackedScene
 
 var move_speed := 235.0
+var movement_acceleration := 1450.0
+var movement_deceleration := 1850.0
 var hp := 125.0
 var max_hp := 125.0
 var armor := 0.0
@@ -28,7 +30,18 @@ var regeneration := 0.0
 var damage_multiplier := 1.0
 var cooldown_multiplier := 1.0
 var crit_chance := 0.05
+var critical_multiplier := 2.0
 var pickup_radius := 105.0
+var projectile_bonus := 0
+var life_steal := 0.0
+var boss_damage_multiplier := 1.0
+var dodge_chance := 0.0
+var revive_charges := 0
+var character_id := "eclipse_hunter"
+var character_applied := false
+var character_color := Color.WHITE
+var relic_levels: Dictionary = {}
+var hazard_tick := 0.0
 
 var level := 1
 var experience := 0
@@ -116,7 +129,16 @@ func _physics_process(delta: float) -> void:
 	var direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	if direction.length_squared() > 0.01:
 		last_direction = direction.normalized()
-	velocity = direction * move_speed
+	var environment := {"speed": 1.0, "traction": 1.0, "damage": 0.0, "name": ""}
+	var world := get_tree().get_first_node_in_group("world")
+	if world and world.has_method("get_environment_effect"):
+		environment = world.get_environment_effect(global_position)
+	var desired_velocity := direction * move_speed * float(environment.get("speed", 1.0))
+	var traction := float(environment.get("traction", 1.0))
+	if direction.length_squared() > 0.01:
+		velocity = velocity.move_toward(desired_velocity, movement_acceleration * traction * delta)
+	else:
+		velocity = velocity.move_toward(Vector2.ZERO, movement_deceleration * traction * delta)
 	move_and_slide()
 	global_position.x = clampf(global_position.x, -5550.0, 5550.0)
 	global_position.y = clampf(global_position.y, -5550.0, 5550.0)
@@ -130,6 +152,11 @@ func _physics_process(delta: float) -> void:
 
 	if regeneration > 0.0 and hp < max_hp:
 		heal(regeneration * delta, false)
+	hazard_tick -= delta
+	var hazard_damage := float(environment.get("damage", 0.0))
+	if hazard_damage > 0.0 and hazard_tick <= 0.0:
+		hazard_tick = 0.5
+		take_damage(hazard_damage * 0.5, Vector2.ZERO, true)
 	_update_weapons(delta)
 
 
@@ -212,7 +239,7 @@ func _fire_chaos_bolt() -> void:
 	bolt_timer = maxf(0.12 if evolved else 0.16, (0.48 if evolved else 0.68 - weapon_level * 0.045) * cooldown_multiplier)
 	if not target:
 		return
-	var count := (3 + int(weapon_level / 4.0)) if evolved else (1 + int((weapon_level - 1) / 3.0))
+	var count := ((3 + int(weapon_level / 4.0)) if evolved else (1 + int((weapon_level - 1) / 3.0))) + projectile_bonus
 	var base_direction := (target.global_position - global_position).normalized()
 	for index in range(count):
 		var offset := float(index) - float(count - 1) * 0.5
@@ -220,7 +247,7 @@ func _fire_chaos_bolt() -> void:
 			base_direction.rotated(offset * (0.09 if evolved else 0.12)),
 			(14.0 + weapon_level * 4.2) * damage_multiplier * (2.05 if evolved else 1.0),
 			760.0 if evolved else 650.0, 8 if evolved else int(weapon_level / 3.0),
-			14.0 if evolved else 8.0 + weapon_level * 0.7, Color("ffd36b") if evolved else Color("a96cff")
+			14.0 if evolved else 8.0 + weapon_level * 0.7, Color("ffd36b") if evolved else Color("a96cff"), "chaos_bolt"
 		)
 
 
@@ -230,20 +257,20 @@ func _fire_shadow_blades(weapon_level: int) -> void:
 	blades_timer = maxf(0.36 if evolved else 0.45, (0.78 if evolved else 2.0 - weapon_level * 0.16) * cooldown_multiplier)
 	if not target:
 		return
-	var count := 16 if evolved else 2 + weapon_level
+	var count := (16 if evolved else 2 + weapon_level) + projectile_bonus
 	var base_direction := (target.global_position - global_position).normalized()
 	for index in range(count):
 		var direction := Vector2.RIGHT.rotated(TAU * index / count) if evolved else base_direction.rotated((float(index) - float(count - 1) * 0.5) * 0.13)
 		_spawn_player_projectile(
 			direction, (10.0 + weapon_level * 3.0) * damage_multiplier * (1.62 if evolved else 1.0),
 			820.0 if evolved else 760.0, 3 if evolved else 1, 8.0 if evolved else 6.0,
-			Color("df63ff") if evolved else Color("ff557d")
+			Color("df63ff") if evolved else Color("ff557d"), "shadow_blades"
 		)
 
 
 func _spawn_player_projectile(
 	direction: Vector2, amount: float, projectile_speed: float,
-	pierce: int, size: float, color: Color
+	pierce: int, size: float, color: Color, weapon_id := "unknown"
 ) -> void:
 	if not bullet_scene:
 		return
@@ -254,9 +281,9 @@ func _spawn_player_projectile(
 	var bullet = bullet_scene.instantiate()
 	var is_critical := randf() < crit_chance
 	if is_critical:
-		amount *= 2.0
+		amount *= critical_multiplier
 	bullet.global_position = global_position + direction * 22.0
-	bullet.setup(direction, amount, projectile_speed, pierce, size, color, is_critical)
+	bullet.setup(direction, amount, projectile_speed, pierce, size, color, is_critical, weapon_id)
 	var world := get_tree().get_first_node_in_group("world")
 	if world:
 		world.add_player_projectile(bullet)
@@ -284,8 +311,8 @@ func _damage_orbit(weapon_level: int) -> void:
 				orbit_hit_times[enemy_id] = now
 				attack_recoil = 1.0
 				var is_critical := randf() < crit_chance
-				var amount := (8.0 + weapon_level * 3.0) * damage_multiplier * (1.85 if evolved else 1.0) * (2.0 if is_critical else 1.0)
-				enemy.take_damage(amount, (enemy.global_position - global_position).normalized() * (18.0 if evolved else 8.0), is_critical)
+				var amount := (8.0 + weapon_level * 3.0) * damage_multiplier * (1.85 if evolved else 1.0) * (critical_multiplier if is_critical else 1.0)
+				enemy.take_damage(amount, (enemy.global_position - global_position).normalized() * (18.0 if evolved else 8.0), is_critical, "soul_orbit")
 				if evolved:
 					heal(0.35, false)
 				break
@@ -303,8 +330,8 @@ func _cast_nova(weapon_level: int) -> void:
 		if is_instance_valid(enemy) and global_position.distance_to(enemy.global_position) <= radius + enemy.hit_radius:
 			var force: Vector2 = (enemy.global_position - global_position).normalized() * (155.0 if evolved else 85.0)
 			var is_critical := randf() < crit_chance
-			var amount := (25.0 + weapon_level * 9.0) * damage_multiplier * (2.1 if evolved else 1.0) * (2.0 if is_critical else 1.0)
-			enemy.take_damage(amount, force, is_critical)
+			var amount := (25.0 + weapon_level * 9.0) * damage_multiplier * (2.1 if evolved else 1.0) * (critical_multiplier if is_critical else 1.0)
+			enemy.take_damage(amount, force, is_critical, "chaos_nova")
 	var world := get_tree().get_first_node_in_group("world")
 	if world:
 		world.spawn_effect(global_position, Color("ffd36b") if evolved else Color("bd72ff"), radius, 0.72 if evolved else 0.55, true)
@@ -330,20 +357,33 @@ func _enemies_near(radius: float) -> Array[Node]:
 	return fallback
 
 
-func take_damage(amount: float, source_direction := Vector2.ZERO) -> void:
-	if disabled or invulnerability > 0.0:
+func take_damage(amount: float, source_direction := Vector2.ZERO, environmental := false) -> void:
+	if disabled or (invulnerability > 0.0 and not environmental):
+		return
+	if not environmental and randf() < dodge_chance:
+		var dodge_world := get_tree().get_first_node_in_group("world")
+		if dodge_world:
+			dodge_world.spawn_damage_number(global_position, 0.0, false, false, "ESQUIVA")
 		return
 	var final_damage := maxf(1.0, amount - armor)
 	hp = maxf(0.0, hp - final_damage)
-	invulnerability = 0.58
+	invulnerability = 0.20 if environmental else 0.58
 	hurt_recoil = 1.0
 	if source_direction.length_squared() > 0.01:
 		last_direction = -source_direction.normalized()
 	var world := get_tree().get_first_node_in_group("world")
 	if world:
+		world.record_player_damage(final_damage)
 		world.on_player_damaged()
 	if hp <= 0.0:
-		_play_death_animation()
+		if revive_charges > 0:
+			revive_charges -= 1
+			hp = max_hp * 0.55
+			invulnerability = 3.0
+			if world:
+				world.on_player_revived()
+		else:
+			_play_death_animation()
 
 
 func _play_death_animation() -> void:
@@ -478,6 +518,106 @@ func apply_meta_bonuses(meta: Dictionary) -> void:
 	hp = max_hp
 	move_speed *= 1.0 + speed_level * 0.03
 	crit_chance += fortune_level * 0.015
+
+
+func apply_character(selected_id: String) -> void:
+	if character_applied:
+		return
+	character_applied = true
+	character_id = selected_id
+	var definition := GameDefs.character_data(selected_id)
+	character_color = definition.color
+	sprite.modulate = character_color
+	match character_id:
+		"glacial_oracle":
+			armor += 3.0
+			cooldown_multiplier *= 0.90
+		"crimson_knight":
+			max_hp += 35.0
+			life_steal += 0.004
+		"void_automaton":
+			damage_multiplier *= 1.18
+			move_speed *= 1.08
+			max_hp -= 15.0
+		_:
+			damage_multiplier *= 1.08
+			crit_chance += 0.05
+	hp = max_hp
+
+
+func get_relic_options(count: int) -> Array[Dictionary]:
+	var pool: Array[Dictionary] = []
+	for definition in GameDefs.relics():
+		if int(relic_levels.get(str(definition.id), 0)) < int(definition.max):
+			var option := definition.duplicate()
+			option["level"] = int(relic_levels.get(str(definition.id), 0)) + 1
+			pool.append(option)
+	pool.shuffle()
+	return pool.slice(0, mini(count, pool.size()))
+
+
+func apply_relic(relic_id: String) -> void:
+	var current := int(relic_levels.get(relic_id, 0))
+	var maximum := 1
+	for definition in GameDefs.relics():
+		if str(definition.id) == relic_id:
+			maximum = int(definition.max)
+			break
+	if current >= maximum:
+		return
+	relic_levels[relic_id] = current + 1
+	match relic_id:
+		"glass_cannon":
+			damage_multiplier *= 1.30
+			max_hp *= 0.88
+			hp = minf(hp, max_hp)
+		"blood_fang":
+			life_steal += 0.0045
+		"storm_crown":
+			projectile_bonus += 1
+			damage_multiplier *= 1.08
+		"void_boots":
+			move_speed *= 1.12
+			dodge_chance += 0.06
+		"magnet_core":
+			pickup_radius *= 1.55
+			move_speed *= 1.08
+		"boss_hunter":
+			boss_damage_multiplier *= 1.25
+		"phoenix_feather":
+			revive_charges += 1
+		"chrono_shard":
+			cooldown_multiplier *= 0.88
+		"iron_heart":
+			max_hp += 30.0
+			armor += 2.0
+			heal(30.0)
+		"soul_lens":
+			crit_chance += 0.10
+			critical_multiplier += 0.20
+
+
+func on_damage_dealt(amount: float, target_is_boss: bool) -> void:
+	if life_steal <= 0.0 or amount <= 0.0:
+		return
+	var multiplier := 1.65 if target_is_boss else 1.0
+	heal(minf(6.0, amount * life_steal * multiplier), false)
+
+
+func all_weapons_evolved() -> bool:
+	for weapon_id in WEAPON_IDS:
+		if not bool(evolved_weapons.get(weapon_id, false)):
+			return false
+	return true
+
+
+func relic_summary() -> String:
+	var names: Array[String] = []
+	for definition in GameDefs.relics():
+		var relic_level := int(relic_levels.get(str(definition.id), 0))
+		if relic_level > 0:
+			names.append("%s %d" % [str(definition.title).capitalize(), relic_level])
+	return "Nenhuma" if names.is_empty() else ", ".join(names)
 
 
 func grant_boss_reward(final_reward := false) -> void:

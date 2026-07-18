@@ -4,6 +4,15 @@ var enabled := DisplayServer.get_name() != "headless"
 var cached_streams: Dictionary = {}
 var music_player: AudioStreamPlayer
 var music_stage := ""
+var music_level := 0.65
+var sfx_level := 0.80
+
+
+func set_levels(new_music_level: float, new_sfx_level: float) -> void:
+	music_level = clampf(new_music_level, 0.0, 1.0)
+	sfx_level = clampf(new_sfx_level, 0.0, 1.0)
+	if is_instance_valid(music_player):
+		music_player.volume_db = linear_to_db(maxf(0.0001, music_level)) - 12.0
 
 
 func set_music_stage(stage_id: String) -> void:
@@ -13,7 +22,7 @@ func set_music_stage(stage_id: String) -> void:
 	if not is_instance_valid(music_player):
 		music_player = AudioStreamPlayer.new()
 		music_player.name = "AdaptiveMusic"
-		music_player.volume_db = -23.0
+		music_player.volume_db = linear_to_db(maxf(0.0001, music_level)) - 12.0
 		add_child(music_player)
 	var key := "music_" + stage_id
 	if not cached_streams.has(key):
@@ -38,6 +47,11 @@ func play_evolution() -> void:
 	_play_tone("evolution", 740.0, 0.48, 0.74, "sine")
 
 
+func play_reward() -> void:
+	_play_tone("reward", 620.0, 0.42, 0.68, "sine")
+	_play_tone("reward_high", 930.0, 0.30, 0.52, "sine")
+
+
 func play_pickup() -> void:
 	_play_tone("pickup", 880.0, 0.06, 0.42, "sine")
 
@@ -57,7 +71,7 @@ func _play_tone(key: String, frequency: float, duration: float, volume: float, w
 		cached_streams[key] = stream
 	var player := AudioStreamPlayer.new()
 	player.stream = stream
-	player.volume_db = -10.0
+	player.volume_db = linear_to_db(maxf(0.0001, sfx_level)) - 4.0
 	add_child(player)
 	player.finished.connect(player.queue_free)
 	player.play()

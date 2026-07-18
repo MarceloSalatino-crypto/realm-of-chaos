@@ -6,6 +6,8 @@ const GemScene = preload("res://scenes/xp_gem.tscn")
 const EffectScript = preload("res://scripts/effect.gd")
 const DamageNumberScript = preload("res://scripts/damage_number.gd")
 const AudioDirectorScript = preload("res://scripts/audio_director.gd")
+const RewardChestScript = preload("res://scripts/reward_chest.gd")
+const ArenaHazardScript = preload("res://scripts/arena_hazard.gd")
 
 const RUN_DURATION := 25.0 * 60.0
 const BOSS_TIMES := [300.0, 600.0, 900.0, 1200.0, 1500.0]
@@ -40,6 +42,13 @@ var event_spawn_multiplier := 1.0
 var event_magnet_applied := false
 var suppress_save := false
 var audio: Node
+var rewards: Node2D
+var hazards: Node2D
+var pending_chest: Node
+var damage_by_source: Dictionary = {}
+var damage_taken := 0.0
+var bosses_defeated := 0
+var accessibility_settings: Dictionary = {}
 
 @onready var player = $Player
 @onready var ground: Sprite2D = $Ground
@@ -55,6 +64,12 @@ var audio: Node
 func _ready() -> void:
 	randomize()
 	get_tree().paused = false
+	rewards = Node2D.new()
+	rewards.name = "Rewards"
+	add_child(rewards)
+	hazards = Node2D.new()
+	hazards.name = "ArenaHazards"
+	add_child(hazards)
 	audio = AudioDirectorScript.new()
 	audio.name = "AudioDirector"
 	add_child(audio)
@@ -64,6 +79,7 @@ func _ready() -> void:
 	player.level_up_requested.connect(_on_level_up_requested)
 	player.died.connect(_on_player_died)
 	hud.upgrade_selected.connect(_on_upgrade_selected)
+	hud.relic_selected.connect(_on_relic_selected)
 	hud.restart_requested.connect(_restart_run)
 	hud.menu_requested.connect(_return_to_menu)
 	hud.resume_requested.connect(_resume_run)
@@ -170,6 +186,7 @@ func _spawn_scheduled_boss(entry: Dictionary, index: int) -> Node:
 		final_boss_spawned = true
 	hud.show_boss(str(entry.name), active_boss.hp, active_boss.max_hp)
 	hud.show_stage_banner("CHEFE FINAL · O RITUAL EXIGE UMA VITÓRIA" if bool(entry.final) else "MINI-CHEFE %d/4 · %s" % [index + 1, str(entry.name)])
+	hud.show_boss_intro(str(entry.name), "CHEFE FINAL" if bool(entry.final) else "GUARDIÃO DO MINUTO %d" % int(float(entry.time) / 60.0), bool(entry.final))
 	audio.play_boss_spawn()
 	audio.set_music_stage("boss")
 	shake_camera(9.0 if bool(entry.final) else 6.0, 0.38)
@@ -195,10 +212,12 @@ func _update_stage() -> void:
 
 func _update_hud() -> void:
 	var remaining := maxf(0.0, RUN_DURATION - time_survived)
+	var environment: Dictionary = get_environment_effect(player.global_position)
+	var status_title := current_event_title if not current_event_title.is_empty() else str(environment.get("name", ""))
 	hud.update_run(
 		player.hp, player.max_hp, player.experience, player.experience_needed,
 		player.level, enemies_killed, remaining, last_stage, player.weapon_summary(),
-		essence_earned, current_event_title
+		essence_earned, status_title
 	)
 	if is_instance_valid(active_boss) and not active_boss.dead:
 		hud.update_boss(active_boss.hp, active_boss.max_hp)
@@ -277,6 +296,7 @@ func handle_enemy_death(enemy: Node, xp_value: int, was_elite: bool, was_boss: b
 		heart.setup(24 if not was_boss else 60, enemy.global_position + Vector2(18, 0), "heal")
 	if not was_boss:
 		return
+	bosses_defeated += 1
 	if active_boss == enemy:
 		active_boss = null
 	for index in range(10 if enemy.final_boss else 7):
@@ -289,8 +309,50 @@ func handle_enemy_death(enemy: Node, xp_value: int, was_elite: bool, was_boss: b
 		hud.show_stage_banner("SOBERANO DERROTADO · PRÓXIMA FASE DESBLOQUEADA")
 		call_deferred("_end_run", true)
 	else:
-		hud.show_stage_banner("MINI-CHEFE BANIDO · BÊNÇÃO ABSORVIDA")
+		_spawn_reward_chest(enemy.global_position, str(GameDefs.enemy_data(enemy.enemy_type).name))
+		hud.show_stage_banner("MINI-CHEFE BANIDO · O BAÚ DO RITUAL SURGIU")
 		audio.set_music_stage(str(GameDefs.difficulty_data(time_survived).id))
+
+
+func _spawn_reward_chest(chest_position: Vector2, boss_name: String) -> Node:
+	var chest = RewardChestScript.new()
+	rewards.add_child(chest)
+	chest.setup(self, chest_position, boss_name)
+	spawn_effect(chest_position, Color("d99cff"), 125.0, 0.75, true)
+	return chest
+
+
+func open_reward_chest(chest: Node) -> void:
+	if game_ended or pending_chest != null or not is_instance_valid(chest):
+		return
+	pending_chest = chest
+	var options: Array[Dictionary] = player.get_relic_options(3)
+	if options.is_empty():
+		player.grant_boss_reward(false)
+		chest.queue_free()
+		pending_chest = null
+		return
+	get_tree().paused = true
+	hud.show_relic_choice(options, str(chest.source_boss))
+	audio.play_reward()
+
+
+func _on_relic_selected(relic_id: String) -> void:
+	if pending_chest == null:
+		return
+	var selected_title := relic_id
+	for definition in GameDefs.relics():
+		if str(definition.id) == relic_id:
+			selected_title = str(definition.title)
+			break
+	player.apply_relic(relic_id)
+	hud.hide_relic_choice()
+	hud.show_stage_banner("RELÍQUIA ABSORVIDA · %s" % selected_title)
+	spawn_effect(player.global_position, Color("ffd36b"), 180.0, 0.70, true)
+	if is_instance_valid(pending_chest):
+		pending_chest.queue_free()
+	pending_chest = null
+	get_tree().paused = false
 
 
 func add_player_projectile(projectile: Node) -> void:
@@ -314,12 +376,12 @@ func spawn_effect(position: Vector2, color: Color, radius: float, duration := 0.
 	effect.setup(position, color, radius, duration, filled)
 
 
-func spawn_damage_number(position: Vector2, amount: float, critical := false, healing := false) -> void:
+func spawn_damage_number(position: Vector2, amount: float, critical := false, healing := false, custom_text := "") -> void:
 	if effects.get_child_count() >= MAX_EFFECTS:
 		return
 	var number = DamageNumberScript.new()
 	effects.add_child(number)
-	number.setup(position, amount, critical, healing)
+	number.setup(position, amount, critical, healing, custom_text)
 
 
 func on_enemy_hit(position: Vector2, amount: float, critical: bool, is_boss: bool) -> void:
@@ -346,13 +408,32 @@ func on_boss_phase_changed(enemy: Node, phase: int) -> void:
 
 
 func on_player_damaged() -> void:
-	hud.flash_damage()
+	hud.flash_damage(float(accessibility_settings.get("flash", 0.7)))
 	audio.play_player_hurt()
 	shake_camera(7.0, 0.18)
 
 
+func on_player_revived() -> void:
+	hud.show_stage_banner("PLUMA DA FÊNIX · VOCÊ RETORNOU")
+	spawn_effect(player.global_position, Color("ffb35a"), 240.0, 1.0, true)
+	audio.play_evolution()
+
+
+func record_damage(source_id: String, amount: float, target_is_boss := false) -> void:
+	damage_by_source[source_id] = float(damage_by_source.get(source_id, 0.0)) + amount
+	if is_instance_valid(player):
+		player.on_damage_dealt(amount, target_is_boss)
+
+
+func record_player_damage(amount: float) -> void:
+	damage_taken += amount
+
+
 func shake_camera(strength: float, duration := 0.18) -> void:
 	if not is_instance_valid(player):
+		return
+	strength *= float(accessibility_settings.get("shake", 0.75))
+	if strength <= 0.01:
 		return
 	var camera: Camera2D = player.get_node("Camera2D")
 	var original := Vector2.ZERO
@@ -437,9 +518,61 @@ func _end_run(victory: bool) -> void:
 		return
 	game_ended = true
 	get_tree().paused = true
+	var new_achievements := _evaluate_achievements(victory)
 	_save_record(victory)
 	var next_biome := str(GameDefs.biome_data(run_cycle + 1).name) if victory else str(biome.name)
-	hud.show_end_screen(victory, time_survived, enemies_killed, player.level, essence_earned, next_biome)
+	hud.show_end_screen(victory, time_survived, enemies_killed, player.level, essence_earned, next_biome, _run_stats_text(), new_achievements)
+
+
+func _run_stats_text() -> String:
+	var total_damage := 0.0
+	var top_source := ""
+	var top_damage := 0.0
+	for source_id in damage_by_source:
+		var amount := float(damage_by_source[source_id])
+		total_damage += amount
+		if amount > top_damage:
+			top_damage = amount
+			top_source = str(source_id)
+	var top_title := _weapon_title(top_source) if not top_source.is_empty() else "Nenhuma"
+	return "Dano causado  %d\nMaior fonte  %s (%d)\nDano recebido  %d\nChefes derrotados  %d/5\nRelíquias  %s" % [
+		ceili(total_damage), top_title, ceili(top_damage), ceili(damage_taken), bosses_defeated, player.relic_summary()
+	]
+
+
+func _weapon_title(source_id: String) -> String:
+	for definition in GameDefs.upgrades():
+		if str(definition.id) == source_id:
+			return str(definition.title)
+	return source_id.capitalize()
+
+
+func _evaluate_achievements(victory: bool) -> Array[String]:
+	var earned_ids: Array[String] = []
+	if bosses_defeated >= 1:
+		earned_ids.append("first_boss")
+	if bosses_defeated >= 5:
+		earned_ids.append("boss_slayer")
+	if victory:
+		earned_ids.append("survivor")
+	if enemies_killed >= 500:
+		earned_ids.append("exterminator")
+	if player.all_weapons_evolved():
+		earned_ids.append("arsenal")
+	if victory and damage_taken <= 100.0:
+		earned_ids.append("untouchable")
+	var config := ConfigFile.new()
+	config.load(SAVE_PATH)
+	var newly_unlocked: Array[String] = []
+	for definition in GameDefs.achievements():
+		var achievement_id := str(definition.id)
+		if not achievement_id in earned_ids or bool(config.get_value("achievements", achievement_id, false)):
+			continue
+		newly_unlocked.append(str(definition.title))
+		config.set_value("achievements", achievement_id, true)
+	if not suppress_save:
+		config.save(SAVE_PATH)
+	return newly_unlocked
 
 
 func _save_record(victory: bool) -> void:
@@ -462,6 +595,7 @@ func _save_record(victory: bool) -> void:
 func _load_progression() -> void:
 	var config := ConfigFile.new()
 	config.load(SAVE_PATH)
+	config.set_value("profile", "version", 2)
 	run_cycle = int(config.get_value("progress", "active_cycle", 0))
 	biome = GameDefs.biome_data(run_cycle)
 	var meta := {
@@ -471,6 +605,12 @@ func _load_progression() -> void:
 		"fortune": int(config.get_value("meta", "fortune", 0))
 	}
 	player.apply_meta_bonuses(meta)
+	player.apply_character(str(config.get_value("profile", "character", "eclipse_hunter")))
+	accessibility_settings = GameDefs.default_settings()
+	for setting_id in accessibility_settings:
+		accessibility_settings[setting_id] = config.get_value("settings", setting_id, accessibility_settings[setting_id])
+	audio.set_levels(float(accessibility_settings.music), float(accessibility_settings.sfx))
+	hud.set_accessibility(float(accessibility_settings.flash))
 
 
 func _apply_biome() -> void:
@@ -556,3 +696,26 @@ func _generate_environment() -> void:
 		sprite.modulate = Color(biome_tint, rng.randf_range(0.36, 0.72))
 		sprite.z_index = -4
 		decorations.add_child(sprite)
+	_generate_hazards(rng)
+
+
+func _generate_hazards(rng: RandomNumberGenerator) -> void:
+	var hazard_kind := "roots"
+	if str(biome.id) == "frozen":
+		hazard_kind = "ice"
+	elif str(biome.id) == "cathedral":
+		hazard_kind = "void"
+	for index in range(18):
+		var hazard_position := Vector2(rng.randf_range(-5000.0, 5000.0), rng.randf_range(-5000.0, 5000.0))
+		if hazard_position.length() < 420.0:
+			hazard_position = hazard_position.normalized() * rng.randf_range(520.0, 820.0)
+		var hazard = ArenaHazardScript.new()
+		hazards.add_child(hazard)
+		hazard.setup(hazard_kind, hazard_position, rng.randf_range(82.0, 138.0), rng.randi())
+
+
+func get_environment_effect(position: Vector2) -> Dictionary:
+	for hazard in get_tree().get_nodes_in_group("arena_hazards"):
+		if is_instance_valid(hazard) and hazard.contains_point(position):
+			return hazard.effect_data()
+	return {"speed": 1.0, "traction": 1.0, "damage": 0.0, "name": ""}

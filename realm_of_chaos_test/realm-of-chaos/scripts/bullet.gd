@@ -9,6 +9,7 @@ var knockback := 16.0
 var lifetime := 2.2
 var projectile_color := Color("a96cff")
 var critical := false
+var source_weapon := "unknown"
 var hit_targets: Dictionary = {}
 var world: Node
 
@@ -24,7 +25,8 @@ func setup(
 	pierce_count: int,
 	radius: float,
 	color: Color,
-	is_critical := false
+	is_critical := false,
+	weapon_id := "unknown"
 ) -> void:
 	direction = dir.normalized()
 	damage = amount
@@ -33,6 +35,7 @@ func setup(
 	hit_radius = radius
 	projectile_color = color
 	critical = is_critical
+	source_weapon = weapon_id
 	rotation = direction.angle()
 	queue_redraw()
 
@@ -57,7 +60,7 @@ func _physics_process(delta: float) -> void:
 			continue
 		if global_position.distance_squared_to(enemy.global_position) <= pow(hit_radius + enemy.hit_radius, 2.0):
 			hit_targets[enemy_id] = true
-			enemy.take_damage(damage, direction * knockback, critical)
+			enemy.take_damage(damage, direction * knockback, critical, source_weapon)
 			pierce -= 1
 			if pierce < 0:
 				queue_free()

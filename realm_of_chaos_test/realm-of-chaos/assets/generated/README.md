@@ -38,8 +38,11 @@ Cada chefe usa quatro quadros horizontais: locomoção A/B, preparação e execu
 - `corrupted_forest_ground.png`: terreno ortográfico repetível da floresta corrompida.
 - `frozen_ruins_ground.png`: piso repetível das Ruínas Glaciais.
 - `void_cathedral_ground.png`: piso repetível da Catedral do Vazio.
+- `boss_reward_chest.png`: folha horizontal de quatro quadros — fechado, energizado, abrindo e aberto — usada nas recompensas dos mini-chefes.
 - Os PNGs anteriores do Guardião, atlas e peças modulares foram preservados como material de legado, mas não são usados pela animação atual.
 
 Direção visual: pixel art de fantasia sombria, silhuetas legíveis na escala de gameplay, protagonista em azul-noturno/prata/carmesim e inimigos com identidades cromáticas próprias. Sem texto, marcas ou elementos de terceiros.
 
 Os sprites ativos possuem canal alfa e cantos transparentes. As dimensões das folhas foram validadas para divisão exata em seus quadros.
+
+O baú foi criado com o gerador de imagens integrado, em modo de geração nativa, a partir de um prompt de sprite dark fantasy ortográfico com quatro quadros exatos, ferro negro, ouro antigo e gema violeta sobre chroma `#00ff00`. O fundo foi removido pelo utilitário oficial `remove_chroma_key.py`; o PNG final mede 2172×724, possui alfa válido e largura divisível por quatro.

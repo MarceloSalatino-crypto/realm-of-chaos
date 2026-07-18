@@ -50,6 +50,8 @@ var telegraph_duration := 0.0
 var pending_special := ""
 var explosion_done := false
 var dead := false
+var separation_timer := 0.0
+var separation_force := Vector2.ZERO
 
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var shadow: Polygon2D = $Shadow
@@ -147,6 +149,7 @@ func _physics_process(delta: float) -> void:
 			_execute_special(direction)
 	else:
 		_update_movement(direction, distance)
+		_apply_separation(delta)
 		_try_begin_special(distance)
 
 	velocity += knockback_velocity + dash_velocity
@@ -189,6 +192,32 @@ func _update_movement(direction: Vector2, distance: float) -> void:
 			velocity = direction.rotated(sin(movement_age * 1.5) * 0.15) * move_speed
 		_:
 			velocity = direction * move_speed
+
+
+func _apply_separation(delta: float) -> void:
+	if not world or boss or not world.has_method("get_enemies_near"):
+		return
+	separation_timer -= delta
+	if separation_timer > 0.0:
+		velocity += separation_force
+		return
+	separation_timer = 0.10 + fmod(float(get_instance_id()), 7.0) * 0.006
+	var separation := Vector2.ZERO
+	var checked := 0
+	for neighbor in world.get_enemies_near(global_position, hit_radius * 2.4 + 16.0):
+		if neighbor == self or not is_instance_valid(neighbor):
+			continue
+		var away: Vector2 = global_position - neighbor.global_position
+		var distance_squared := maxf(away.length_squared(), 16.0)
+		separation += away.normalized() / sqrt(distance_squared)
+		checked += 1
+		if checked >= 8:
+			break
+	if separation.length_squared() > 0.0001:
+		separation_force = separation.normalized() * move_speed * minf(0.52, checked * 0.08)
+	else:
+		separation_force = Vector2.ZERO
+	velocity += separation_force
 
 
 func _try_begin_special(distance: float) -> void:
@@ -418,9 +447,12 @@ func _spawn_enemy_projectile(direction: Vector2, amount: float, projectile_speed
 		get_tree().current_scene.add_child(projectile)
 
 
-func take_damage(amount: float, force := Vector2.ZERO, critical := false) -> void:
+func take_damage(amount: float, force := Vector2.ZERO, critical := false, source_id := "") -> void:
 	if dead:
 		return
+	if boss and not source_id.is_empty() and is_instance_valid(player):
+		amount *= float(player.boss_damage_multiplier)
+	var actual_damage := minf(hp, amount)
 	hp -= amount
 	knockback_velocity += force * (0.34 if boss else 1.0)
 	hit_squash = 1.0
@@ -430,6 +462,8 @@ func take_damage(amount: float, force := Vector2.ZERO, critical := false) -> voi
 	if world:
 		world.on_enemy_hit(global_position + Vector2(0.0, -hit_radius), amount, critical, boss)
 		world.spawn_effect(global_position, GameDefs.enemy_data(enemy_type).color, hit_radius * 1.3, 0.16)
+		if not source_id.is_empty():
+			world.record_damage(source_id, actual_damage, boss)
 	var flash_color := Color("fff2a8") if critical else Color.WHITE
 	sprite.modulate = flash_color * 1.8
 	var tween := create_tween()

@@ -1,12 +1,20 @@
 extends CanvasLayer
 
 signal upgrade_selected(upgrade_id: String, rarity: String)
+signal relic_selected(relic_id: String)
 signal restart_requested
 signal menu_requested
 signal resume_requested
 
 var upgrade_options: Array[Dictionary] = []
+var relic_options: Array[Dictionary] = []
 var modal_open := false
+var flash_intensity := 0.70
+var relic_overlay: Control
+var relic_title: Label
+var relic_buttons: Array[Button] = []
+var boss_intro: Control
+var boss_intro_label: Label
 
 @onready var health_bar: ProgressBar = $Top/HealthBar
 @onready var health_label: Label = $Top/HealthBar/Label
@@ -45,6 +53,93 @@ func _ready() -> void:
 	$PauseOverlay/Panel/VBox/Menu.pressed.connect(func(): menu_requested.emit())
 	$EndOverlay/Panel/Margin/VBox/Restart.pressed.connect(func(): restart_requested.emit())
 	$EndOverlay/Panel/Margin/VBox/Menu.pressed.connect(func(): menu_requested.emit())
+	_build_relic_overlay()
+	_build_boss_intro()
+	end_summary.add_theme_font_size_override("font_size", 18)
+
+
+func set_accessibility(new_flash_intensity: float) -> void:
+	flash_intensity = clampf(new_flash_intensity, 0.0, 1.0)
+
+
+func _build_relic_overlay() -> void:
+	relic_overlay = Control.new()
+	relic_overlay.name = "RelicOverlay"
+	relic_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	relic_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(relic_overlay)
+	var shade := ColorRect.new()
+	shade.color = Color(0.015, 0.005, 0.035, 0.95)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	relic_overlay.add_child(shade)
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.position = Vector2(-500.0, -295.0)
+	panel.size = Vector2(1000.0, 590.0)
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color("171027")
+	panel_style.border_color = Color("c88dff")
+	panel_style.set_border_width_all(2)
+	panel_style.set_corner_radius_all(16)
+	panel.add_theme_stylebox_override("panel", panel_style)
+	relic_overlay.add_child(panel)
+	var margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 34 if side in ["top", "bottom"] else 42)
+	panel.add_child(margin)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 18)
+	margin.add_child(box)
+	relic_title = Label.new()
+	relic_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	relic_title.add_theme_font_size_override("font_size", 32)
+	relic_title.add_theme_color_override("font_color", Color("ffd36b"))
+	box.add_child(relic_title)
+	var subtitle := Label.new()
+	subtitle.text = "Uma relíquia ficará com você até o fim da partida"
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.add_theme_font_size_override("font_size", 17)
+	subtitle.add_theme_color_override("font_color", Color("cbb8df"))
+	box.add_child(subtitle)
+	var cards := HBoxContainer.new()
+	cards.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	cards.add_theme_constant_override("separation", 16)
+	box.add_child(cards)
+	for index in range(3):
+		var button := Button.new()
+		button.custom_minimum_size = Vector2(285.0, 390.0)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.add_theme_font_size_override("font_size", 17)
+		button.pressed.connect(_on_relic_button_pressed.bind(index))
+		cards.add_child(button)
+		relic_buttons.append(button)
+	relic_overlay.hide()
+
+
+func _build_boss_intro() -> void:
+	boss_intro = Control.new()
+	boss_intro.name = "BossIntro"
+	boss_intro.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	boss_intro.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(boss_intro)
+	var band := ColorRect.new()
+	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	band.color = Color(0.03, 0.005, 0.06, 0.86)
+	band.set_anchors_preset(Control.PRESET_CENTER)
+	band.position = Vector2(-580.0, -78.0)
+	band.size = Vector2(1160.0, 156.0)
+	boss_intro.add_child(band)
+	boss_intro_label = Label.new()
+	boss_intro_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	boss_intro_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	boss_intro_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	boss_intro_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	boss_intro_label.add_theme_font_size_override("font_size", 34)
+	boss_intro_label.add_theme_color_override("font_color", Color("f2c4ff"))
+	boss_intro_label.add_theme_color_override("font_outline_color", Color(0.04, 0.01, 0.07, 1.0))
+	boss_intro_label.add_theme_constant_override("outline_size", 7)
+	boss_intro.add_child(boss_intro_label)
+	boss_intro.hide()
 
 
 func update_run(
@@ -132,6 +227,37 @@ func hide_level_up() -> void:
 	upgrade_overlay.hide()
 
 
+func show_relic_choice(options: Array[Dictionary], boss_name := "") -> void:
+	modal_open = true
+	relic_options = options
+	relic_title.text = "TESOURO DE %s" % boss_name if not boss_name.is_empty() else "ESCOLHA UMA RELÍQUIA"
+	relic_overlay.show()
+	for index in range(relic_buttons.size()):
+		var button := relic_buttons[index]
+		if index >= options.size():
+			button.hide()
+			continue
+		button.show()
+		var option := options[index]
+		button.text = "%s\n\n%s\nNÍVEL %d/%d\n\n%s" % [
+			option.icon, option.title, option.level, option.max, option.description
+		]
+		button.add_theme_color_override("font_color", Color("eadbff"))
+		button.add_theme_color_override("font_hover_color", Color("ffd36b"))
+	relic_buttons[0].grab_focus()
+
+
+func hide_relic_choice() -> void:
+	modal_open = false
+	relic_overlay.hide()
+
+
+func _on_relic_button_pressed(index: int) -> void:
+	if index >= relic_options.size():
+		return
+	relic_selected.emit(str(relic_options[index].id))
+
+
 func _on_upgrade_button_pressed(index: int) -> void:
 	if index >= upgrade_options.size():
 		return
@@ -151,13 +277,32 @@ func show_stage_banner(text: String) -> void:
 	tween.tween_callback(stage_banner.hide)
 
 
-func flash_damage() -> void:
-	damage_flash.color = Color(0.65, 0.02, 0.12, 0.32)
+func show_boss_intro(boss_name: String, subtitle: String, final_boss := false) -> void:
+	boss_intro_label.text = "%s\n%s" % [subtitle, boss_name]
+	boss_intro_label.add_theme_color_override("font_color", Color("ffd36b") if final_boss else Color("f2c4ff"))
+	boss_intro.modulate = Color(1, 1, 1, 0)
+	boss_intro.show()
+	var tween := create_tween()
+	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tween.tween_property(boss_intro, "modulate", Color.WHITE, 0.22)
+	tween.tween_interval(1.25)
+	tween.tween_property(boss_intro, "modulate", Color(1, 1, 1, 0), 0.40)
+	tween.tween_callback(boss_intro.hide)
+
+
+func flash_damage(intensity := -1.0) -> void:
+	var strength := flash_intensity if intensity < 0.0 else clampf(intensity, 0.0, 1.0)
+	if strength <= 0.01:
+		return
+	damage_flash.color = Color(0.65, 0.02, 0.12, 0.32 * strength)
 	var tween := create_tween()
 	tween.tween_property(damage_flash, "color", Color(0.65, 0.02, 0.12, 0.0), 0.35)
 
 
-func show_end_screen(victory: bool, survived: float, kills: int, level: int, essence := 0, next_biome := "") -> void:
+func show_end_screen(
+	victory: bool, survived: float, kills: int, level: int, essence := 0,
+	next_biome := "", extra_stats := "", new_achievements: Array[String] = []
+) -> void:
 	modal_open = true
 	end_overlay.show()
 	end_title.text = "VITÓRIA!" if victory else "GAME OVER"
@@ -165,13 +310,16 @@ func show_end_screen(victory: bool, survived: float, kills: int, level: int, ess
 	var minutes := int(survived) / 60
 	var seconds := int(survived) % 60
 	var result_line := "O chefe final caiu. A próxima fase foi aberta: %s." % next_biome if victory else "Sua jornada terminou, mas você pode reiniciar esta fase."
-	end_summary.text = "%s\n\nTempo sobrevivido  %02d:%02d\nInimigos mortos  %d\nNível alcançado  %d\nEssência conquistada  %d" % [result_line, minutes, seconds, kills, level, essence]
+	var achievement_text := ""
+	if not new_achievements.is_empty():
+		achievement_text = "\n\nCONQUISTA DESBLOQUEADA  ·  %s" % ", ".join(new_achievements)
+	end_summary.text = "%s\n\nTempo sobrevivido  %02d:%02d  ·  Inimigos mortos  %d  ·  Nível  %d\nEssência conquistada  %d\n\n%s%s" % [result_line, minutes, seconds, kills, level, essence, extra_stats, achievement_text]
 	$EndOverlay/Panel/Margin/VBox/Restart.text = "PRÓXIMA FASE" if victory else "TENTAR NOVAMENTE"
 	$EndOverlay/Panel/Margin/VBox/Restart.grab_focus()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not event.is_action_pressed("ui_cancel") or end_overlay.visible or upgrade_overlay.visible:
+	if not event.is_action_pressed("ui_cancel") or end_overlay.visible or upgrade_overlay.visible or relic_overlay.visible:
 		return
 	if pause_overlay.visible:
 		_on_resume_pressed()
