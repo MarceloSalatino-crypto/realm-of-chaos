@@ -4,7 +4,13 @@ signal level_up_requested
 signal died
 
 const GameDefs = preload("res://scripts/game_defs.gd")
-const WEAPON_IDS: Array[String] = ["chaos_bolt", "shadow_blades", "soul_orbit", "chaos_nova"]
+const HomingEyeScript = preload("res://scripts/homing_eye.gd")
+const STARTING_WEAPON_IDS: Array[String] = ["chaos_bolt", "shadow_blades", "soul_orbit", "chaos_nova"]
+const WEAPON_IDS: Array[String] = [
+	"chaos_bolt", "shadow_blades", "soul_orbit", "chaos_nova",
+	"blood_scythe", "forbidden_grimoire", "rune_hammer", "storm_relic", "swarm_idol"
+]
+const MAX_WEAPONS := 6
 const WEAPON_TEXTURES := {
 	"chaos_bolt": preload("res://assets/generated/hero_anim_chaos_bolt.png"),
 	"shadow_blades": preload("res://assets/generated/hero_anim_shadow_blades.png"),
@@ -15,7 +21,12 @@ const WEAPON_TITLES := {
 	"chaos_bolt": "BESTA DO CAOS",
 	"shadow_blades": "LÂMINA SOMBRIA",
 	"soul_orbit": "CETRO DAS ALMAS",
-	"chaos_nova": "CAJADO DA NOVA"
+	"chaos_nova": "CAJADO DA NOVA",
+	"blood_scythe": "FOICE HEMÁTICA",
+	"forbidden_grimoire": "GRIMÓRIO PROIBIDO",
+	"rune_hammer": "MARTELO RÚNICO",
+	"storm_relic": "RELÍQUIA DA TEMPESTADE",
+	"swarm_idol": "ÍDOLO DO ENXAME"
 }
 
 @export var bullet_scene: PackedScene
@@ -40,7 +51,10 @@ var revive_charges := 0
 var character_id := "eclipse_hunter"
 var character_applied := false
 var character_color := Color.WHITE
+var character_skill_name := "RAJADA DO ECLIPSE"
+var character_guard_time := 0.0
 var relic_levels: Dictionary = {}
+var banished_upgrades: Dictionary = {}
 var hazard_tick := 0.0
 var dash_cooldown := 0.0
 var dash_duration := 0.0
@@ -74,7 +88,12 @@ var weapon_levels := {
 	"chaos_bolt": 0,
 	"shadow_blades": 0,
 	"soul_orbit": 0,
-	"chaos_nova": 0
+	"chaos_nova": 0,
+	"blood_scythe": 0,
+	"forbidden_grimoire": 0,
+	"rune_hammer": 0,
+	"storm_relic": 0,
+	"swarm_idol": 0
 }
 var passive_levels := {
 	"might": 0, "haste": 0, "vitality": 0, "swiftness": 0,
@@ -84,7 +103,12 @@ var evolved_weapons := {
 	"chaos_bolt": false,
 	"shadow_blades": false,
 	"soul_orbit": false,
-	"chaos_nova": false
+	"chaos_nova": false,
+	"blood_scythe": false,
+	"forbidden_grimoire": false,
+	"rune_hammer": false,
+	"storm_relic": false,
+	"swarm_idol": false
 }
 var bolt_timer := 0.15
 var blades_timer := 1.0
@@ -92,6 +116,11 @@ var nova_timer := 4.0
 var orbit_tick := 0.0
 var orbit_angle := 0.0
 var orbit_hit_times: Dictionary = {}
+var scythe_timer := 0.8
+var grimoire_timer := 1.6
+var hammer_timer := 1.4
+var storm_timer := 0.9
+var swarm_timer := 1.2
 
 @onready var visual: Node2D = $Visual
 @onready var sprite: Sprite2D = $Visual/Sprite2D
@@ -126,7 +155,7 @@ func _roll_starting_weapon() -> void:
 		weapon_levels[weapon_id] = 0
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
-	equipped_weapon_id = WEAPON_IDS[rng.randi_range(0, WEAPON_IDS.size() - 1)]
+	equipped_weapon_id = STARTING_WEAPON_IDS[rng.randi_range(0, STARTING_WEAPON_IDS.size() - 1)]
 	weapon_levels[equipped_weapon_id] = 1
 	_equip_weapon_visual(equipped_weapon_id)
 	bolt_timer = 0.12
@@ -157,6 +186,7 @@ func _physics_process(delta: float) -> void:
 	invulnerability = maxf(0.0, invulnerability - delta)
 	dash_cooldown = maxf(0.0, dash_cooldown - delta)
 	dash_duration = maxf(0.0, dash_duration - delta)
+	character_guard_time = maxf(0.0, character_guard_time - delta)
 	_update_temporary_blessing(delta)
 	var direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	if direction.length_squared() > 0.01:
@@ -204,6 +234,49 @@ func _start_dash(input_direction: Vector2, world: Node) -> void:
 	attack_direction = dash_direction
 	if world and world.has_method("on_player_dash"):
 		world.on_player_dash(dash_direction)
+	_activate_character_skill(world)
+
+
+func _activate_character_skill(world: Node) -> void:
+	if not world:
+		return
+	attack_recoil = 1.0
+	match character_id:
+		"glacial_oracle":
+			for enemy in _enemies_near(245.0):
+				if not is_instance_valid(enemy):
+					continue
+				enemy.take_damage(18.0 * effective_damage_multiplier(), (enemy.global_position - global_position).normalized() * 24.0, false, "oracle_skill")
+				if enemy.has_method("apply_slow"):
+					enemy.apply_slow(0.45, 2.5)
+			world.spawn_effect(global_position, Color("70dcff"), 245.0, 0.48, true)
+		"crimson_knight":
+			var hits := 0
+			for enemy in _enemies_near(175.0):
+				if not is_instance_valid(enemy):
+					continue
+				enemy.take_damage(26.0 * effective_damage_multiplier(), (enemy.global_position - global_position).normalized() * 55.0, false, "knight_skill")
+				hits += 1
+			character_guard_time = 1.8
+			heal(minf(18.0, hits * 2.2), false)
+			world.spawn_weapon_flash(global_position + dash_direction * 34.0, 0, dash_direction.angle() - 0.65, 0.34, 0.28, Color("ff6b72"))
+		"void_automaton":
+			var candidates := _enemies_near(520.0)
+			candidates.sort_custom(func(a, b): return global_position.distance_squared_to(a.global_position) < global_position.distance_squared_to(b.global_position))
+			var points := PackedVector2Array([global_position])
+			for enemy in candidates.slice(0, mini(7, candidates.size())):
+				if is_instance_valid(enemy):
+					enemy.take_damage(15.0 * effective_damage_multiplier(), Vector2.ZERO, false, "automaton_skill")
+					points.append(enemy.global_position)
+			world.spawn_lightning(points, Color("b873ff"))
+		_:
+			var base_direction := dash_direction
+			var target := _nearest_enemy()
+			if target:
+				base_direction = (target.global_position - global_position).normalized()
+			for index in range(5):
+				var offset := float(index) - 2.0
+				_spawn_player_projectile(base_direction.rotated(offset * 0.14), 19.0 * effective_damage_multiplier(), 830.0, 2, 7.0, Color("f0d2ff"), "hunter_skill", true)
 
 
 func _update_temporary_blessing(delta: float) -> void:
@@ -291,6 +364,36 @@ func _update_weapons(delta: float) -> void:
 		if nova_timer <= 0.0:
 			_cast_nova(nova_level)
 
+	var scythe_level: int = weapon_levels.blood_scythe
+	if scythe_level > 0:
+		scythe_timer -= delta
+		if scythe_timer <= 0.0:
+			_swing_blood_scythe(scythe_level)
+
+	var grimoire_level: int = weapon_levels.forbidden_grimoire
+	if grimoire_level > 0:
+		grimoire_timer -= delta
+		if grimoire_timer <= 0.0:
+			_cast_forbidden_grimoire(grimoire_level)
+
+	var hammer_level: int = weapon_levels.rune_hammer
+	if hammer_level > 0:
+		hammer_timer -= delta
+		if hammer_timer <= 0.0:
+			_slam_rune_hammer(hammer_level)
+
+	var storm_level: int = weapon_levels.storm_relic
+	if storm_level > 0:
+		storm_timer -= delta
+		if storm_timer <= 0.0:
+			_cast_storm_chain(storm_level)
+
+	var swarm_level: int = weapon_levels.swarm_idol
+	if swarm_level > 0:
+		swarm_timer -= delta
+		if swarm_timer <= 0.0:
+			_release_swarm_eyes(swarm_level)
+
 
 func _fire_chaos_bolt() -> void:
 	var target := _nearest_enemy()
@@ -330,7 +433,7 @@ func _fire_shadow_blades(weapon_level: int) -> void:
 
 func _spawn_player_projectile(
 	direction: Vector2, amount: float, projectile_speed: float,
-	pierce: int, size: float, color: Color, weapon_id := "unknown"
+	pierce: int, size: float, color: Color, weapon_id := "unknown", force_critical := false
 ) -> void:
 	if not bullet_scene:
 		return
@@ -339,7 +442,7 @@ func _spawn_player_projectile(
 	attack_flash = 1.0
 	queue_redraw()
 	var bullet = bullet_scene.instantiate()
-	var is_critical := randf() < effective_crit_chance()
+	var is_critical := force_critical or randf() < effective_crit_chance()
 	if is_critical:
 		amount *= critical_multiplier
 	bullet.global_position = global_position + direction * 22.0
@@ -399,6 +502,121 @@ func _cast_nova(weapon_level: int) -> void:
 			world.shake_camera(6.0, 0.24)
 
 
+func _swing_blood_scythe(weapon_level: int) -> void:
+	var evolved := bool(evolved_weapons.blood_scythe)
+	scythe_timer = maxf(0.42, (1.55 - weapon_level * 0.10) * effective_cooldown_multiplier() * (0.72 if evolved else 1.0))
+	var target := _nearest_enemy()
+	var direction := (target.global_position - global_position).normalized() if target else last_direction
+	var radius := 245.0 if evolved else 145.0 + weapon_level * 10.0
+	var hits := 0
+	for enemy in _enemies_near(radius + 70.0):
+		if not is_instance_valid(enemy):
+			continue
+		var to_enemy: Vector2 = enemy.global_position - global_position
+		if to_enemy.length() > radius + enemy.hit_radius:
+			continue
+		if not evolved and direction.dot(to_enemy.normalized()) < 0.08:
+			continue
+		var critical := randf() < effective_crit_chance()
+		var amount := (22.0 + weapon_level * 6.0) * effective_damage_multiplier() * (1.85 if evolved else 1.0) * (critical_multiplier if critical else 1.0)
+		enemy.take_damage(amount, to_enemy.normalized() * (72.0 if evolved else 38.0), critical, "blood_scythe")
+		hits += 1
+	if hits > 0:
+		heal(minf(10.0 if evolved else 4.0, hits * (0.75 if evolved else 0.32)), false)
+	var world := get_tree().get_first_node_in_group("world")
+	if world:
+		world.spawn_weapon_flash(global_position + direction * 50.0, 0, direction.angle() - 0.68, 0.42 if evolved else 0.30, 0.34, Color("ff6878"))
+		world.spawn_effect(global_position, Color("ff405d"), radius, 0.24, false)
+	attack_recoil = 1.0
+
+
+func _cast_forbidden_grimoire(weapon_level: int) -> void:
+	var target := _nearest_enemy()
+	var evolved := bool(evolved_weapons.forbidden_grimoire)
+	grimoire_timer = maxf(0.80, (3.25 - weapon_level * 0.24) * effective_cooldown_multiplier() * (0.72 if evolved else 1.0))
+	if not target:
+		return
+	var center: Vector2 = target.global_position
+	var radius := 205.0 if evolved else 92.0 + weapon_level * 11.0
+	var world := get_tree().get_first_node_in_group("world")
+	if not world:
+		return
+	for enemy in world.get_enemies_near(center, radius + 65.0):
+		if is_instance_valid(enemy) and center.distance_to(enemy.global_position) <= radius + enemy.hit_radius:
+			var critical := randf() < effective_crit_chance()
+			var amount := (28.0 + weapon_level * 7.5) * effective_damage_multiplier() * (1.82 if evolved else 1.0) * (critical_multiplier if critical else 1.0)
+			enemy.take_damage(amount, (enemy.global_position - center).normalized() * 34.0, critical, "forbidden_grimoire")
+	world.spawn_weapon_flash(center + Vector2(0, -18), 1, 0.0, 0.25 if evolved else 0.19, 0.52, Color("d28cff"))
+	world.spawn_effect(center, Color("a34cff"), radius, 0.58, true)
+	attack_recoil = 1.0
+
+
+func _slam_rune_hammer(weapon_level: int) -> void:
+	var target := _nearest_enemy()
+	var evolved := bool(evolved_weapons.rune_hammer)
+	hammer_timer = maxf(0.92, (3.6 - weapon_level * 0.23) * effective_cooldown_multiplier() * (0.74 if evolved else 1.0))
+	if not target:
+		return
+	var direction := (target.global_position - global_position).normalized()
+	var strike_position := global_position + direction * minf(235.0, global_position.distance_to(target.global_position))
+	var radius := 230.0 if evolved else 105.0 + weapon_level * 12.0
+	var world := get_tree().get_first_node_in_group("world")
+	if not world:
+		return
+	for enemy in world.get_enemies_near(strike_position, radius + 65.0):
+		if is_instance_valid(enemy) and strike_position.distance_to(enemy.global_position) <= radius + enemy.hit_radius:
+			var amount := (38.0 + weapon_level * 9.0) * effective_damage_multiplier() * (2.0 if evolved else 1.0)
+			enemy.take_damage(amount, (enemy.global_position - strike_position).normalized() * (185.0 if evolved else 105.0), false, "rune_hammer")
+	world.spawn_weapon_flash(strike_position + Vector2(0, -42), 2, direction.angle() + 0.72, 0.30 if evolved else 0.23, 0.38, Color("ffd56c"))
+	world.spawn_effect(strike_position, Color("ffd064"), radius, 0.50, true)
+	world.shake_camera(7.0 if evolved else 4.0, 0.20)
+	attack_recoil = 1.0
+
+
+func _cast_storm_chain(weapon_level: int) -> void:
+	var evolved := bool(evolved_weapons.storm_relic)
+	storm_timer = maxf(0.32, (1.75 - weapon_level * 0.11) * effective_cooldown_multiplier() * (0.65 if evolved else 1.0))
+	var candidates := _enemies_near(720.0)
+	if candidates.is_empty():
+		return
+	candidates.sort_custom(func(a, b): return global_position.distance_squared_to(a.global_position) < global_position.distance_squared_to(b.global_position))
+	var count := mini(candidates.size(), 11 if evolved else 2 + weapon_level)
+	var points := PackedVector2Array([global_position])
+	for enemy in candidates.slice(0, count):
+		if not is_instance_valid(enemy):
+			continue
+		var critical := randf() < effective_crit_chance()
+		var amount := (15.0 + weapon_level * 4.0) * effective_damage_multiplier() * (1.72 if evolved else 1.0) * (critical_multiplier if critical else 1.0)
+		enemy.take_damage(amount, Vector2.ZERO, critical, "storm_relic")
+		points.append(enemy.global_position)
+	var world := get_tree().get_first_node_in_group("world")
+	if world:
+		world.spawn_weapon_flash(global_position + Vector2(25, -34), 3, -0.35, 0.17, 0.32, Color("7eefff"))
+		world.spawn_lightning(points, Color("68eaff") if not evolved else Color("f5e57c"))
+	attack_recoil = 1.0
+
+
+func _release_swarm_eyes(weapon_level: int) -> void:
+	var evolved := bool(evolved_weapons.swarm_idol)
+	swarm_timer = maxf(0.55, (2.7 - weapon_level * 0.16) * effective_cooldown_multiplier() * (0.70 if evolved else 1.0))
+	var candidates := _enemies_near(900.0)
+	if candidates.is_empty():
+		return
+	var count := 2 + int(weapon_level / 2.0) + (3 if evolved else 0)
+	var world := get_tree().get_first_node_in_group("world")
+	if not world:
+		return
+	for index in range(count):
+		var target: Node2D = candidates[index % candidates.size()]
+		var critical := randf() < effective_crit_chance()
+		var amount := (18.0 + weapon_level * 5.0) * effective_damage_multiplier() * (1.68 if evolved else 1.0) * (critical_multiplier if critical else 1.0)
+		var eye = HomingEyeScript.new()
+		eye.setup(global_position + Vector2.RIGHT.rotated(TAU * index / count) * 28.0, target, amount, 430.0 if evolved else 350.0, critical)
+		world.add_player_projectile(eye)
+	world.spawn_weapon_flash(global_position + Vector2(-24, -42), 4, 0.0, 0.16, 0.42, Color("d592ff"))
+	attack_recoil = 1.0
+
+
 func _nearest_enemy() -> Node2D:
 	var world := get_tree().get_first_node_in_group("world")
 	if world and world.has_method("get_nearest_enemy"):
@@ -425,7 +643,8 @@ func take_damage(amount: float, source_direction := Vector2.ZERO, environmental 
 		if dodge_world:
 			dodge_world.spawn_damage_number(global_position, 0.0, false, false, "ESQUIVA")
 		return
-	var final_damage := maxf(1.0, amount - armor - temporary_armor)
+	var guard_armor := 8.0 if character_guard_time > 0.0 else 0.0
+	var final_damage := maxf(1.0, amount - armor - temporary_armor - guard_armor)
 	hp = maxf(0.0, hp - final_damage)
 	invulnerability = 0.20 if environmental else 0.58
 	hurt_recoil = 1.0
@@ -488,6 +707,11 @@ func collect_xp(amount: int) -> void:
 func get_upgrade_options(count: int) -> Array[Dictionary]:
 	var pool: Array[Dictionary] = []
 	for definition in GameDefs.upgrades():
+		var upgrade_id := str(definition.id)
+		if banished_upgrades.has(upgrade_id):
+			continue
+		if weapon_levels.has(upgrade_id) and int(weapon_levels[upgrade_id]) <= 0 and active_weapon_count() >= MAX_WEAPONS:
+			continue
 		if get_upgrade_level(definition.id) < int(definition.max):
 			pool.append(definition.duplicate())
 	pool.shuffle()
@@ -498,6 +722,18 @@ func get_upgrade_options(count: int) -> Array[Dictionary]:
 		definition["rarity"] = _roll_rarity()
 		options.append(definition)
 	return options
+
+
+func active_weapon_count() -> int:
+	var count := 0
+	for weapon_id in WEAPON_IDS:
+		if int(weapon_levels.get(weapon_id, 0)) > 0:
+			count += 1
+	return count
+
+
+func banish_upgrade(upgrade_id: String) -> void:
+	banished_upgrades[upgrade_id] = true
 
 
 func _roll_rarity() -> String:
@@ -518,6 +754,8 @@ func get_upgrade_level(upgrade_id: String) -> int:
 func apply_upgrade(upgrade_id: String, rarity := "COMUM") -> void:
 	var bonus := 2 if rarity == "LENDÁRIO" else 1
 	if weapon_levels.has(upgrade_id):
+		if int(weapon_levels[upgrade_id]) <= 0 and active_weapon_count() >= MAX_WEAPONS:
+			return
 		weapon_levels[upgrade_id] = mini(_upgrade_max(upgrade_id), int(weapon_levels[upgrade_id]) + bonus)
 		_check_weapon_evolutions()
 		return
@@ -638,6 +876,7 @@ func apply_character(selected_id: String) -> void:
 	character_id = selected_id
 	var definition := GameDefs.character_data(selected_id)
 	character_color = definition.color
+	character_skill_name = str(definition.get("skill", "HABILIDADE DO CAÇADOR"))
 	sprite.modulate = character_color
 	match character_id:
 		"glacial_oracle":
@@ -747,6 +986,16 @@ func weapon_summary() -> String:
 		names.append("DEVORADOR ◉" if evolved_weapons.soul_orbit else "Cetro %d" % weapon_levels.soul_orbit)
 	if weapon_levels.chaos_nova > 0:
 		names.append("COLAPSO ☼" if evolved_weapons.chaos_nova else "Cajado %d" % weapon_levels.chaos_nova)
+	if weapon_levels.blood_scythe > 0:
+		names.append("CEIFADORA ☾" if evolved_weapons.blood_scythe else "Foice %d" % weapon_levels.blood_scythe)
+	if weapon_levels.forbidden_grimoire > 0:
+		names.append("CÓDICE ▤" if evolved_weapons.forbidden_grimoire else "Grimório %d" % weapon_levels.forbidden_grimoire)
+	if weapon_levels.rune_hammer > 0:
+		names.append("CATACLISMO ◆" if evolved_weapons.rune_hammer else "Martelo %d" % weapon_levels.rune_hammer)
+	if weapon_levels.storm_relic > 0:
+		names.append("TEMPESTADE ϟ" if evolved_weapons.storm_relic else "Relíquia %d" % weapon_levels.storm_relic)
+	if weapon_levels.swarm_idol > 0:
+		names.append("LEGIÃO ◉" if evolved_weapons.swarm_idol else "Ídolo %d" % weapon_levels.swarm_idol)
 	return "  ·  ".join(names)
 
 

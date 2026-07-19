@@ -40,6 +40,7 @@ Cada chefe usa quatro quadros horizontais: locomoção A/B, preparação e execu
 - `void_cathedral_ground.png`: piso repetível da Catedral do Vazio.
 - `boss_reward_chest.png`: folha horizontal de quatro quadros — fechado, energizado, abrindo e aberto — usada nas recompensas dos mini-chefes.
 - `map_landmarks_v1.png`: atlas horizontal com Altar Rubro, Obelisco Cronal, Santuário das Almas e Portal Fraturado.
+- `weapon_atlas_v1.png`: atlas horizontal com Foice Hemática, Grimório Proibido, Martelo Rúnico, Relíquia da Tempestade e Ídolo do Enxame.
 - Os PNGs anteriores do Guardião, atlas e peças modulares foram preservados como material de legado, mas não são usados pela animação atual.
 
 Direção visual: pixel art de fantasia sombria, silhuetas legíveis na escala de gameplay, protagonista em azul-noturno/prata/carmesim e inimigos com identidades cromáticas próprias. Sem texto, marcas ou elementos de terceiros.
@@ -49,3 +50,5 @@ Os sprites ativos possuem canal alfa e cantos transparentes. As dimensões das f
 O baú foi criado com o gerador de imagens integrado, em modo de geração nativa, a partir de um prompt de sprite dark fantasy ortográfico com quatro quadros exatos, ferro negro, ouro antigo e gema violeta sobre chroma `#00ff00`. O fundo foi removido pelo utilitário oficial `remove_chroma_key.py`; o PNG final mede 2172×724, possui alfa válido e largura divisível por quatro.
 
 Os marcos do mapa foram gerados no mesmo modo e direção artística, com quatro células horizontais exatas sobre chroma uniforme. O atlas final também mede 2172×724, possui canal alfa validado, cantos transparentes e largura divisível por quatro.
+
+O atlas das armas foi gerado no modo integrado nativo com cinco células horizontais sobre chroma uniforme. Após remoção oficial do fundo e normalização, o PNG final mede 1985×793, possui alfa validado e largura divisível por cinco.

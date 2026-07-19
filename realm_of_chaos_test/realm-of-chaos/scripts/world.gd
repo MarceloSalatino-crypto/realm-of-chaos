@@ -10,6 +10,9 @@ const RewardChestScript = preload("res://scripts/reward_chest.gd")
 const ArenaHazardScript = preload("res://scripts/arena_hazard.gd")
 const MapOverlayScript = preload("res://scripts/map_overlay.gd")
 const MapLandmarkScript = preload("res://scripts/map_landmark.gd")
+const WeaponFlashScript = preload("res://scripts/weapon_flash.gd")
+const LightningEffectScript = preload("res://scripts/lightning_effect.gd")
+const BossArenaScript = preload("res://scripts/boss_arena.gd")
 
 const RUN_DURATION := 25.0 * 60.0
 const BOSS_TIMES := [300.0, 600.0, 900.0, 1200.0, 1500.0]
@@ -28,7 +31,11 @@ var event_index := 0
 var game_ended := false
 var pending_upgrades := 0
 var upgrade_active := false
+var rerolls_left := 3
+var banishes_left := 3
+var skips_left := 2
 var active_boss: Node
+var active_boss_arena: Node
 var last_stage := ""
 var run_cycle := 0
 var biome: Dictionary = {}
@@ -95,6 +102,9 @@ func _ready() -> void:
 	player.level_up_requested.connect(_on_level_up_requested)
 	player.died.connect(_on_player_died)
 	hud.upgrade_selected.connect(_on_upgrade_selected)
+	hud.reroll_requested.connect(_on_reroll_requested)
+	hud.banish_requested.connect(_on_banish_requested)
+	hud.skip_requested.connect(_on_skip_requested)
 	hud.relic_selected.connect(_on_relic_selected)
 	hud.restart_requested.connect(_restart_run)
 	hud.menu_requested.connect(_return_to_menu)
@@ -201,6 +211,11 @@ func _spawn_scheduled_boss(entry: Dictionary, index: int) -> Node:
 	boss_spawn_log.append(str(entry.kind))
 	if bool(entry.final):
 		final_boss_spawned = true
+	if is_instance_valid(active_boss_arena):
+		active_boss_arena.finish()
+	active_boss_arena = BossArenaScript.new()
+	active_boss_arena.configure(self, active_boss, player.global_position, str(entry.kind), bool(entry.final))
+	add_child(active_boss_arena)
 	hud.show_boss(str(entry.name), active_boss.hp, active_boss.max_hp)
 	hud.show_stage_banner("CHEFE FINAL · O RITUAL EXIGE UMA VITÓRIA" if bool(entry.final) else "MINI-CHEFE %d/4 · %s" % [index + 1, str(entry.name)])
 	hud.show_boss_intro(str(entry.name), "CHEFE FINAL" if bool(entry.final) else "GUARDIÃO DO MINUTO %d" % int(float(entry.time) / 60.0), bool(entry.final))
@@ -237,7 +252,7 @@ func _update_hud() -> void:
 		player.level, enemies_killed, remaining, last_stage, player.weapon_summary(),
 		essence_earned, status_title
 	)
-	hud.update_navigation(player.dash_status(), player.blessing_title, player.blessing_time)
+	hud.update_navigation(player.dash_status(), player.character_skill_name, player.blessing_title, player.blessing_time)
 	if is_instance_valid(active_boss) and not active_boss.dead:
 		hud.update_boss(active_boss.hp, active_boss.max_hp)
 	else:
@@ -318,6 +333,9 @@ func handle_enemy_death(enemy: Node, xp_value: int, was_elite: bool, was_boss: b
 	bosses_defeated += 1
 	if active_boss == enemy:
 		active_boss = null
+		if is_instance_valid(active_boss_arena):
+			active_boss_arena.finish()
+			active_boss_arena = null
 	for index in range(10 if enemy.final_boss else 7):
 		var bonus = GemScene.instantiate()
 		pickups.add_child(bonus)
@@ -395,6 +413,22 @@ func spawn_effect(position: Vector2, color: Color, radius: float, duration := 0.
 	effect.setup(position, color, radius, duration, filled)
 
 
+func spawn_weapon_flash(position: Vector2, atlas_frame: int, angle: float, scale_value: float, duration := 0.35, tint := Color.WHITE) -> void:
+	if effects.get_child_count() >= MAX_EFFECTS:
+		return
+	var flash = WeaponFlashScript.new()
+	effects.add_child(flash)
+	flash.setup(position, atlas_frame, angle, scale_value, duration, tint)
+
+
+func spawn_lightning(chain_points: PackedVector2Array, color := Color("6eeaff")) -> void:
+	if effects.get_child_count() >= MAX_EFFECTS:
+		return
+	var lightning = LightningEffectScript.new()
+	effects.add_child(lightning)
+	lightning.setup(chain_points, color)
+
+
 func spawn_damage_number(position: Vector2, amount: float, critical := false, healing := false, custom_text := "") -> void:
 	if effects.get_child_count() >= MAX_EFFECTS:
 		return
@@ -424,6 +458,8 @@ func on_boss_phase_changed(enemy: Node, phase: int) -> void:
 		hud.show_stage_banner("%s · FASE %d" % [str(GameDefs.enemy_data(enemy.enemy_type).name), phase])
 		hud.set_boss_phase(phase)
 		shake_camera(8.0, 0.28)
+		if is_instance_valid(active_boss_arena):
+			active_boss_arena.set_phase(phase)
 
 
 func on_player_damaged() -> void:
@@ -538,14 +574,40 @@ func _show_next_upgrade() -> void:
 		return
 	upgrade_active = true
 	get_tree().paused = true
-	hud.show_level_up(player.level, player.get_upgrade_options(3))
+	hud.show_level_up(player.level, player.get_upgrade_options(3), rerolls_left, banishes_left, skips_left)
 
 
 func _on_upgrade_selected(upgrade_id: String, rarity: String) -> void:
 	player.apply_upgrade(upgrade_id, rarity)
+	_advance_upgrade_queue()
+
+
+func _on_reroll_requested() -> void:
+	if not upgrade_active or rerolls_left <= 0:
+		return
+	rerolls_left -= 1
+	hud.show_level_up(player.level, player.get_upgrade_options(3), rerolls_left, banishes_left, skips_left)
+
+
+func _on_banish_requested(upgrade_id: String) -> void:
+	if not upgrade_active or banishes_left <= 0:
+		return
+	banishes_left -= 1
+	player.banish_upgrade(upgrade_id)
+	hud.show_level_up(player.level, player.get_upgrade_options(3), rerolls_left, banishes_left, skips_left)
+
+
+func _on_skip_requested() -> void:
+	if not upgrade_active or skips_left <= 0:
+		return
+	skips_left -= 1
+	_advance_upgrade_queue()
+
+
+func _advance_upgrade_queue() -> void:
 	pending_upgrades -= 1
 	if pending_upgrades > 0:
-		hud.show_level_up(player.level, player.get_upgrade_options(3))
+		hud.show_level_up(player.level, player.get_upgrade_options(3), rerolls_left, banishes_left, skips_left)
 	else:
 		upgrade_active = false
 		hud.hide_level_up()
@@ -584,6 +646,12 @@ func _run_stats_text() -> String:
 
 
 func _weapon_title(source_id: String) -> String:
+	var special_titles := {
+		"hunter_skill": "Rajada do Eclipse", "oracle_skill": "Pulso Glacial",
+		"knight_skill": "Contra-ataque Rubro", "automaton_skill": "Sobrecarga Arcana"
+	}
+	if special_titles.has(source_id):
+		return str(special_titles[source_id])
 	for definition in GameDefs.upgrades():
 		if str(definition.id) == source_id:
 			return str(definition.title)
@@ -704,10 +772,12 @@ func _debug_jump_to_next_boss() -> void:
 func _debug_unlock_evolved_build() -> void:
 	for weapon_id in player.WEAPON_IDS:
 		player.weapon_levels[weapon_id] = player._upgrade_max(weapon_id)
-	for passive_id in ["critical", "swiftness", "regeneration", "might"]:
-		player.passive_levels[passive_id] = 5
+	for weapon_id in player.WEAPON_IDS:
+		var evolution := GameDefs.evolution_data(weapon_id)
+		if not evolution.is_empty():
+			player.passive_levels[str(evolution.passive)] = 5
 	player._check_weapon_evolutions()
-	hud.show_stage_banner("TESTE · QUATRO EVOLUÇÕES LIBERADAS")
+	hud.show_stage_banner("TESTE · NOVE EVOLUÇÕES LIBERADAS")
 
 
 func _debug_defeat_active_boss() -> void:

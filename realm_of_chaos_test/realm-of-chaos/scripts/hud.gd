@@ -3,6 +3,9 @@ extends CanvasLayer
 const MinimapScript = preload("res://scripts/minimap.gd")
 
 signal upgrade_selected(upgrade_id: String, rarity: String)
+signal reroll_requested
+signal banish_requested(upgrade_id: String)
+signal skip_requested
 signal relic_selected(relic_id: String)
 signal restart_requested
 signal menu_requested
@@ -19,6 +22,12 @@ var boss_intro: Control
 var boss_intro_label: Label
 var minimap: Control
 var dash_label: Label
+var choice_action_row: HBoxContainer
+var reroll_button: Button
+var banish_button: Button
+var skip_button: Button
+var banish_mode := false
+var banish_count_display := 0
 
 @onready var health_bar: ProgressBar = $Top/HealthBar
 @onready var health_label: Label = $Top/HealthBar/Label
@@ -60,6 +69,7 @@ func _ready() -> void:
 	_build_relic_overlay()
 	_build_boss_intro()
 	_build_navigation_ui()
+	_build_choice_actions()
 	end_summary.add_theme_font_size_override("font_size", 18)
 
 
@@ -90,16 +100,33 @@ func _build_navigation_ui() -> void:
 	add_child(dash_label)
 
 
+func _build_choice_actions() -> void:
+	choice_action_row = HBoxContainer.new()
+	choice_action_row.name = "ChoiceActions"
+	choice_action_row.add_theme_constant_override("separation", 12)
+	$UpgradeOverlay/Panel/Margin/VBox.add_child(choice_action_row)
+	reroll_button = Button.new()
+	banish_button = Button.new()
+	skip_button = Button.new()
+	for button in [reroll_button, banish_button, skip_button]:
+		button.custom_minimum_size = Vector2(205.0, 46.0)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		choice_action_row.add_child(button)
+	reroll_button.pressed.connect(func(): reroll_requested.emit())
+	banish_button.pressed.connect(_toggle_banish_mode)
+	skip_button.pressed.connect(func(): skip_requested.emit())
+
+
 func bind_world(world: Node) -> void:
 	if is_instance_valid(minimap):
 		minimap.bind_world(world)
 
 
-func update_navigation(dash_status: String, blessing: String, blessing_remaining: float) -> void:
+func update_navigation(dash_status: String, ability_name: String, blessing: String, blessing_remaining: float) -> void:
 	var blessing_text := ""
 	if blessing_remaining > 0.0:
 		blessing_text = "  ·  %s %ds" % [blessing, ceili(blessing_remaining)]
-	dash_label.text = "ESPAÇO / A · ESQUIVA %s%s" % [dash_status, blessing_text]
+	dash_label.text = "ESPAÇO / A · %s · %s%s" % [ability_name, dash_status, blessing_text]
 	dash_label.add_theme_color_override("font_color", Color("7fe9ff") if dash_status == "PRONTA" else Color("a98fbd"))
 
 
@@ -242,8 +269,10 @@ func show_event(title: String, color: Color) -> void:
 	tween.tween_property(world_event_label, "modulate", Color.WHITE, 0.22)
 
 
-func show_level_up(new_level: int, options: Array[Dictionary]) -> void:
+func show_level_up(new_level: int, options: Array[Dictionary], rerolls := 0, banishes := 0, skips := 0) -> void:
 	modal_open = true
+	banish_mode = false
+	banish_count_display = banishes
 	upgrade_options = options
 	upgrade_title.text = "NÍVEL %d · ESCOLHA SEU PODER" % new_level
 	upgrade_overlay.show()
@@ -260,6 +289,12 @@ func show_level_up(new_level: int, options: Array[Dictionary]) -> void:
 		var rarity_color := Color("ffcc66") if option.rarity == "LENDÁRIO" else (Color("bd8cff") if option.rarity == "RARO" else Color("e7e1f5"))
 		button.add_theme_color_override("font_color", rarity_color)
 		button.add_theme_color_override("font_hover_color", Color.WHITE)
+	reroll_button.text = "REROLL · %d" % rerolls
+	banish_button.text = "BANIR · %d" % banishes
+	skip_button.text = "PULAR · %d" % skips
+	reroll_button.disabled = rerolls <= 0
+	banish_button.disabled = banishes <= 0
+	skip_button.disabled = skips <= 0
 	upgrade_buttons[0].grab_focus()
 
 
@@ -303,7 +338,21 @@ func _on_upgrade_button_pressed(index: int) -> void:
 	if index >= upgrade_options.size():
 		return
 	var option := upgrade_options[index]
+	if banish_mode:
+		banish_mode = false
+		banish_requested.emit(str(option.id))
+		return
 	upgrade_selected.emit(option.id, option.rarity)
+
+
+func _toggle_banish_mode() -> void:
+	if banish_button.disabled:
+		return
+	banish_mode = not banish_mode
+	upgrade_title.text = "ESCOLHA UMA OPÇÃO PARA BANIR" if banish_mode else "ESCOLHA SEU PODER"
+	banish_button.text = "CANCELAR BANIMENTO" if banish_mode else "BANIR · %d" % banish_count_display
+	for button in upgrade_buttons:
+		button.add_theme_color_override("font_color", Color("ff8f9a") if banish_mode else Color("e7e1f5"))
 
 
 func show_stage_banner(text: String) -> void:

@@ -85,6 +85,16 @@ static func upgrades() -> Array[Dictionary]:
 		 "description": "Invoca lâminas orbitais que ferem inimigos próximos."},
 		{"id": "chaos_nova", "title": "Cajado da Nova", "icon": "☼", "max": 6,
 		 "description": "Conjura uma explosão periódica em toda a área."},
+		{"id": "blood_scythe", "title": "Foice Hemática", "icon": "☾", "max": 6,
+		 "description": "Varre a horda à frente e converte parte do dano em vida."},
+		{"id": "forbidden_grimoire", "title": "Grimório Proibido", "icon": "▤", "max": 6,
+		 "description": "Abre um selo explosivo sob grupos de inimigos."},
+		{"id": "rune_hammer", "title": "Martelo Rúnico", "icon": "◆", "max": 6,
+		 "description": "Esmaga o chão com dano em área e forte repulsão."},
+		{"id": "storm_relic", "title": "Relíquia da Tempestade", "icon": "ϟ", "max": 6,
+		 "description": "Encadeia relâmpagos entre vários alvos."},
+		{"id": "swarm_idol", "title": "Ídolo do Enxame", "icon": "◉", "max": 6,
+		 "description": "Invoca olhos espectrais que perseguem inimigos."},
 		{"id": "might", "title": "Poder Profano", "icon": "▲", "max": 5,
 		 "description": "+15% de dano para todas as armas."},
 		{"id": "haste", "title": "Ritual Acelerado", "icon": "»", "max": 5,
@@ -114,6 +124,16 @@ static func evolution_data(weapon_id: String) -> Dictionary:
 			return {"title": "DEVORADOR DE ESPÍRITOS", "passive": "regeneration", "weapon_level": 6, "passive_level": 3}
 		"chaos_nova":
 			return {"title": "COLAPSO DO VAZIO", "passive": "might", "weapon_level": 6, "passive_level": 3}
+		"blood_scythe":
+			return {"title": "CEIFADORA CARMESIM", "passive": "vitality", "weapon_level": 6, "passive_level": 3}
+		"forbidden_grimoire":
+			return {"title": "CÓDICE DO FIM", "passive": "magnet", "weapon_level": 6, "passive_level": 3}
+		"rune_hammer":
+			return {"title": "MARTELO DO CATACLISMO", "passive": "armor", "weapon_level": 6, "passive_level": 3}
+		"storm_relic":
+			return {"title": "TEMPESTADE ETERNA", "passive": "haste", "weapon_level": 6, "passive_level": 3}
+		"swarm_idol":
+			return {"title": "OLHO DA LEGIÃO", "passive": "regeneration", "weapon_level": 6, "passive_level": 3}
 		_:
 			return {}
 
@@ -158,14 +178,14 @@ static func relics() -> Array[Dictionary]:
 
 static func characters() -> Array[Dictionary]:
 	return [
-		{"id": "eclipse_hunter", "title": "CAÇADOR DO ECLIPSE", "role": "Equilibrado",
-		 "description": "+8% de dano e +5% de crítico.", "color": Color("ffffff")},
-		{"id": "glacial_oracle", "title": "ORÁCULO GLACIAL", "role": "Controle",
-		 "description": "+3 de armadura e 10% menos recarga.", "color": Color("a9e8ff")},
-		{"id": "crimson_knight", "title": "CAVALEIRO RUBRO", "role": "Resistência",
-		 "description": "+35 de vida e roubo de vida inicial.", "color": Color("ff9b9b")},
-		{"id": "void_automaton", "title": "AUTÔMATO DO VAZIO", "role": "Ofensivo",
-		 "description": "+18% de dano e +8% de movimento, -15 de vida.", "color": Color("d7a9ff")}
+		{"id": "eclipse_hunter", "title": "CAÇADOR DO ECLIPSE", "role": "Equilibrado", "skill": "RAJADA DO ECLIPSE",
+		 "description": "+8% de dano; a esquiva dispara uma rajada crítica.", "color": Color("ffffff")},
+		{"id": "glacial_oracle", "title": "ORÁCULO GLACIAL", "role": "Controle", "skill": "PULSO GLACIAL",
+		 "description": "+3 de armadura; a esquiva congela a horda próxima.", "color": Color("a9e8ff")},
+		{"id": "crimson_knight", "title": "CAVALEIRO RUBRO", "role": "Resistência", "skill": "CONTRA-ATAQUE RUBRO",
+		 "description": "+35 de vida; a esquiva desfere um corte e concede guarda.", "color": Color("ff9b9b")},
+		{"id": "void_automaton", "title": "AUTÔMATO DO VAZIO", "role": "Ofensivo", "skill": "SOBRECARGA ARCANA",
+		 "description": "+18% de dano; a esquiva encadeia descargas automáticas.", "color": Color("d7a9ff")}
 	]
 
 

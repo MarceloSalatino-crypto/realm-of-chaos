@@ -53,6 +53,9 @@ var dead := false
 var separation_timer := 0.0
 var separation_force := Vector2.ZERO
 var obstacle_avoidance := Vector2.ZERO
+var slow_multiplier := 1.0
+var slow_time := 0.0
+var boss_pattern_index := 0
 
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var shadow: Polygon2D = $Shadow
@@ -138,6 +141,9 @@ func _physics_process(delta: float) -> void:
 	damage_cooldown -= delta
 	cast_cooldown -= delta
 	special_cooldown -= delta
+	slow_time = maxf(0.0, slow_time - delta)
+	if slow_time <= 0.0:
+		slow_multiplier = 1.0
 	var to_player := player.global_position - global_position
 	var distance := to_player.length()
 	var direction := to_player.normalized()
@@ -158,7 +164,7 @@ func _physics_process(delta: float) -> void:
 	dash_velocity = dash_velocity.move_toward(Vector2.ZERO, 980.0 * delta)
 	obstacle_avoidance = obstacle_avoidance.move_toward(Vector2.ZERO, 420.0 * delta)
 	var event_speed := float(world.enemy_speed_multiplier) if world else 1.0
-	velocity *= event_speed
+	velocity *= event_speed * slow_multiplier
 	move_and_slide()
 	if get_slide_collision_count() > 0 and dash_velocity.length_squared() < 10.0:
 		var collision := get_slide_collision(0)
@@ -285,17 +291,29 @@ func _execute_special(direction: Vector2) -> void:
 			special_cooldown = 5.4
 		"slam":
 			_ground_slam(165.0, 0.82)
+			if boss_phase >= 2:
+				_spawn_radial_projectiles(5 + boss_phase * 2, 220.0, 0.45)
+			if boss_phase >= 3:
+				_summon_minions(2)
 			special_cooldown = maxf(1.6, 3.8 - boss_phase * 0.45)
 		"radial":
 			_spawn_radial_projectiles(9 + boss_phase * 3, 235.0 + boss_phase * 18.0, 0.62)
+			if boss_phase >= 2:
+				_ground_slam(145.0 + boss_phase * 18.0, 0.52)
 			special_cooldown = maxf(1.5, 3.5 - boss_phase * 0.42)
 		"reaper_dash":
 			dash_velocity = direction * (690.0 + boss_phase * 80.0)
 			_spawn_radial_projectiles(5 + boss_phase * 2, 285.0, 0.48)
+			if boss_phase >= 3:
+				_summon_minions(3)
 			special_cooldown = maxf(1.25, 3.0 - boss_phase * 0.42)
 		"titan_slam":
 			_ground_slam(225.0 + boss_phase * 18.0, 1.0)
 			_spawn_radial_projectiles(8 + boss_phase * 2, 210.0, 0.55)
+			if boss_phase >= 2:
+				_cast_guardian_ward()
+			if boss_phase >= 3:
+				_summon_minions(4)
 			special_cooldown = maxf(1.7, 4.0 - boss_phase * 0.5)
 		"sovereign":
 			_execute_sovereign_pattern(direction)
@@ -304,11 +322,20 @@ func _execute_special(direction: Vector2) -> void:
 
 
 func _execute_sovereign_pattern(direction: Vector2) -> void:
+	boss_pattern_index += 1
 	if boss_phase == 1:
-		_spawn_radial_projectiles(14, 275.0, 0.58)
+		if boss_pattern_index % 2 == 0:
+			_spawn_radial_projectiles(14, 275.0, 0.58)
+		else:
+			dash_velocity = direction * 620.0
+			_ground_slam(155.0, 0.48)
 	elif boss_phase == 2:
-		_spawn_radial_projectiles(18, 305.0, 0.62)
-		_summon_minions(4)
+		if boss_pattern_index % 2 == 0:
+			_spawn_radial_projectiles(18, 305.0, 0.62)
+			_summon_minions(4)
+		else:
+			dash_velocity = direction * 690.0
+			_ground_slam(215.0, 0.62)
 	else:
 		dash_velocity = direction * 760.0
 		_spawn_radial_projectiles(24, 340.0, 0.68)
@@ -353,6 +380,13 @@ func _cast_guardian_ward() -> void:
 		ally.hp = minf(ally.max_hp, ally.hp + ally.max_hp * 0.09)
 		ally.health_bar.value = ally.hp
 	world.spawn_effect(global_position, Color("e0b779"), 190.0, 0.55, false)
+
+
+func apply_slow(multiplier: float, duration: float) -> void:
+	slow_multiplier = minf(slow_multiplier, clampf(multiplier, 0.35, 1.0))
+	slow_time = maxf(slow_time, duration * (0.45 if boss else 1.0))
+	if world:
+		world.spawn_effect(global_position, Color("69dcff"), hit_radius * 1.4, 0.28)
 
 
 func _special_radius() -> float:
