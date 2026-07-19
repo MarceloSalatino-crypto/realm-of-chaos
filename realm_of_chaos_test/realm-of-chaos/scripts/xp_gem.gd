@@ -25,6 +25,8 @@ func _physics_process(delta: float) -> void:
 	if not is_instance_valid(player):
 		return
 	var distance := global_position.distance_to(player.global_position)
+	if pickup_kind == "xp" and (age >= 34.0 or (value >= 64 and age >= 6.0)):
+		attracted = true
 	var pickup_range: float = player.effective_pickup_radius() if player.has_method("effective_pickup_radius") else player.pickup_radius
 	if distance <= pickup_range:
 		attracted = true

@@ -28,6 +28,7 @@ var banish_button: Button
 var skip_button: Button
 var banish_mode := false
 var banish_count_display := 0
+var current_upgrade_level := 1
 
 @onready var health_bar: ProgressBar = $Top/HealthBar
 @onready var health_label: Label = $Top/HealthBar/Label
@@ -46,6 +47,7 @@ var banish_count_display := 0
 @onready var damage_flash: ColorRect = $DamageFlash
 @onready var upgrade_overlay: Control = $UpgradeOverlay
 @onready var upgrade_title: Label = $UpgradeOverlay/Panel/Margin/VBox/Title
+@onready var upgrade_hint: Label = $UpgradeOverlay/Panel/Margin/VBox/Hint
 @onready var upgrade_buttons: Array[Button] = [
 	$UpgradeOverlay/Panel/Margin/VBox/Cards/Card1,
 	$UpgradeOverlay/Panel/Margin/VBox/Cards/Card2,
@@ -217,7 +219,14 @@ func update_run(
 ) -> void:
 	health_bar.max_value = maximum_hp
 	health_bar.value = current_hp
-	health_label.text = "%d / %d" % [ceili(current_hp), ceili(maximum_hp)]
+	var health_ratio := current_hp / maxf(1.0, maximum_hp)
+	if health_ratio <= 0.30:
+		var danger_pulse := 0.78 + (sin(Time.get_ticks_msec() * 0.012) + 1.0) * 0.11
+		health_bar.self_modulate = Color(1.0, danger_pulse, danger_pulse)
+		health_label.text = "PERIGO · %d / %d" % [ceili(current_hp), ceili(maximum_hp)]
+	else:
+		health_bar.self_modulate = Color.WHITE
+		health_label.text = "%d / %d" % [ceili(current_hp), ceili(maximum_hp)]
 	xp_bar.max_value = needed_xp
 	xp_bar.value = current_xp
 	level_label.text = "NÍVEL %02d" % level
@@ -273,8 +282,10 @@ func show_level_up(new_level: int, options: Array[Dictionary], rerolls := 0, ban
 	modal_open = true
 	banish_mode = false
 	banish_count_display = banishes
+	current_upgrade_level = new_level
 	upgrade_options = options
 	upgrade_title.text = "NÍVEL %d · ESCOLHA SEU PODER" % new_level
+	upgrade_hint.text = "Reroll troca as cartas · Banir remove uma opção desta partida · Pular guarda a build"
 	upgrade_overlay.show()
 	for index in range(upgrade_buttons.size()):
 		var button := upgrade_buttons[index]
@@ -283,10 +294,14 @@ func show_level_up(new_level: int, options: Array[Dictionary], rerolls := 0, ban
 			continue
 		button.show()
 		var option := options[index]
-		button.text = "%s\n\n%s\nNÍVEL %d\n\n%s\n\n[%s]" % [
-			option.icon, option.title, option.level, option.description, option.rarity
+		var evolution_hint := str(option.get("evolution_hint", ""))
+		var evolution_block := "\n\n" + evolution_hint if not evolution_hint.is_empty() else ""
+		var gain_text := " · +%d" % int(option.get("levels_gained", 1)) if int(option.get("levels_gained", 1)) > 1 else ""
+		button.text = "%s\n\n%s\n%s · NÍVEL %d/%d%s\n\n%s%s\n\n[%s]" % [
+			option.icon, option.title, str(option.get("category", "PODER")), option.level, option.max,
+			gain_text, option.description, evolution_block, option.rarity
 		]
-		var rarity_color := Color("ffcc66") if option.rarity == "LENDÁRIO" else (Color("bd8cff") if option.rarity == "RARO" else Color("e7e1f5"))
+		var rarity_color := _rarity_color(str(option.rarity))
 		button.add_theme_color_override("font_color", rarity_color)
 		button.add_theme_color_override("font_hover_color", Color.WHITE)
 	reroll_button.text = "REROLL · %d" % rerolls
@@ -349,10 +364,19 @@ func _toggle_banish_mode() -> void:
 	if banish_button.disabled:
 		return
 	banish_mode = not banish_mode
-	upgrade_title.text = "ESCOLHA UMA OPÇÃO PARA BANIR" if banish_mode else "ESCOLHA SEU PODER"
+	upgrade_title.text = "ESCOLHA UMA OPÇÃO PARA BANIR" if banish_mode else "NÍVEL %d · ESCOLHA SEU PODER" % current_upgrade_level
 	banish_button.text = "CANCELAR BANIMENTO" if banish_mode else "BANIR · %d" % banish_count_display
-	for button in upgrade_buttons:
-		button.add_theme_color_override("font_color", Color("ff8f9a") if banish_mode else Color("e7e1f5"))
+	for index in range(upgrade_buttons.size()):
+		var color := Color("ff8f9a") if banish_mode else (_rarity_color(str(upgrade_options[index].rarity)) if index < upgrade_options.size() else Color("e7e1f5"))
+		upgrade_buttons[index].add_theme_color_override("font_color", color)
+
+
+func _rarity_color(rarity: String) -> Color:
+	if rarity == "LENDÁRIO":
+		return Color("ffcc66")
+	if rarity == "RARO":
+		return Color("bd8cff")
+	return Color("e7e1f5")
 
 
 func show_stage_banner(text: String) -> void:

@@ -21,6 +21,7 @@ const SAVE_PATH := "user://realm_of_chaos.cfg"
 const GRID_CELL_SIZE := 180.0
 const MAX_PLAYER_PROJECTILES := 360
 const MAX_EFFECTS := 120
+const MAX_PICKUPS := 520
 
 var time_survived := 0.0
 var enemies_killed := 0
@@ -63,6 +64,7 @@ var damage_by_source: Dictionary = {}
 var damage_taken := 0.0
 var bosses_defeated := 0
 var accessibility_settings: Dictionary = {}
+var pickup_merge_cursor := 0
 
 @onready var player = $Player
 @onready var ground: Sprite2D = $Ground
@@ -191,8 +193,28 @@ func spawn_enemy(kind: String, force_elite := false, power_override := -1.0) -> 
 func get_spawn_position(minimum := 610.0, maximum := 760.0) -> Vector2:
 	if not is_instance_valid(player):
 		return Vector2.ZERO
-	var angle := randf() * TAU
-	return player.global_position + Vector2.RIGHT.rotated(angle) * randf_range(minimum, maximum)
+	var fallback: Vector2 = player.global_position
+	for _attempt in range(12):
+		var angle := randf() * TAU
+		var candidate: Vector2 = player.global_position + Vector2.RIGHT.rotated(angle) * randf_range(minimum, maximum)
+		fallback = candidate
+		if absf(candidate.x) > 5420.0 or absf(candidate.y) > 5420.0:
+			continue
+		if _spawn_position_is_clear(candidate):
+			return candidate
+	return Vector2(clampf(fallback.x, -5420.0, 5420.0), clampf(fallback.y, -5420.0, 5420.0))
+
+
+func _spawn_position_is_clear(position: Vector2) -> bool:
+	if is_instance_valid(obstacles):
+		for obstacle in obstacles.get_children():
+			if is_instance_valid(obstacle) and obstacle.global_position.distance_squared_to(position) < 105.0 * 105.0:
+				return false
+	if is_instance_valid(landmarks):
+		for landmark in landmarks.get_children():
+			if is_instance_valid(landmark) and landmark.global_position.distance_squared_to(position) < 145.0 * 145.0:
+				return false
+	return true
 
 
 func _update_boss_schedule() -> void:
@@ -247,9 +269,10 @@ func _update_hud() -> void:
 	var environment: Dictionary = get_environment_effect(player.global_position)
 	var passive_status := "%s · %ds" % [player.blessing_title, ceili(player.blessing_time)] if player.blessing_time > 0.0 else str(environment.get("name", ""))
 	var status_title := current_event_title if not current_event_title.is_empty() else passive_status
+	var stage_status := "%s · %s" % [last_stage, _next_boss_status()]
 	hud.update_run(
 		player.hp, player.max_hp, player.experience, player.experience_needed,
-		player.level, enemies_killed, remaining, last_stage, player.weapon_summary(),
+		player.level, enemies_killed, remaining, stage_status, player.weapon_summary(),
 		essence_earned, status_title
 	)
 	hud.update_navigation(player.dash_status(), player.character_skill_name, player.blessing_title, player.blessing_time)
@@ -257,6 +280,17 @@ func _update_hud() -> void:
 		hud.update_boss(active_boss.hp, active_boss.max_hp)
 	else:
 		hud.hide_boss()
+
+
+func _next_boss_status() -> String:
+	if is_instance_valid(active_boss) and not active_boss.dead:
+		return "CHEFE ATIVO"
+	var schedule := GameDefs.boss_schedule()
+	if boss_index >= schedule.size():
+		return "RITUAL FINAL"
+	var seconds_left := maxi(0, ceili(float(schedule[boss_index].time) - time_survived))
+	@warning_ignore("integer_division")
+	return "PRÓXIMO CHEFE %02d:%02d" % [seconds_left / 60, seconds_left % 60]
 
 
 func _update_world_events(delta: float) -> void:
@@ -319,15 +353,11 @@ func handle_enemy_death(enemy: Node, xp_value: int, was_elite: bool, was_boss: b
 		essence_earned += 3
 	elif enemies_killed % 7 == 0:
 		essence_earned += 1
-	var gem = GemScene.instantiate()
-	pickups.add_child(gem)
-	gem.setup(xp_value, enemy.global_position, "xp")
+	_spawn_pickup(xp_value, enemy.global_position, "xp")
 	var death_color: Color = GameDefs.enemy_data(enemy.enemy_type).color
 	spawn_effect(enemy.global_position, death_color, enemy.hit_radius * 2.2, 0.32, true)
 	if (was_elite and randf() < 0.35) or (not was_elite and randf() < 0.018):
-		var heart = GemScene.instantiate()
-		pickups.add_child(heart)
-		heart.setup(24 if not was_boss else 60, enemy.global_position + Vector2(18, 0), "heal")
+		_spawn_pickup(24 if not was_boss else 60, enemy.global_position + Vector2(18, 0), "heal")
 	if not was_boss:
 		return
 	bosses_defeated += 1
@@ -337,9 +367,7 @@ func handle_enemy_death(enemy: Node, xp_value: int, was_elite: bool, was_boss: b
 			active_boss_arena.finish()
 			active_boss_arena = null
 	for index in range(10 if enemy.final_boss else 7):
-		var bonus = GemScene.instantiate()
-		pickups.add_child(bonus)
-		bonus.setup(18 if enemy.final_boss else 12, enemy.global_position + Vector2.RIGHT.rotated(TAU * index / 10.0) * randf_range(28.0, 92.0), "xp")
+		_spawn_pickup(18 if enemy.final_boss else 12, enemy.global_position + Vector2.RIGHT.rotated(TAU * index / 10.0) * randf_range(28.0, 92.0), "xp")
 	player.grant_boss_reward(enemy.final_boss)
 	shake_camera(12.0, 0.55)
 	if enemy.final_boss:
@@ -395,14 +423,35 @@ func _on_relic_selected(relic_id: String) -> void:
 func add_player_projectile(projectile: Node) -> void:
 	if projectiles.get_child_count() >= MAX_PLAYER_PROJECTILES:
 		var oldest := projectiles.get_child(0)
+		projectiles.remove_child(oldest)
 		oldest.queue_free()
 	projectiles.add_child(projectile)
 
 
 func add_enemy_projectile(projectile: Node) -> void:
 	if enemy_projectiles.get_child_count() >= 260:
-		enemy_projectiles.get_child(0).queue_free()
+		var oldest := enemy_projectiles.get_child(0)
+		enemy_projectiles.remove_child(oldest)
+		oldest.queue_free()
 	enemy_projectiles.add_child(projectile)
+
+
+func _spawn_pickup(amount: int, position: Vector2, kind := "xp") -> Node:
+	if kind == "xp" and pickups.get_child_count() >= MAX_PICKUPS:
+		var pickup_count := pickups.get_child_count()
+		for offset in range(pickup_count):
+			var index := (pickup_merge_cursor + offset) % pickup_count
+			var existing = pickups.get_child(index)
+			if is_instance_valid(existing) and str(existing.get("pickup_kind")) == "xp":
+				existing.value += amount
+				existing.attracted = bool(existing.attracted) or existing.value >= 64
+				existing.queue_redraw()
+				pickup_merge_cursor = (index + 1) % pickup_count
+				return existing
+	var pickup = GemScene.instantiate()
+	pickups.add_child(pickup)
+	pickup.setup(amount, position, kind)
+	return pickup
 
 
 func spawn_effect(position: Vector2, color: Color, radius: float, duration := 0.35, filled := false) -> void:
@@ -478,6 +527,11 @@ func on_player_dash(direction: Vector2) -> void:
 	spawn_effect(player.global_position - direction * 18.0, Color("9d72ff"), 58.0, 0.22, true)
 	audio.play_dash()
 	shake_camera(1.8, 0.10)
+
+
+func on_weapon_fired(weapon_id: String) -> void:
+	if is_instance_valid(audio) and audio.has_method("play_weapon_attack"):
+		audio.play_weapon_attack(weapon_id)
 
 
 func activate_landmark(landmark: Node) -> void:
@@ -574,7 +628,18 @@ func _show_next_upgrade() -> void:
 		return
 	upgrade_active = true
 	get_tree().paused = true
-	hud.show_level_up(player.level, player.get_upgrade_options(3), rerolls_left, banishes_left, skips_left)
+	_present_upgrade_options(player.get_upgrade_options(3))
+
+
+func _present_upgrade_options(options: Array[Dictionary]) -> void:
+	if not options.is_empty():
+		hud.show_level_up(player.level, options, rerolls_left, banishes_left, skips_left)
+		return
+	player.heal(player.max_hp * 0.15)
+	essence_earned += 2
+	hud.hide_level_up()
+	hud.show_stage_banner("ASCENSÃO COMPLETA · VIDA RESTAURADA · +2 ESSÊNCIAS")
+	_advance_upgrade_queue()
 
 
 func _on_upgrade_selected(upgrade_id: String, rarity: String) -> void:
@@ -586,7 +651,10 @@ func _on_reroll_requested() -> void:
 	if not upgrade_active or rerolls_left <= 0:
 		return
 	rerolls_left -= 1
-	hud.show_level_up(player.level, player.get_upgrade_options(3), rerolls_left, banishes_left, skips_left)
+	var previous_ids: Array[String] = []
+	for option in hud.upgrade_options:
+		previous_ids.append(str(option.id))
+	_present_upgrade_options(player.get_upgrade_options(3, previous_ids))
 
 
 func _on_banish_requested(upgrade_id: String) -> void:
@@ -594,7 +662,7 @@ func _on_banish_requested(upgrade_id: String) -> void:
 		return
 	banishes_left -= 1
 	player.banish_upgrade(upgrade_id)
-	hud.show_level_up(player.level, player.get_upgrade_options(3), rerolls_left, banishes_left, skips_left)
+	_present_upgrade_options(player.get_upgrade_options(3))
 
 
 func _on_skip_requested() -> void:
@@ -607,7 +675,7 @@ func _on_skip_requested() -> void:
 func _advance_upgrade_queue() -> void:
 	pending_upgrades -= 1
 	if pending_upgrades > 0:
-		hud.show_level_up(player.level, player.get_upgrade_options(3), rerolls_left, banishes_left, skips_left)
+		_present_upgrade_options(player.get_upgrade_options(3))
 	else:
 		upgrade_active = false
 		hud.hide_level_up()
@@ -759,6 +827,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_debug_unlock_evolved_build()
 		KEY_F9:
 			_debug_defeat_active_boss()
+		KEY_F10:
+			_debug_gain_level()
 
 
 func _debug_jump_to_next_boss() -> void:
@@ -783,6 +853,12 @@ func _debug_unlock_evolved_build() -> void:
 func _debug_defeat_active_boss() -> void:
 	if is_instance_valid(active_boss) and not active_boss.dead:
 		active_boss.take_damage(active_boss.max_hp * 2.0, Vector2.ZERO, true)
+
+
+func _debug_gain_level() -> void:
+	if game_ended or upgrade_active:
+		return
+	player.collect_xp(maxi(1, player.experience_needed - player.experience))
 
 
 func _generate_environment() -> void:

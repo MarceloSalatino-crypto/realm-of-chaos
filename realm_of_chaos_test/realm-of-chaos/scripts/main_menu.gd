@@ -91,7 +91,7 @@ func _load_records() -> void:
 func _show_instructions() -> void:
 	_show_popup(
 		"COMO SOBREVIVER",
-		"WASD, SETAS OU ANALÓGICO\nMova o Caçador; a arma inicial é sorteada e ataca automaticamente.\n\nESPAÇO / BOTÃO A · ESQUIVA\nAtravesse a horda com um impulso curto e invulnerável. A recarga aparece no canto inferior esquerdo.\n\nMAPA E SANTUÁRIOS\nO minimapa mostra marcos, chefes e baús. M oculta ou exibe. Explore os quatro santuários para receber bênçãos temporárias.\n\nEVOLUA ARMAS E RELÍQUIAS\nCombine armas e passivos; cada mini-chefe deixa um baú com três opções.\n\nRITUAL DE 25 MINUTOS\nChefes surgem em 5, 10, 15, 20 e 25 minutos. Raízes atrasam, gelo reduz controle e fendas causam dano. ESC pausa."
+		"WASD, SETAS OU ANALÓGICO\nMova o Caçador; a arma inicial é sorteada e ataca automaticamente.\n\nESPAÇO / BOTÃO A · ESQUIVA + HABILIDADE\nAtravesse a horda com um impulso invulnerável e ative o poder exclusivo do personagem.\n\nMAPA E SANTUÁRIOS\nO minimapa mostra marcos, chefes e baús. M oculta ou exibe. Explore os quatro santuários para receber bênçãos temporárias.\n\nEVOLUA ARMAS E RELÍQUIAS\nAs cartas mostram as combinações de evolução. Use reroll, banimento ou pular para controlar sua build de até seis armas.\n\nRITUAL DE 25 MINUTOS\nChefes surgem em 5, 10, 15, 20 e 25 minutos. Raízes atrasam, gelo reduz controle e fendas causam dano. ESC pausa."
 	)
 
 

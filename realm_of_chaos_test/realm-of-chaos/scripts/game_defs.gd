@@ -138,6 +138,13 @@ static func evolution_data(weapon_id: String) -> Dictionary:
 			return {}
 
 
+static func upgrade_title(upgrade_id: String) -> String:
+	for definition in upgrades():
+		if str(definition.id) == upgrade_id:
+			return str(definition.title)
+	return upgrade_id.capitalize()
+
+
 static func meta_upgrades() -> Array[Dictionary]:
 	return [
 		{"id": "power", "title": "FORÇA ETERNA", "max": 10, "base_cost": 35, "description": "+5% de dano inicial por nível"},
@@ -202,7 +209,7 @@ static func achievements() -> Array[Dictionary]:
 		{"id": "boss_slayer", "title": "RITUAL QUEBRADO", "description": "Derrote os cinco chefes na mesma partida."},
 		{"id": "survivor", "title": "SOBREVIVENTE", "description": "Vença uma fase de 25 minutos."},
 		{"id": "exterminator", "title": "EXTERMINADOR", "description": "Elimine 500 inimigos em uma partida."},
-		{"id": "arsenal", "title": "ARSENAL SUPREMO", "description": "Evolua as quatro armas na mesma partida."},
+		{"id": "arsenal", "title": "ARSENAL SUPREMO", "description": "Preencha os seis espaços e evolua todas as armas da build."},
 		{"id": "untouchable", "title": "INTOCÁVEL", "description": "Vença recebendo no máximo 100 de dano."},
 		{"id": "cartographer", "title": "CARTÓGRAFO DO CAOS", "description": "Ative os quatro santuários em uma partida."}
 	]

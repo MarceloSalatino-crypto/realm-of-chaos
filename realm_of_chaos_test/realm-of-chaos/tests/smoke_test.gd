@@ -138,11 +138,14 @@ func _run() -> void:
 	_check(world.hud.get_node("EndOverlay/Panel/Margin/VBox/Restart") != null and world.hud.get_node("EndOverlay/Panel/Margin/VBox/Menu") != null, "telas finais sem reiniciar ou menu")
 	world.hud.end_overlay.hide()
 	world.hud.modal_open = false
+	world.player.disabled = false
 	world.player.invulnerability = 0.0
+	world.player.dodge_chance = 0.0
+	world.player.revive_charges = 0
 	world.player.hp = 1.0
 	world.player.take_damage(9999.0, Vector2.RIGHT)
 	_check(world.player.death_started, "animação de morte do jogador não iniciou")
-	await create_timer(0.7, true, false, true).timeout
+	await create_timer(1.0, true, false, true).timeout
 	_check(world.game_ended and paused and world.hud.end_title.text == "GAME OVER", "morte do jogador não encerrou a partida")
 
 	paused = false

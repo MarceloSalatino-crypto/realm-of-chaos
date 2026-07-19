@@ -402,6 +402,7 @@ func _fire_chaos_bolt() -> void:
 	bolt_timer = maxf(0.12 if evolved else 0.16, (0.48 if evolved else 0.68 - weapon_level * 0.045) * effective_cooldown_multiplier())
 	if not target:
 		return
+	_notify_weapon_fired("chaos_bolt")
 	var count := ((3 + int(weapon_level / 4.0)) if evolved else (1 + int((weapon_level - 1) / 3.0))) + projectile_bonus
 	var base_direction := (target.global_position - global_position).normalized()
 	for index in range(count):
@@ -420,6 +421,7 @@ func _fire_shadow_blades(weapon_level: int) -> void:
 	blades_timer = maxf(0.36 if evolved else 0.45, (0.78 if evolved else 2.0 - weapon_level * 0.16) * effective_cooldown_multiplier())
 	if not target:
 		return
+	_notify_weapon_fired("shadow_blades")
 	var count := (16 if evolved else 2 + weapon_level) + projectile_bonus
 	var base_direction := (target.global_position - global_position).normalized()
 	for index in range(count):
@@ -460,6 +462,7 @@ func _damage_orbit(weapon_level: int) -> void:
 	var radius := 122.0 + weapon_level * 8.0 if evolved else 72.0 + weapon_level * 8.0
 	var blade_count := 6 + int(weapon_level / 2.0) if evolved else 2 + int(weapon_level / 2.0)
 	var now := Time.get_ticks_msec()
+	var sound_played := false
 	for enemy in _enemies_near(radius + 60.0):
 		if not is_instance_valid(enemy):
 			continue
@@ -471,6 +474,9 @@ func _damage_orbit(weapon_level: int) -> void:
 		for index in range(blade_count):
 			var blade_position := global_position + Vector2.RIGHT.rotated(orbit_angle + TAU * index / blade_count) * radius
 			if blade_position.distance_to(enemy.global_position) <= 28.0 + enemy.hit_radius:
+				if not sound_played:
+					_notify_weapon_fired("soul_orbit")
+					sound_played = true
 				orbit_hit_times[enemy_id] = now
 				attack_recoil = 1.0
 				var is_critical := randf() < effective_crit_chance()
@@ -489,6 +495,7 @@ func _cast_nova(weapon_level: int) -> void:
 	attack_recoil = 1.0
 	attack_flash = 1.0
 	queue_redraw()
+	_notify_weapon_fired("chaos_nova")
 	for enemy in _enemies_near(radius + 70.0):
 		if is_instance_valid(enemy) and global_position.distance_to(enemy.global_position) <= radius + enemy.hit_radius:
 			var force: Vector2 = (enemy.global_position - global_position).normalized() * (155.0 if evolved else 85.0)
@@ -509,6 +516,7 @@ func _swing_blood_scythe(weapon_level: int) -> void:
 	var direction := (target.global_position - global_position).normalized() if target else last_direction
 	var radius := 245.0 if evolved else 145.0 + weapon_level * 10.0
 	var hits := 0
+	_notify_weapon_fired("blood_scythe")
 	for enemy in _enemies_near(radius + 70.0):
 		if not is_instance_valid(enemy):
 			continue
@@ -541,6 +549,7 @@ func _cast_forbidden_grimoire(weapon_level: int) -> void:
 	var world := get_tree().get_first_node_in_group("world")
 	if not world:
 		return
+	_notify_weapon_fired("forbidden_grimoire")
 	for enemy in world.get_enemies_near(center, radius + 65.0):
 		if is_instance_valid(enemy) and center.distance_to(enemy.global_position) <= radius + enemy.hit_radius:
 			var critical := randf() < effective_crit_chance()
@@ -563,6 +572,7 @@ func _slam_rune_hammer(weapon_level: int) -> void:
 	var world := get_tree().get_first_node_in_group("world")
 	if not world:
 		return
+	_notify_weapon_fired("rune_hammer")
 	for enemy in world.get_enemies_near(strike_position, radius + 65.0):
 		if is_instance_valid(enemy) and strike_position.distance_to(enemy.global_position) <= radius + enemy.hit_radius:
 			var amount := (38.0 + weapon_level * 9.0) * effective_damage_multiplier() * (2.0 if evolved else 1.0)
@@ -579,6 +589,7 @@ func _cast_storm_chain(weapon_level: int) -> void:
 	var candidates := _enemies_near(720.0)
 	if candidates.is_empty():
 		return
+	_notify_weapon_fired("storm_relic")
 	candidates.sort_custom(func(a, b): return global_position.distance_squared_to(a.global_position) < global_position.distance_squared_to(b.global_position))
 	var count := mini(candidates.size(), 11 if evolved else 2 + weapon_level)
 	var points := PackedVector2Array([global_position])
@@ -606,6 +617,7 @@ func _release_swarm_eyes(weapon_level: int) -> void:
 	var world := get_tree().get_first_node_in_group("world")
 	if not world:
 		return
+	_notify_weapon_fired("swarm_idol")
 	for index in range(count):
 		var target: Node2D = candidates[index % candidates.size()]
 		var critical := randf() < effective_crit_chance()
@@ -615,6 +627,12 @@ func _release_swarm_eyes(weapon_level: int) -> void:
 		world.add_player_projectile(eye)
 	world.spawn_weapon_flash(global_position + Vector2(-24, -42), 4, 0.0, 0.16, 0.42, Color("d592ff"))
 	attack_recoil = 1.0
+
+
+func _notify_weapon_fired(weapon_id: String) -> void:
+	var world := get_tree().get_first_node_in_group("world")
+	if world and world.has_method("on_weapon_fired"):
+		world.on_weapon_fired(weapon_id)
 
 
 func _nearest_enemy() -> Node2D:
@@ -704,8 +722,9 @@ func collect_xp(amount: int) -> void:
 		level_up_requested.emit()
 
 
-func get_upgrade_options(count: int) -> Array[Dictionary]:
+func get_upgrade_options(count: int, excluded_ids: Array[String] = []) -> Array[Dictionary]:
 	var pool: Array[Dictionary] = []
+	var fallback_pool: Array[Dictionary] = []
 	for definition in GameDefs.upgrades():
 		var upgrade_id := str(definition.id)
 		if banished_upgrades.has(upgrade_id):
@@ -713,15 +732,47 @@ func get_upgrade_options(count: int) -> Array[Dictionary]:
 		if weapon_levels.has(upgrade_id) and int(weapon_levels[upgrade_id]) <= 0 and active_weapon_count() >= MAX_WEAPONS:
 			continue
 		if get_upgrade_level(definition.id) < int(definition.max):
-			pool.append(definition.duplicate())
+			var candidate := definition.duplicate()
+			if upgrade_id in excluded_ids:
+				fallback_pool.append(candidate)
+			else:
+				pool.append(candidate)
+	if pool.size() < count:
+		fallback_pool.shuffle()
+		pool.append_array(fallback_pool.slice(0, count - pool.size()))
 	pool.shuffle()
 	var options: Array[Dictionary] = []
 	for definition in pool.slice(0, mini(count, pool.size())):
-		var current := get_upgrade_level(definition.id)
-		definition["level"] = current + 1
-		definition["rarity"] = _roll_rarity()
+		var upgrade_id := str(definition.id)
+		var current := get_upgrade_level(upgrade_id)
+		var rarity := _roll_rarity()
+		var levels_gained := 2 if rarity == "LENDÁRIO" else 1
+		definition["current_level"] = current
+		definition["level"] = mini(int(definition.max), current + levels_gained)
+		definition["levels_gained"] = mini(levels_gained, int(definition.max) - current)
+		definition["rarity"] = rarity
+		definition["category"] = "NOVA ARMA" if weapon_levels.has(upgrade_id) and current == 0 else ("ARMA" if weapon_levels.has(upgrade_id) else "PASSIVO")
+		definition["evolution_hint"] = _evolution_hint_for(upgrade_id)
 		options.append(definition)
 	return options
+
+
+func _evolution_hint_for(upgrade_id: String) -> String:
+	if weapon_levels.has(upgrade_id):
+		var evolution := GameDefs.evolution_data(upgrade_id)
+		if evolution.is_empty():
+			return ""
+		return "EVOLUI COM %s NV.%d" % [GameDefs.upgrade_title(str(evolution.passive)).to_upper(), int(evolution.passive_level)]
+	var synergies: Array[String] = []
+	for weapon_id in WEAPON_IDS:
+		if int(weapon_levels.get(weapon_id, 0)) <= 0 or bool(evolved_weapons.get(weapon_id, false)):
+			continue
+		var evolution := GameDefs.evolution_data(weapon_id)
+		if str(evolution.get("passive", "")) == upgrade_id:
+			synergies.append(str(WEAPON_TITLES.get(weapon_id, weapon_id)).capitalize())
+	if synergies.is_empty():
+		return ""
+	return "COMBINA COM %s" % ", ".join(synergies)
 
 
 func active_weapon_count() -> int:
@@ -955,10 +1006,14 @@ func on_damage_dealt(amount: float, target_is_boss: bool) -> void:
 
 
 func all_weapons_evolved() -> bool:
+	var owned_weapons := 0
 	for weapon_id in WEAPON_IDS:
+		if int(weapon_levels.get(weapon_id, 0)) <= 0:
+			continue
+		owned_weapons += 1
 		if not bool(evolved_weapons.get(weapon_id, false)):
 			return false
-	return true
+	return owned_weapons >= MAX_WEAPONS
 
 
 func relic_summary() -> String:
@@ -996,7 +1051,9 @@ func weapon_summary() -> String:
 		names.append("TEMPESTADE ϟ" if evolved_weapons.storm_relic else "Relíquia %d" % weapon_levels.storm_relic)
 	if weapon_levels.swarm_idol > 0:
 		names.append("LEGIÃO ◉" if evolved_weapons.swarm_idol else "Ídolo %d" % weapon_levels.swarm_idol)
-	return "  ·  ".join(names)
+	if names.size() <= 3:
+		return "  ·  ".join(names)
+	return "%s\n%s" % ["  ·  ".join(names.slice(0, 3)), "  ·  ".join(names.slice(3))]
 
 
 func _draw() -> void:

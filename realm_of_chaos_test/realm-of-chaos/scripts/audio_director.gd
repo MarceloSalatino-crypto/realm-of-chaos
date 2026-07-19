@@ -6,6 +6,10 @@ var music_player: AudioStreamPlayer
 var music_stage := ""
 var music_level := 0.65
 var sfx_level := 0.80
+var last_played_msec: Dictionary = {}
+var active_sfx := 0
+
+const MAX_SIMULTANEOUS_SFX := 18
 
 
 func set_levels(new_music_level: float, new_sfx_level: float) -> void:
@@ -64,9 +68,36 @@ func play_explosion() -> void:
 	_play_tone("explosion", 62.0, 0.34, 0.82, "noise")
 
 
+func play_weapon_attack(weapon_id: String) -> void:
+	match weapon_id:
+		"chaos_bolt":
+			_play_tone("weapon_bolt", 430.0, 0.08, 0.36, "square")
+		"shadow_blades":
+			_play_tone("weapon_blades", 690.0, 0.10, 0.30, "noise")
+		"soul_orbit":
+			_play_tone("weapon_orbit", 560.0, 0.07, 0.24, "sine")
+		"chaos_nova":
+			_play_tone("weapon_nova", 92.0, 0.24, 0.52, "saw")
+		"blood_scythe":
+			_play_tone("weapon_scythe", 245.0, 0.13, 0.42, "noise")
+		"forbidden_grimoire":
+			_play_tone("weapon_grimoire", 165.0, 0.20, 0.40, "saw")
+		"rune_hammer":
+			_play_tone("weapon_hammer", 68.0, 0.25, 0.60, "noise")
+		"storm_relic":
+			_play_tone("weapon_storm", 820.0, 0.09, 0.34, "square")
+		"swarm_idol":
+			_play_tone("weapon_swarm", 510.0, 0.16, 0.32, "sine")
+
+
 func _play_tone(key: String, frequency: float, duration: float, volume: float, waveform: String) -> void:
-	if not enabled:
+	if not enabled or sfx_level <= 0.001 or active_sfx >= MAX_SIMULTANEOUS_SFX:
 		return
+	var now := Time.get_ticks_msec()
+	var minimum_interval := _minimum_interval_for(key)
+	if now - int(last_played_msec.get(key, -10000)) < minimum_interval:
+		return
+	last_played_msec[key] = now
 	var stream: AudioStreamWAV
 	if cached_streams.has(key):
 		stream = cached_streams[key]
@@ -77,8 +108,25 @@ func _play_tone(key: String, frequency: float, duration: float, volume: float, w
 	player.stream = stream
 	player.volume_db = linear_to_db(maxf(0.0001, sfx_level)) - 4.0
 	add_child(player)
-	player.finished.connect(player.queue_free)
+	active_sfx += 1
+	player.finished.connect(_on_sfx_finished.bind(player))
 	player.play()
+
+
+func _minimum_interval_for(key: String) -> int:
+	if key in ["hit", "critical"]:
+		return 48
+	if key == "pickup":
+		return 65
+	if key.begins_with("weapon_"):
+		return 85
+	return 110
+
+
+func _on_sfx_finished(player: AudioStreamPlayer) -> void:
+	active_sfx = maxi(0, active_sfx - 1)
+	if is_instance_valid(player):
+		player.queue_free()
 
 
 func _make_stream(frequency: float, duration: float, volume: float, waveform: String) -> AudioStreamWAV:

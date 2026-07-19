@@ -32,9 +32,10 @@ Uma evolução completa do protótipo original para um loop no estilo survivor: 
 - Nove armas evolutivas. Além do arsenal original, existem Foice Hemática, Grimório Proibido, Martelo Rúnico, Relíquia da Tempestade e Ídolo do Enxame.
 - Novas evoluções: Ceifadora Carmesim, Códice do Fim, Martelo do Cataclismo, Tempestade Eterna e Olho da Legião.
 - Oito passivos para dano, velocidade, vida, coleta, armadura, regeneração e crítico.
-- Cristais de experiência, corações, níveis e três escolhas por nível com raridades, três rerolls, três banimentos e duas opções de pular por partida.
+- Cristais de experiência, corações, níveis e três escolhas por nível com raridades, receitas de evolução visíveis, três rerolls, três banimentos e duas opções de pular por partida.
 - Limite de seis armas simultâneas para tornar cada build uma decisão real.
-- HUD completo: vida, XP, tempo restante, estágio, abates, Essência, eventos, armas e barra de chefe/fase.
+- Depois que armas e passivos da build chegam ao máximo, novos níveis viram cura e Essência automaticamente.
+- HUD completo: vida, alerta de perigo, XP, tempo restante, contagem para o próximo chefe, estágio, abates, Essência, eventos, build em duas linhas e barra de chefe/fase.
 - Números de dano, críticos, congelamento de impacto, telemetria, tremor de câmera, partículas, efeitos sonoros e trilha adaptativa sintetizados em tempo real.
 - Game Over ao morrer ou Vitória após derrotar o chefe final, com reinício da fase ou avanço para o próximo bioma.
 - Tela final detalhada com dano total, maior fonte de dano, dano recebido, chefes vencidos, relíquias e novas conquistas.
@@ -50,7 +51,7 @@ Uma evolução completa do protótipo original para um loop no estilo survivor: 
 - Movimento com aceleração, frenagem e inércia; separação local faz inimigos contornarem uns aos outros em vez de formar um bloco estático.
 - Entrada cinematográfica de chefes e sinalização do perigo do terreno no HUD.
 - Opções persistentes de música, efeitos sonoros, tremor de câmera, intensidade de flashes e tela cheia.
-- Índice espacial de inimigos, limites de projéteis/efeitos e teste de carga com 300 criaturas.
+- Índice espacial de inimigos, limites de projéteis/efeitos, fusão de cristais excedentes, controle de vozes sonoras e teste de carga com 300 criaturas.
 - Suporte a teclado e controle.
 
 ## Teste automatizado
@@ -72,6 +73,7 @@ SMOKE TEST OK: horda expandida, evoluções, eventos, metaprogressão, mini-chef
 - **F7:** avança o relógio até o próximo mini-chefe/chefe.
 - **F8:** libera as nove armas evoluídas.
 - **F9:** derrota o chefe ativo para testar recompensas e avanço de fase.
+- **F10:** concede um nível imediatamente para revisar cartas e combinações.
 
 Os atalhos só funcionam em execução pelo editor e não são habilitados em uma exportação final.
 
@@ -82,6 +84,7 @@ godot --headless --path . --fixed-fps 60 --script res://tests/boss_timeline_test
 godot --headless --path . --fixed-fps 60 --script res://tests/performance_test.gd
 godot --headless --path . --fixed-fps 60 --script res://tests/profile_rewards_test.gd
 godot --headless --path . --fixed-fps 60 --script res://tests/combat_expansion_test.gd
+godot --headless --path . --fixed-fps 60 --script res://tests/polish_systems_test.gd
 ```
 
 ## Estrutura principal
@@ -109,6 +112,7 @@ godot --headless --path . --fixed-fps 60 --script res://tests/combat_expansion_t
 - `tests/performance_test.gd`: teste de carga com 300 inimigos e busca espacial.
 - `tests/profile_rewards_test.gd`: validação do menu inicial, mapa, esquiva, santuários, baús, relíquias e estatísticas.
 - `tests/combat_expansion_test.gd`: validação das nove armas, evoluções, habilidades, escolhas avançadas e arenas.
+- `tests/polish_systems_test.gd`: validação das cartas de build, conquista, HUD, spawn seguro e controles de carga.
 
 ## Espaço para futuras expansões
 
