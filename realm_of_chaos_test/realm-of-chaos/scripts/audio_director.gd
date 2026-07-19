@@ -52,6 +52,10 @@ func play_reward() -> void:
 	_play_tone("reward_high", 930.0, 0.30, 0.52, "sine")
 
 
+func play_dash() -> void:
+	_play_tone("dash", 185.0, 0.14, 0.48, "noise")
+
+
 func play_pickup() -> void:
 	_play_tone("pickup", 880.0, 0.06, 0.42, "sine")
 

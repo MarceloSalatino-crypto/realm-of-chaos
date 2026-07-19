@@ -5,12 +5,14 @@ Uma evolução completa do protótipo original para um loop no estilo survivor: 
 ## Como jogar
 
 1. Abra `project.godot` no Godot 4.3 ou superior.
-2. Pressione **F6/F5** ou clique em **Executar projeto**.
+2. Pressione **F5** ou clique em **Executar projeto** para começar pelo menu. **F6** executa apenas a cena aberta no editor e pode pular o menu.
 3. Selecione **Iniciar Ritual**.
 
 ### Controles
 
 - **WASD / setas / analógico esquerdo:** movimento.
+- **Espaço / botão A:** esquiva curta com invulnerabilidade e recarga.
+- **M:** ocultar ou exibir o minimapa.
 - **Mouse / teclado / controle:** escolha de upgrades e menus.
 - **Esc:** pausar ou continuar.
 - Os ataques são automáticos e miram a ameaça mais próxima.
@@ -35,9 +37,12 @@ Uma evolução completa do protótipo original para um loop no estilo survivor: 
 - Game Over ao morrer ou Vitória após derrotar o chefe final, com reinício da fase ou avanço para o próximo bioma.
 - Tela final detalhada com dano total, maior fonte de dano, dano recebido, chefes vencidos, relíquias e novas conquistas.
 - Metaprogressão permanente com Essência e melhorias de dano, vida, movimento e crítico.
-- Seis conquistas persistentes e painel de perfil integrado ao menu.
+- Sete conquistas persistentes e painel de perfil integrado ao menu.
 - Três biomas encadeados: Bosque Profanado, Ruínas Glaciais e Catedral do Vazio.
 - Física própria por bioma: raízes reduzem movimento, placas de gelo diminuem tração e fendas do Vazio causam dano contínuo.
+- Mapa estruturado em zonas, com clareira central, caminhos radiais, 24 obstáculos físicos e quatro marcos visuais exploráveis.
+- Santuários do Altar Rubro, Obelisco Cronal, Árvore das Almas e Portal Fraturado concedem bênçãos temporárias de combate.
+- Minimap dinâmico mostra jogador, santuários, chefes e baús de recompensa.
 - Eventos especiais: Lua de Sangue, Tempestade de Almas, Eclipse e Chuva do Vazio.
 - Arena com 310 elementos decorativos determinísticos e variação visual por bioma.
 - Movimento com aceleração, frenagem e inércia; separação local faz inimigos contornarem uns aos outros em vez de formar um bloco estático.
@@ -88,11 +93,14 @@ godot --headless --path . --fixed-fps 60 --script res://tests/profile_rewards_te
 - `scripts/damage_number.gd`: números flutuantes de dano, crítico e cura.
 - `scripts/reward_chest.gd`: animação, aproximação e abertura dos baús de mini-chefes.
 - `scripts/arena_hazard.gd`: perigos interativos e modificadores físicos de cada bioma.
+- `scripts/map_overlay.gd`: clareiras, zonas, rotas e borda visual da arena.
+- `scripts/map_landmark.gd`: santuários exploráveis, colisão e ativação das bênçãos.
+- `scripts/minimap.gd`: navegação em tempo real e marcadores importantes.
 - `assets/generated/`: herói, bestiário e chão originais integrados ao jogo.
 - `tests/smoke_test.gd`: validação executável dos sistemas essenciais.
 - `tests/boss_timeline_test.gd`: simulação acelerada dos cinco confrontos e da vitória.
 - `tests/performance_test.gd`: teste de carga com 300 inimigos e busca espacial.
-- `tests/profile_rewards_test.gd`: validação de caçadores, perfil, perigos, baús, relíquias e estatísticas.
+- `tests/profile_rewards_test.gd`: validação do menu inicial, mapa, esquiva, santuários, baús, relíquias e estatísticas.
 
 ## Espaço para futuras expansões
 

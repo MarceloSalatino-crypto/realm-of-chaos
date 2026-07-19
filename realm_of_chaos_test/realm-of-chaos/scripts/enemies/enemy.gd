@@ -52,6 +52,7 @@ var explosion_done := false
 var dead := false
 var separation_timer := 0.0
 var separation_force := Vector2.ZERO
+var obstacle_avoidance := Vector2.ZERO
 
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var shadow: Polygon2D = $Shadow
@@ -152,12 +153,19 @@ func _physics_process(delta: float) -> void:
 		_apply_separation(delta)
 		_try_begin_special(distance)
 
-	velocity += knockback_velocity + dash_velocity
+	velocity += knockback_velocity + dash_velocity + obstacle_avoidance
 	knockback_velocity = knockback_velocity.move_toward(Vector2.ZERO, 720.0 * delta)
 	dash_velocity = dash_velocity.move_toward(Vector2.ZERO, 980.0 * delta)
+	obstacle_avoidance = obstacle_avoidance.move_toward(Vector2.ZERO, 420.0 * delta)
 	var event_speed := float(world.enemy_speed_multiplier) if world else 1.0
 	velocity *= event_speed
 	move_and_slide()
+	if get_slide_collision_count() > 0 and dash_velocity.length_squared() < 10.0:
+		var collision := get_slide_collision(0)
+		var tangent := collision.get_normal().rotated(PI * 0.5)
+		if tangent.dot(direction) < 0.0:
+			tangent = -tangent
+		obstacle_avoidance = tangent * move_speed * 0.62
 	sprite.flip_h = velocity.x < -2.0
 
 	var ranged := bool(GameDefs.enemy_data(enemy_type).get("ranged", false))

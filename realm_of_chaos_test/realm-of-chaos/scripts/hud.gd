@@ -1,5 +1,7 @@
 extends CanvasLayer
 
+const MinimapScript = preload("res://scripts/minimap.gd")
+
 signal upgrade_selected(upgrade_id: String, rarity: String)
 signal relic_selected(relic_id: String)
 signal restart_requested
@@ -15,6 +17,8 @@ var relic_title: Label
 var relic_buttons: Array[Button] = []
 var boss_intro: Control
 var boss_intro_label: Label
+var minimap: Control
+var dash_label: Label
 
 @onready var health_bar: ProgressBar = $Top/HealthBar
 @onready var health_label: Label = $Top/HealthBar/Label
@@ -55,11 +59,48 @@ func _ready() -> void:
 	$EndOverlay/Panel/Margin/VBox/Menu.pressed.connect(func(): menu_requested.emit())
 	_build_relic_overlay()
 	_build_boss_intro()
+	_build_navigation_ui()
 	end_summary.add_theme_font_size_override("font_size", 18)
 
 
 func set_accessibility(new_flash_intensity: float) -> void:
 	flash_intensity = clampf(new_flash_intensity, 0.0, 1.0)
+
+
+func _build_navigation_ui() -> void:
+	minimap = MinimapScript.new()
+	minimap.name = "Minimap"
+	minimap.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	minimap.position = Vector2(-208.0, -205.0)
+	minimap.size = Vector2(188.0, 185.0)
+	minimap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	minimap.z_index = -2
+	add_child(minimap)
+	dash_label = Label.new()
+	dash_label.name = "DashStatus"
+	dash_label.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	dash_label.position = Vector2(24.0, -72.0)
+	dash_label.size = Vector2(360.0, 48.0)
+	dash_label.text = "ESPAÇO / A · ESQUIVA PRONTA"
+	dash_label.add_theme_font_size_override("font_size", 14)
+	dash_label.add_theme_color_override("font_color", Color("cbb2df"))
+	dash_label.add_theme_color_override("font_outline_color", Color(0.02, 0.01, 0.04, 0.94))
+	dash_label.add_theme_constant_override("outline_size", 4)
+	dash_label.z_index = -2
+	add_child(dash_label)
+
+
+func bind_world(world: Node) -> void:
+	if is_instance_valid(minimap):
+		minimap.bind_world(world)
+
+
+func update_navigation(dash_status: String, blessing: String, blessing_remaining: float) -> void:
+	var blessing_text := ""
+	if blessing_remaining > 0.0:
+		blessing_text = "  ·  %s %ds" % [blessing, ceili(blessing_remaining)]
+	dash_label.text = "ESPAÇO / A · ESQUIVA %s%s" % [dash_status, blessing_text]
+	dash_label.add_theme_color_override("font_color", Color("7fe9ff") if dash_status == "PRONTA" else Color("a98fbd"))
 
 
 func _build_relic_overlay() -> void:
@@ -319,6 +360,10 @@ func show_end_screen(
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if InputMap.has_action("map_toggle") and event.is_action_pressed("map_toggle"):
+		minimap.visible = not minimap.visible
+		get_viewport().set_input_as_handled()
+		return
 	if not event.is_action_pressed("ui_cancel") or end_overlay.visible or upgrade_overlay.visible or relic_overlay.visible:
 		return
 	if pause_overlay.visible:

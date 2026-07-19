@@ -8,6 +8,8 @@ const DamageNumberScript = preload("res://scripts/damage_number.gd")
 const AudioDirectorScript = preload("res://scripts/audio_director.gd")
 const RewardChestScript = preload("res://scripts/reward_chest.gd")
 const ArenaHazardScript = preload("res://scripts/arena_hazard.gd")
+const MapOverlayScript = preload("res://scripts/map_overlay.gd")
+const MapLandmarkScript = preload("res://scripts/map_landmark.gd")
 
 const RUN_DURATION := 25.0 * 60.0
 const BOSS_TIMES := [300.0, 600.0, 900.0, 1200.0, 1500.0]
@@ -44,6 +46,11 @@ var suppress_save := false
 var audio: Node
 var rewards: Node2D
 var hazards: Node2D
+var landmarks: Node2D
+var obstacles: Node2D
+var map_overlay: Node2D
+var landmark_positions: Array[Vector2] = []
+var shrines_activated := 0
 var pending_chest: Node
 var damage_by_source: Dictionary = {}
 var damage_taken := 0.0
@@ -70,6 +77,15 @@ func _ready() -> void:
 	hazards = Node2D.new()
 	hazards.name = "ArenaHazards"
 	add_child(hazards)
+	landmarks = Node2D.new()
+	landmarks.name = "Landmarks"
+	add_child(landmarks)
+	obstacles = Node2D.new()
+	obstacles.name = "PhysicalObstacles"
+	add_child(obstacles)
+	map_overlay = MapOverlayScript.new()
+	map_overlay.name = "MapOverlay"
+	add_child(map_overlay)
 	audio = AudioDirectorScript.new()
 	audio.name = "AudioDirector"
 	add_child(audio)
@@ -83,6 +99,7 @@ func _ready() -> void:
 	hud.restart_requested.connect(_restart_run)
 	hud.menu_requested.connect(_return_to_menu)
 	hud.resume_requested.connect(_resume_run)
+	hud.bind_world(self)
 	_generate_environment()
 	last_stage = GameDefs.stage_name(time_survived)
 	hud.show_stage_banner("%s · ARMA SORTEADA: %s" % [str(biome.name), player.equipped_weapon_title()])
@@ -132,13 +149,13 @@ func _pick_enemy_type() -> String:
 			choices = ["mage", "archer", "brute", "brute", "ember", "bomber", "assassin", "necromancer", "guardian", "swarm", "swarm"]
 		_:
 			choices = ["prowler", "prowler", "prowler"]
-			if time_survived >= 45.0:
+			if time_survived >= 18.0:
 				choices.append_array(["bat", "bat", "swarm"])
-			if time_survived >= 110.0:
+			if time_survived >= 52.0:
 				choices.append_array(["mage", "archer"])
-			if time_survived >= 190.0:
+			if time_survived >= 115.0:
 				choices.append("brute")
-			if time_survived >= 250.0:
+			if time_survived >= 205.0:
 				choices.append_array(["ember", "bomber"])
 	return choices.pick_random()
 
@@ -213,12 +230,14 @@ func _update_stage() -> void:
 func _update_hud() -> void:
 	var remaining := maxf(0.0, RUN_DURATION - time_survived)
 	var environment: Dictionary = get_environment_effect(player.global_position)
-	var status_title := current_event_title if not current_event_title.is_empty() else str(environment.get("name", ""))
+	var passive_status := "%s · %ds" % [player.blessing_title, ceili(player.blessing_time)] if player.blessing_time > 0.0 else str(environment.get("name", ""))
+	var status_title := current_event_title if not current_event_title.is_empty() else passive_status
 	hud.update_run(
 		player.hp, player.max_hp, player.experience, player.experience_needed,
 		player.level, enemies_killed, remaining, last_stage, player.weapon_summary(),
 		essence_earned, status_title
 	)
+	hud.update_navigation(player.dash_status(), player.blessing_title, player.blessing_time)
 	if is_instance_valid(active_boss) and not active_boss.dead:
 		hud.update_boss(active_boss.hp, active_boss.max_hp)
 	else:
@@ -419,6 +438,30 @@ func on_player_revived() -> void:
 	audio.play_evolution()
 
 
+func on_player_dash(direction: Vector2) -> void:
+	spawn_effect(player.global_position - direction * 18.0, Color("9d72ff"), 58.0, 0.22, true)
+	audio.play_dash()
+	shake_camera(1.8, 0.10)
+
+
+func activate_landmark(landmark: Node) -> void:
+	if not is_instance_valid(landmark) or landmark.activated or game_ended:
+		return
+	var landmark_color: Color = landmark.minimap_color()
+	landmark.mark_activated()
+	shrines_activated += 1
+	essence_earned += 4
+	var blessing_name: String = player.apply_landmark_blessing(str(landmark.landmark_kind), 40.0)
+	if str(landmark.landmark_kind) == "tree":
+		for pickup in pickups.get_children():
+			if is_instance_valid(pickup) and pickup.global_position.distance_to(player.global_position) <= 1450.0:
+				pickup.attracted = true
+	hud.show_stage_banner("SANTUÁRIO ATIVADO · %s · 40 SEGUNDOS" % blessing_name)
+	spawn_effect(landmark.global_position, landmark_color, 225.0, 0.90, true)
+	audio.play_reward()
+	shake_camera(4.0, 0.22)
+
+
 func record_damage(source_id: String, amount: float, target_is_boss := false) -> void:
 	damage_by_source[source_id] = float(damage_by_source.get(source_id, 0.0)) + amount
 	if is_instance_valid(player):
@@ -535,8 +578,8 @@ func _run_stats_text() -> String:
 			top_damage = amount
 			top_source = str(source_id)
 	var top_title := _weapon_title(top_source) if not top_source.is_empty() else "Nenhuma"
-	return "Dano causado  %d\nMaior fonte  %s (%d)\nDano recebido  %d\nChefes derrotados  %d/5\nRelíquias  %s" % [
-		ceili(total_damage), top_title, ceili(top_damage), ceili(damage_taken), bosses_defeated, player.relic_summary()
+	return "Dano causado  %d\nMaior fonte  %s (%d)\nDano recebido  %d\nChefes derrotados  %d/5 · Santuários  %d/4\nRelíquias  %s" % [
+		ceili(total_damage), top_title, ceili(top_damage), ceili(damage_taken), bosses_defeated, shrines_activated, player.relic_summary()
 	]
 
 
@@ -561,6 +604,8 @@ func _evaluate_achievements(victory: bool) -> Array[String]:
 		earned_ids.append("arsenal")
 	if victory and damage_taken <= 100.0:
 		earned_ids.append("untouchable")
+	if shrines_activated >= 4:
+		earned_ids.append("cartographer")
 	var config := ConfigFile.new()
 	config.load(SAVE_PATH)
 	var newly_unlocked: Array[String] = []
@@ -673,6 +718,7 @@ func _debug_defeat_active_boss() -> void:
 func _generate_environment() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 864210 + run_cycle * 913
+	_generate_map_layout(rng)
 	var texture_paths := [
 		"res://assets/environment/Tree/Tree_1.png", "res://assets/environment/Tree/Tree_2.png",
 		"res://assets/environment/Tree/Tree_3.png", "res://assets/environment/props/bush/bush_01.png",
@@ -686,9 +732,7 @@ func _generate_environment() -> void:
 	for index in range(310):
 		var sprite := Sprite2D.new()
 		sprite.texture = textures[rng.randi_range(0, textures.size() - 1)]
-		var decoration_position := Vector2(rng.randf_range(-5400.0, 5400.0), rng.randf_range(-5400.0, 5400.0))
-		if decoration_position.length() < 310.0:
-			decoration_position = decoration_position.normalized() * rng.randf_range(340.0, 700.0)
+		var decoration_position := _find_free_map_position(rng, 5400.0)
 		sprite.position = decoration_position
 		var scale_value := rng.randf_range(0.65, 1.15)
 		sprite.scale = Vector2.ONE * scale_value
@@ -696,7 +740,79 @@ func _generate_environment() -> void:
 		sprite.modulate = Color(biome_tint, rng.randf_range(0.36, 0.72))
 		sprite.z_index = -4
 		decorations.add_child(sprite)
+	_generate_obstacles(rng)
 	_generate_hazards(rng)
+
+
+func _generate_map_layout(rng: RandomNumberGenerator) -> void:
+	landmark_positions.clear()
+	var rotation := float(run_cycle) * 0.31
+	var base_positions: Array[Vector2] = [
+		Vector2(1280.0, -920.0), Vector2(-1760.0, -1080.0),
+		Vector2(1580.0, 1710.0), Vector2(-2200.0, 1470.0)
+	]
+	for base_position in base_positions:
+		var jitter := Vector2(rng.randf_range(-130.0, 130.0), rng.randf_range(-130.0, 130.0))
+		landmark_positions.append(base_position.rotated(rotation) + jitter)
+	map_overlay.configure(str(biome.id), landmark_positions, 44321 + run_cycle * 701)
+	var kinds: Array[String] = ["altar", "obelisk", "tree", "portal"]
+	for index in range(kinds.size()):
+		var landmark = MapLandmarkScript.new()
+		landmark.configure(self, kinds[index], landmark_positions[index], index)
+		landmarks.add_child(landmark)
+
+
+func _find_free_map_position(rng: RandomNumberGenerator, maximum: float) -> Vector2:
+	var candidate := Vector2.ZERO
+	for _attempt in range(28):
+		candidate = Vector2(rng.randf_range(-maximum, maximum), rng.randf_range(-maximum, maximum))
+		if candidate.length() < 430.0:
+			continue
+		var blocked := false
+		for landmark_position in landmark_positions:
+			if candidate.distance_to(landmark_position) < 315.0 or _point_segment_distance(candidate, Vector2.ZERO, landmark_position) < 165.0:
+				blocked = true
+				break
+		if not blocked:
+			return candidate
+	return candidate
+
+
+func _point_segment_distance(point: Vector2, start: Vector2, finish: Vector2) -> float:
+	var segment := finish - start
+	var length_squared := segment.length_squared()
+	if length_squared <= 0.001:
+		return point.distance_to(start)
+	var amount := clampf((point - start).dot(segment) / length_squared, 0.0, 1.0)
+	return point.distance_to(start + segment * amount)
+
+
+func _generate_obstacles(rng: RandomNumberGenerator) -> void:
+	var obstacle_textures: Array[Texture2D] = [
+		load("res://assets/environment/Tree/Tree_1.png"),
+		load("res://assets/environment/Tree/Tree_2.png"),
+		load("res://assets/environment/Tree/Tree_3.png"),
+		load("res://assets/environment/props/little stone/little stone_03.png")
+	]
+	for index in range(24):
+		var body := StaticBody2D.new()
+		body.position = _find_free_map_position(rng, 5150.0)
+		body.z_index = -3
+		body.collision_layer = 1
+		body.collision_mask = 1
+		var obstacle_sprite := Sprite2D.new()
+		obstacle_sprite.texture = obstacle_textures[index % obstacle_textures.size()]
+		var obstacle_scale := rng.randf_range(0.82, 1.18)
+		obstacle_sprite.scale = Vector2.ONE * obstacle_scale
+		obstacle_sprite.modulate = Color(0.76, 0.82, 0.86, 0.90)
+		body.add_child(obstacle_sprite)
+		var collision := CollisionShape2D.new()
+		var circle := CircleShape2D.new()
+		circle.radius = 18.0 * obstacle_scale
+		collision.position.y = 7.0
+		collision.shape = circle
+		body.add_child(collision)
+		obstacles.add_child(body)
 
 
 func _generate_hazards(rng: RandomNumberGenerator) -> void:
@@ -706,9 +822,7 @@ func _generate_hazards(rng: RandomNumberGenerator) -> void:
 	elif str(biome.id) == "cathedral":
 		hazard_kind = "void"
 	for index in range(18):
-		var hazard_position := Vector2(rng.randf_range(-5000.0, 5000.0), rng.randf_range(-5000.0, 5000.0))
-		if hazard_position.length() < 420.0:
-			hazard_position = hazard_position.normalized() * rng.randf_range(520.0, 820.0)
+		var hazard_position := _find_free_map_position(rng, 5000.0)
 		var hazard = ArenaHazardScript.new()
 		hazards.add_child(hazard)
 		hazard.setup(hazard_kind, hazard_position, rng.randf_range(82.0, 138.0), rng.randi())

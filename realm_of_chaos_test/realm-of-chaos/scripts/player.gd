@@ -42,6 +42,18 @@ var character_applied := false
 var character_color := Color.WHITE
 var relic_levels: Dictionary = {}
 var hazard_tick := 0.0
+var dash_cooldown := 0.0
+var dash_duration := 0.0
+var dash_direction := Vector2.RIGHT
+var dash_speed := 760.0
+var blessing_time := 0.0
+var blessing_title := ""
+var temporary_damage_multiplier := 1.0
+var temporary_cooldown_multiplier := 1.0
+var temporary_move_multiplier := 1.0
+var temporary_pickup_multiplier := 1.0
+var temporary_crit_bonus := 0.0
+var temporary_armor := 0.0
 
 var level := 1
 var experience := 0
@@ -88,8 +100,25 @@ var orbit_hit_times: Dictionary = {}
 
 
 func _ready() -> void:
+	_ensure_gameplay_actions()
 	hp = max_hp
 	_roll_starting_weapon()
+
+
+func _ensure_gameplay_actions() -> void:
+	if not InputMap.has_action("dash"):
+		InputMap.add_action("dash")
+		var dash_key := InputEventKey.new()
+		dash_key.physical_keycode = KEY_SPACE
+		InputMap.action_add_event("dash", dash_key)
+		var dash_button := InputEventJoypadButton.new()
+		dash_button.button_index = JOY_BUTTON_A
+		InputMap.action_add_event("dash", dash_button)
+	if not InputMap.has_action("map_toggle"):
+		InputMap.add_action("map_toggle")
+		var map_key := InputEventKey.new()
+		map_key.physical_keycode = KEY_M
+		InputMap.action_add_event("map_toggle", map_key)
 
 
 func _roll_starting_weapon() -> void:
@@ -126,6 +155,9 @@ func _physics_process(delta: float) -> void:
 		return
 	motion_age += delta
 	invulnerability = maxf(0.0, invulnerability - delta)
+	dash_cooldown = maxf(0.0, dash_cooldown - delta)
+	dash_duration = maxf(0.0, dash_duration - delta)
+	_update_temporary_blessing(delta)
 	var direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	if direction.length_squared() > 0.01:
 		last_direction = direction.normalized()
@@ -133,9 +165,13 @@ func _physics_process(delta: float) -> void:
 	var world := get_tree().get_first_node_in_group("world")
 	if world and world.has_method("get_environment_effect"):
 		environment = world.get_environment_effect(global_position)
-	var desired_velocity := direction * move_speed * float(environment.get("speed", 1.0))
+	if Input.is_action_just_pressed("dash") and dash_cooldown <= 0.0:
+		_start_dash(direction, world)
+	var desired_velocity := direction * move_speed * temporary_move_multiplier * float(environment.get("speed", 1.0))
 	var traction := float(environment.get("traction", 1.0))
-	if direction.length_squared() > 0.01:
+	if dash_duration > 0.0:
+		velocity = dash_direction * dash_speed
+	elif direction.length_squared() > 0.01:
 		velocity = velocity.move_toward(desired_velocity, movement_acceleration * traction * delta)
 	else:
 		velocity = velocity.move_toward(Vector2.ZERO, movement_deceleration * traction * delta)
@@ -158,6 +194,30 @@ func _physics_process(delta: float) -> void:
 		hazard_tick = 0.5
 		take_damage(hazard_damage * 0.5, Vector2.ZERO, true)
 	_update_weapons(delta)
+
+
+func _start_dash(input_direction: Vector2, world: Node) -> void:
+	dash_direction = input_direction.normalized() if input_direction.length_squared() > 0.01 else last_direction
+	dash_duration = 0.18
+	dash_cooldown = 3.2
+	invulnerability = maxf(invulnerability, 0.34)
+	attack_direction = dash_direction
+	if world and world.has_method("on_player_dash"):
+		world.on_player_dash(dash_direction)
+
+
+func _update_temporary_blessing(delta: float) -> void:
+	if blessing_time <= 0.0:
+		return
+	blessing_time = maxf(0.0, blessing_time - delta)
+	if blessing_time <= 0.0:
+		blessing_title = ""
+		temporary_damage_multiplier = 1.0
+		temporary_cooldown_multiplier = 1.0
+		temporary_move_multiplier = 1.0
+		temporary_pickup_multiplier = 1.0
+		temporary_crit_bonus = 0.0
+		temporary_armor = 0.0
 
 
 func _animate_character(delta: float, direction: Vector2, is_moving: bool) -> void:
@@ -236,7 +296,7 @@ func _fire_chaos_bolt() -> void:
 	var target := _nearest_enemy()
 	var weapon_level: int = weapon_levels.chaos_bolt
 	var evolved := bool(evolved_weapons.chaos_bolt)
-	bolt_timer = maxf(0.12 if evolved else 0.16, (0.48 if evolved else 0.68 - weapon_level * 0.045) * cooldown_multiplier)
+	bolt_timer = maxf(0.12 if evolved else 0.16, (0.48 if evolved else 0.68 - weapon_level * 0.045) * effective_cooldown_multiplier())
 	if not target:
 		return
 	var count := ((3 + int(weapon_level / 4.0)) if evolved else (1 + int((weapon_level - 1) / 3.0))) + projectile_bonus
@@ -245,7 +305,7 @@ func _fire_chaos_bolt() -> void:
 		var offset := float(index) - float(count - 1) * 0.5
 		_spawn_player_projectile(
 			base_direction.rotated(offset * (0.09 if evolved else 0.12)),
-			(14.0 + weapon_level * 4.2) * damage_multiplier * (2.05 if evolved else 1.0),
+			(14.0 + weapon_level * 4.2) * effective_damage_multiplier() * (2.05 if evolved else 1.0),
 			760.0 if evolved else 650.0, 8 if evolved else int(weapon_level / 3.0),
 			14.0 if evolved else 8.0 + weapon_level * 0.7, Color("ffd36b") if evolved else Color("a96cff"), "chaos_bolt"
 		)
@@ -254,7 +314,7 @@ func _fire_chaos_bolt() -> void:
 func _fire_shadow_blades(weapon_level: int) -> void:
 	var target := _nearest_enemy()
 	var evolved := bool(evolved_weapons.shadow_blades)
-	blades_timer = maxf(0.36 if evolved else 0.45, (0.78 if evolved else 2.0 - weapon_level * 0.16) * cooldown_multiplier)
+	blades_timer = maxf(0.36 if evolved else 0.45, (0.78 if evolved else 2.0 - weapon_level * 0.16) * effective_cooldown_multiplier())
 	if not target:
 		return
 	var count := (16 if evolved else 2 + weapon_level) + projectile_bonus
@@ -262,7 +322,7 @@ func _fire_shadow_blades(weapon_level: int) -> void:
 	for index in range(count):
 		var direction := Vector2.RIGHT.rotated(TAU * index / count) if evolved else base_direction.rotated((float(index) - float(count - 1) * 0.5) * 0.13)
 		_spawn_player_projectile(
-			direction, (10.0 + weapon_level * 3.0) * damage_multiplier * (1.62 if evolved else 1.0),
+			direction, (10.0 + weapon_level * 3.0) * effective_damage_multiplier() * (1.62 if evolved else 1.0),
 			820.0 if evolved else 760.0, 3 if evolved else 1, 8.0 if evolved else 6.0,
 			Color("df63ff") if evolved else Color("ff557d"), "shadow_blades"
 		)
@@ -279,7 +339,7 @@ func _spawn_player_projectile(
 	attack_flash = 1.0
 	queue_redraw()
 	var bullet = bullet_scene.instantiate()
-	var is_critical := randf() < crit_chance
+	var is_critical := randf() < effective_crit_chance()
 	if is_critical:
 		amount *= critical_multiplier
 	bullet.global_position = global_position + direction * 22.0
@@ -310,8 +370,8 @@ func _damage_orbit(weapon_level: int) -> void:
 			if blade_position.distance_to(enemy.global_position) <= 28.0 + enemy.hit_radius:
 				orbit_hit_times[enemy_id] = now
 				attack_recoil = 1.0
-				var is_critical := randf() < crit_chance
-				var amount := (8.0 + weapon_level * 3.0) * damage_multiplier * (1.85 if evolved else 1.0) * (critical_multiplier if is_critical else 1.0)
+				var is_critical := randf() < effective_crit_chance()
+				var amount := (8.0 + weapon_level * 3.0) * effective_damage_multiplier() * (1.85 if evolved else 1.0) * (critical_multiplier if is_critical else 1.0)
 				enemy.take_damage(amount, (enemy.global_position - global_position).normalized() * (18.0 if evolved else 8.0), is_critical, "soul_orbit")
 				if evolved:
 					heal(0.35, false)
@@ -321,7 +381,7 @@ func _damage_orbit(weapon_level: int) -> void:
 func _cast_nova(weapon_level: int) -> void:
 	var evolved := bool(evolved_weapons.chaos_nova)
 	var radius := 275.0 + weapon_level * 26.0 if evolved else 155.0 + weapon_level * 24.0
-	nova_timer = maxf(1.35 if evolved else 2.4, (3.1 if evolved else 6.2 - weapon_level * 0.48) * cooldown_multiplier)
+	nova_timer = maxf(1.35 if evolved else 2.4, (3.1 if evolved else 6.2 - weapon_level * 0.48) * effective_cooldown_multiplier())
 	attack_direction = last_direction
 	attack_recoil = 1.0
 	attack_flash = 1.0
@@ -329,8 +389,8 @@ func _cast_nova(weapon_level: int) -> void:
 	for enemy in _enemies_near(radius + 70.0):
 		if is_instance_valid(enemy) and global_position.distance_to(enemy.global_position) <= radius + enemy.hit_radius:
 			var force: Vector2 = (enemy.global_position - global_position).normalized() * (155.0 if evolved else 85.0)
-			var is_critical := randf() < crit_chance
-			var amount := (25.0 + weapon_level * 9.0) * damage_multiplier * (2.1 if evolved else 1.0) * (critical_multiplier if is_critical else 1.0)
+			var is_critical := randf() < effective_crit_chance()
+			var amount := (25.0 + weapon_level * 9.0) * effective_damage_multiplier() * (2.1 if evolved else 1.0) * (critical_multiplier if is_critical else 1.0)
 			enemy.take_damage(amount, force, is_critical, "chaos_nova")
 	var world := get_tree().get_first_node_in_group("world")
 	if world:
@@ -365,7 +425,7 @@ func take_damage(amount: float, source_direction := Vector2.ZERO, environmental 
 		if dodge_world:
 			dodge_world.spawn_damage_number(global_position, 0.0, false, false, "ESQUIVA")
 		return
-	var final_damage := maxf(1.0, amount - armor)
+	var final_damage := maxf(1.0, amount - armor - temporary_armor)
 	hp = maxf(0.0, hp - final_damage)
 	invulnerability = 0.20 if environmental else 0.58
 	hurt_recoil = 1.0
@@ -518,6 +578,57 @@ func apply_meta_bonuses(meta: Dictionary) -> void:
 	hp = max_hp
 	move_speed *= 1.0 + speed_level * 0.03
 	crit_chance += fortune_level * 0.015
+
+
+func apply_landmark_blessing(kind: String, duration := 40.0) -> String:
+	blessing_time = duration
+	temporary_damage_multiplier = 1.0
+	temporary_cooldown_multiplier = 1.0
+	temporary_move_multiplier = 1.0
+	temporary_pickup_multiplier = 1.0
+	temporary_crit_bonus = 0.0
+	temporary_armor = 0.0
+	match kind:
+		"altar":
+			blessing_title = "FÚRIA RUBRA"
+			temporary_damage_multiplier = 1.32
+			heal(max_hp * 0.25)
+		"obelisk":
+			blessing_title = "FLUXO CRONAL"
+			temporary_cooldown_multiplier = 0.72
+			temporary_crit_bonus = 0.12
+		"tree":
+			blessing_title = "CHAMADO DAS ALMAS"
+			temporary_move_multiplier = 1.24
+			temporary_pickup_multiplier = 2.6
+			heal(max_hp * 0.12)
+		"portal":
+			blessing_title = "PELE DO VAZIO"
+			temporary_armor = 7.0
+			temporary_move_multiplier = 1.12
+		_:
+			blessing_title = "BÊNÇÃO DO MAPA"
+	return blessing_title
+
+
+func effective_damage_multiplier() -> float:
+	return damage_multiplier * temporary_damage_multiplier
+
+
+func effective_cooldown_multiplier() -> float:
+	return cooldown_multiplier * temporary_cooldown_multiplier
+
+
+func effective_crit_chance() -> float:
+	return crit_chance + temporary_crit_bonus
+
+
+func effective_pickup_radius() -> float:
+	return pickup_radius * temporary_pickup_multiplier
+
+
+func dash_status() -> String:
+	return "PRONTA" if dash_cooldown <= 0.0 else "%.1fs" % dash_cooldown
 
 
 func apply_character(selected_id: String) -> void:

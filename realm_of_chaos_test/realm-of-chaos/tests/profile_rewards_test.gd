@@ -16,6 +16,7 @@ func _check(condition: bool, message: String) -> void:
 
 
 func _run() -> void:
+	_check(str(ProjectSettings.get_setting("application/run/main_scene", "")) == "res://scenes/main_menu.tscn", "menu principal não é a cena inicial do projeto")
 	_check(GameDefs.characters().size() == 4, "catálogo de caçadores incompleto")
 	_check(GameDefs.relics().size() >= 10, "catálogo de relíquias incompleto")
 	_check(GameDefs.achievements().size() >= 6, "catálogo de conquistas incompleto")
@@ -35,12 +36,28 @@ func _run() -> void:
 	await process_frame
 	world.suppress_save = true
 	world.audio.enabled = false
+	world.set_process(false)
+	_check(world.landmarks.get_child_count() == 4 and world.landmark_positions.size() == 4, "mapa não criou os quatro santuários")
+	_check(world.obstacles.get_child_count() == 24, "mapa não criou obstáculos físicos")
+	_check(is_instance_valid(world.map_overlay) and is_instance_valid(world.hud.minimap), "caminhos ou minimapa não foram criados")
 	_check(world.hazards.get_child_count() == 18, "perigos do bioma não foram distribuídos")
 	var first_hazard = world.hazards.get_child(0)
 	var environment: Dictionary = world.get_environment_effect(first_hazard.global_position)
 	_check(float(environment.speed) != 1.0 or float(environment.traction) != 1.0 or float(environment.damage) > 0.0, "perigo do bioma não altera a física")
 	_check(world.player.character_applied and not world.player.character_id.is_empty(), "caçador selecionado não foi aplicado")
 	_check(world.player.movement_acceleration > 0.0 and world.player.movement_deceleration > 0.0, "movimento não usa aceleração natural")
+	world.time_survived = 60.0
+	var early_types: Dictionary = {}
+	for _roll in range(48):
+		early_types[world._pick_enemy_type()] = true
+	_check(early_types.size() >= 3 and early_types.has("prowler") and (early_types.has("bat") or early_types.has("swarm")), "primeiro minuto ainda não possui variedade suficiente de inimigos")
+	_check(InputMap.has_action("dash") and InputMap.has_action("map_toggle"), "controles de esquiva ou minimapa não foram registrados")
+	var first_landmark = world.landmarks.get_child(0)
+	world.activate_landmark(first_landmark)
+	_check(first_landmark.activated and world.shrines_activated == 1, "santuário não foi ativado")
+	_check(world.player.blessing_time > 0.0 and world.player.temporary_damage_multiplier > 1.0, "bênção temporária do altar não foi aplicada")
+	world.player._start_dash(Vector2.RIGHT, world)
+	_check(world.player.dash_cooldown > 0.0 and world.player.dash_duration > 0.0 and world.player.invulnerability > 0.0, "esquiva não concedeu impulso e proteção")
 
 	var chest = world._spawn_reward_chest(world.player.global_position, "GUARDIÃO DE TESTE")
 	world.open_reward_chest(chest)
@@ -68,7 +85,7 @@ func _run() -> void:
 	world.queue_free()
 	await process_frame
 	if failures.is_empty():
-		print("PROFILE/REWARDS OK: caçadores, opções, biomas, baús, relíquias e estatísticas validados")
+		print("PROFILE/REWARDS OK: menu, mapa, esquiva, santuários, baús, relíquias e estatísticas validados")
 		quit(0)
 	else:
 		quit(1)

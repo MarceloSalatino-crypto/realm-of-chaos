@@ -183,7 +183,8 @@ static func achievements() -> Array[Dictionary]:
 		{"id": "survivor", "title": "SOBREVIVENTE", "description": "Vença uma fase de 25 minutos."},
 		{"id": "exterminator", "title": "EXTERMINADOR", "description": "Elimine 500 inimigos em uma partida."},
 		{"id": "arsenal", "title": "ARSENAL SUPREMO", "description": "Evolua as quatro armas na mesma partida."},
-		{"id": "untouchable", "title": "INTOCÁVEL", "description": "Vença recebendo no máximo 100 de dano."}
+		{"id": "untouchable", "title": "INTOCÁVEL", "description": "Vença recebendo no máximo 100 de dano."},
+		{"id": "cartographer", "title": "CARTÓGRAFO DO CAOS", "description": "Ative os quatro santuários em uma partida."}
 	]
 
 

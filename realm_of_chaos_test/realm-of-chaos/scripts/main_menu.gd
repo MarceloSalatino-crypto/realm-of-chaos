@@ -7,6 +7,7 @@ var animation_time := 0.0
 var popup: Control
 var hero_base_y := 0.0
 var profile_button: Button
+var transitioning := false
 
 @onready var hero: TextureRect = $Hero
 @onready var play_button: Button = $Menu/Play
@@ -31,6 +32,15 @@ func _ready() -> void:
 	for button in [$Menu/Instructions, $Menu/Meta, profile_button, $Menu/Credits]:
 		button.custom_minimum_size.y = 43.0
 	_load_records()
+	if OS.has_feature("editor"):
+		var editor_hint := Label.new()
+		editor_hint.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+		editor_hint.position = Vector2(24.0, -34.0)
+		editor_hint.size = Vector2(650.0, 22.0)
+		editor_hint.text = "F5 abre este menu · F6 executa somente a cena aberta"
+		editor_hint.add_theme_font_size_override("font_size", 12)
+		editor_hint.add_theme_color_override("font_color", Color(0.54, 0.47, 0.62, 0.82))
+		add_child(editor_hint)
 	play_button.grab_focus()
 
 
@@ -38,10 +48,23 @@ func _process(delta: float) -> void:
 	animation_time += delta
 	hero.position.y = hero_base_y + sin(animation_time * 1.5) * 7.0
 	hero.rotation = sin(animation_time * 0.8) * 0.006
+	$Runes.modulate.a = 0.46 + (sin(animation_time * 0.62) + 1.0) * 0.12
 
 
 func _on_play() -> void:
-	get_tree().change_scene_to_file("res://scenes/world.tscn")
+	if transitioning:
+		return
+	transitioning = true
+	play_button.disabled = true
+	var fade := ColorRect.new()
+	fade.color = Color(0.01, 0.004, 0.025, 0.0)
+	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	fade.mouse_filter = Control.MOUSE_FILTER_STOP
+	fade.z_index = 100
+	add_child(fade)
+	var tween := create_tween()
+	tween.tween_property(fade, "color", Color(0.01, 0.004, 0.025, 1.0), 0.32)
+	tween.tween_callback(func(): get_tree().change_scene_to_file("res://scenes/world.tscn"))
 
 
 func _load_records() -> void:
@@ -68,7 +91,7 @@ func _load_records() -> void:
 func _show_instructions() -> void:
 	_show_popup(
 		"COMO SOBREVIVER",
-		"WASD, SETAS OU ANALÓGICO\nMova o Caçador; a arma inicial é sorteada e ataca automaticamente.\n\nEVOLUA ARMAS\nMaximize uma arma e combine o passivo indicado para liberar sua forma suprema.\n\nBAÚS E RELÍQUIAS\nCada mini-chefe deixa um baú. Aproxime-se para escolher um poder exclusivo da partida.\n\nENFRENTE O RITUAL POR 25 MINUTOS\nMini-chefes surgem em 5, 10, 15 e 20 minutos. Aos 25 minutos, derrote o chefe final para avançar.\n\nCUIDADO COM O TERRENO\nRaízes atrasam, gelo reduz o controle e fendas do Vazio causam dano. ESC pausa o jogo."
+		"WASD, SETAS OU ANALÓGICO\nMova o Caçador; a arma inicial é sorteada e ataca automaticamente.\n\nESPAÇO / BOTÃO A · ESQUIVA\nAtravesse a horda com um impulso curto e invulnerável. A recarga aparece no canto inferior esquerdo.\n\nMAPA E SANTUÁRIOS\nO minimapa mostra marcos, chefes e baús. M oculta ou exibe. Explore os quatro santuários para receber bênçãos temporárias.\n\nEVOLUA ARMAS E RELÍQUIAS\nCombine armas e passivos; cada mini-chefe deixa um baú com três opções.\n\nRITUAL DE 25 MINUTOS\nChefes surgem em 5, 10, 15, 20 e 25 minutos. Raízes atrasam, gelo reduz controle e fendas causam dano. ESC pausa."
 	)
 
 
