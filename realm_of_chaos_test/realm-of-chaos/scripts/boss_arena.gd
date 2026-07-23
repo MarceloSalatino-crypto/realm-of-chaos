@@ -1,6 +1,8 @@
 class_name BossArena
 extends Node2D
 
+const REDRAW_INTERVAL := 1.0 / 30.0
+
 var world: Node
 var boss: Node
 var boss_kind := "ossuary_colossus"
@@ -9,6 +11,7 @@ var phase := 1
 var active := true
 var animation_time := 0.0
 var arena_color := Color("b86cff")
+var redraw_timer := 0.0
 
 
 func configure(owner_world: Node, arena_boss: Node, center: Vector2, kind: String, final_boss := false) -> void:
@@ -32,7 +35,10 @@ func _process(delta: float) -> void:
 		world.player.global_position = global_position + normal * limit
 		if world.player.velocity.dot(normal) > 0.0:
 			world.player.velocity -= normal * world.player.velocity.dot(normal)
-	queue_redraw()
+	redraw_timer -= delta
+	if redraw_timer <= 0.0:
+		redraw_timer += REDRAW_INTERVAL
+		queue_redraw()
 
 
 func set_phase(new_phase: int) -> void:

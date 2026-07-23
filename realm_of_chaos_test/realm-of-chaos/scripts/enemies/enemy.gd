@@ -2,6 +2,9 @@ extends CharacterBody2D
 
 const GameDefs = preload("res://scripts/game_defs.gd")
 const EnemyProjectileScene = preload("res://scenes/enemies/enemy_projectile.tscn")
+const LOCOMOTION_MIN_SPEED := 3.0
+const LOCOMOTION_MAX_FPS := 14.0
+const OFFSCREEN_VISUAL_INTERVAL := 0.12
 const ENEMY_ANIMATIONS := {
 	"prowler": preload("res://assets/generated/enemy_anim_prowler.png"),
 	"bat": preload("res://assets/generated/enemy_anim_bat.png"),
@@ -56,6 +59,12 @@ var obstacle_avoidance := Vector2.ZERO
 var slow_multiplier := 1.0
 var slow_time := 0.0
 var boss_pattern_index := 0
+var definition_color := Color.WHITE
+var definition_speed := 90.0
+var definition_animation := "prowler"
+var definition_is_ranged := false
+var visual_lod_elapsed := 0.0
+var visual_lod_distance := 0.0
 
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var shadow: Polygon2D = $Shadow
@@ -80,6 +89,10 @@ func _ready() -> void:
 
 func _apply_definition() -> void:
 	var data: Dictionary = GameDefs.enemy_data(enemy_type)
+	definition_color = Color(data.color)
+	definition_speed = float(data.speed)
+	definition_animation = str(data.get("animation", enemy_type))
+	definition_is_ranged = bool(data.get("ranged", false))
 	behavior = str(data.get("behavior", "hunter"))
 	boss = bool(data.get("boss", false))
 	mini_boss = bool(data.get("mini_boss", false))
@@ -96,16 +109,15 @@ func _apply_definition() -> void:
 		xp_value *= 4
 	hp = max_hp
 
-	var animation_id := str(data.get("animation", enemy_type))
-	sprite.texture = ENEMY_ANIMATIONS.get(animation_id, ENEMY_ANIMATIONS.prowler)
+	sprite.texture = ENEMY_ANIMATIONS.get(definition_animation, ENEMY_ANIMATIONS.prowler)
 	sprite.hframes = 4
 	sprite.vframes = 1
 	sprite.frame = 0
 	base_visual_scale = float(data.visual_scale) * (1.0 if boss else 0.72) * (1.13 if elite else 1.0)
 	sprite.scale = Vector2.ONE * base_visual_scale
 	base_modulate = Color("d8b7ff") if elite and not boss else Color.WHITE
-	if enemy_type != animation_id and not boss:
-		base_modulate = base_modulate.lerp(Color(data.color), 0.26)
+	if enemy_type != definition_animation and not boss:
+		base_modulate = base_modulate.lerp(definition_color, 0.26)
 	sprite.modulate = base_modulate
 
 	var circle := CircleShape2D.new()
@@ -120,7 +132,7 @@ func _apply_definition() -> void:
 		health_bar.offset_top = -hit_radius - 58.0
 		health_bar.offset_bottom = health_bar.offset_top + 8.0
 	var style := StyleBoxFlat.new()
-	style.bg_color = data.color
+	style.bg_color = definition_color
 	style.set_corner_radius_all(3)
 	health_bar.add_theme_stylebox_override("fill", style)
 	cast_cooldown = randf_range(0.8, 2.2)
@@ -134,7 +146,7 @@ func _physics_process(delta: float) -> void:
 	if hit_freeze > 0.0:
 		hit_freeze -= delta
 		velocity = Vector2.ZERO
-		_animate_sprite(delta * 0.25)
+		_update_visual_animation(delta * 0.25, 0.0)
 		return
 
 	movement_age += delta
@@ -165,24 +177,23 @@ func _physics_process(delta: float) -> void:
 	obstacle_avoidance = obstacle_avoidance.move_toward(Vector2.ZERO, 420.0 * delta)
 	var event_speed := float(world.enemy_speed_multiplier) if world else 1.0
 	velocity *= event_speed * slow_multiplier
+	var movement_start_position := global_position
 	move_and_slide()
+	var distance_moved := movement_start_position.distance_to(global_position)
 	if get_slide_collision_count() > 0 and dash_velocity.length_squared() < 10.0:
 		var collision := get_slide_collision(0)
 		var tangent := collision.get_normal().rotated(PI * 0.5)
 		if tangent.dot(direction) < 0.0:
 			tangent = -tangent
 		obstacle_avoidance = tangent * move_speed * 0.62
-	sprite.flip_h = velocity.x < -2.0
-
-	var ranged := bool(GameDefs.enemy_data(enemy_type).get("ranged", false))
-	if ranged and cast_cooldown <= 0.0 and telegraph_time <= 0.0 and not behavior in ["glacial", "sovereign"]:
+	if definition_is_ranged and cast_cooldown <= 0.0 and telegraph_time <= 0.0 and not behavior in ["glacial", "sovereign"]:
 		_cast_projectile(direction)
 	if distance <= hit_radius + 22.0 and damage_cooldown <= 0.0 and telegraph_time <= 0.0:
 		attack_pulse = 1.0
 		player.take_damage(contact_damage, direction)
 		damage_cooldown = 1.0 if not boss else 0.72
 
-	_animate_sprite(delta)
+	_update_visual_animation(delta, distance_moved)
 	if distance > 1450.0 and world and not boss:
 		global_position = world.get_spawn_position(690.0, 820.0)
 
@@ -270,7 +281,7 @@ func _begin_special(special_id: String, duration: float) -> void:
 	queue_redraw()
 	if world:
 		var radius := _special_radius()
-		world.spawn_effect(global_position, GameDefs.enemy_data(enemy_type).color, radius, duration, false)
+		world.spawn_effect(global_position, definition_color, radius, duration, false)
 
 
 func _execute_special(direction: Vector2) -> void:
@@ -346,7 +357,7 @@ func _ground_slam(radius: float, damage_scale: float) -> void:
 	if global_position.distance_to(player.global_position) <= radius + 20.0:
 		player.take_damage(contact_damage * damage_scale, (player.global_position - global_position).normalized())
 	if world:
-		world.spawn_effect(global_position, GameDefs.enemy_data(enemy_type).color, radius, 0.48, true)
+		world.spawn_effect(global_position, definition_color, radius, 0.48, true)
 		world.audio.play_explosion()
 		world.shake_camera(8.0 if boss else 4.0, 0.24)
 
@@ -414,7 +425,19 @@ func _update_boss_phase() -> void:
 		world.on_boss_phase_changed(self, boss_phase)
 
 
-func _animate_sprite(delta: float) -> void:
+func _update_visual_animation(delta: float, distance_moved: float) -> void:
+	visual_lod_elapsed += delta
+	visual_lod_distance += distance_moved
+	var in_visual_bounds: bool = boss or not world or not world.has_method("is_position_in_visual_bounds") or bool(world.is_position_in_visual_bounds(global_position))
+	if not in_visual_bounds and visual_lod_elapsed < OFFSCREEN_VISUAL_INTERVAL:
+		return
+	_animate_sprite(visual_lod_elapsed, visual_lod_distance, in_visual_bounds)
+	visual_lod_elapsed = 0.0
+	visual_lod_distance = 0.0
+
+
+func _animate_sprite(delta: float, distance_moved := -1.0, allow_custom_redraw := true) -> void:
+	sprite.flip_h = velocity.x < -2.0
 	attack_pulse = move_toward(attack_pulse, 0.0, delta * 2.7)
 	cast_pulse = move_toward(cast_pulse, 0.0, delta * 2.4)
 	hit_squash = move_toward(hit_squash, 0.0, delta * 7.5)
@@ -424,13 +447,20 @@ func _animate_sprite(delta: float) -> void:
 	elif active_attack > 0.0:
 		sprite.frame = 2 if active_attack > 0.48 else 3
 	else:
-		animation_clock += delta * _locomotion_fps()
-		sprite.frame = int(floor(animation_clock)) % 2
+		var nominal_speed := maxf(definition_speed, 1.0)
+		var actual_speed := nominal_speed if distance_moved < 0.0 else distance_moved / maxf(delta, 0.0001)
+		if actual_speed > LOCOMOTION_MIN_SPEED:
+			var frame_distance := nominal_speed / _locomotion_fps()
+			var locomotion_fps := minf(actual_speed / frame_distance, LOCOMOTION_MAX_FPS)
+			animation_clock += delta * locomotion_fps
+			sprite.frame = int(floor(animation_clock)) % 2
+		else:
+			animation_clock = 0.0
+			sprite.frame = 0
 
 	var lift := 0.0
 	var target_rotation := 0.0
-	var animation_id := str(GameDefs.enemy_data(enemy_type).get("animation", enemy_type))
-	match animation_id:
+	match definition_animation:
 		"bat":
 			lift = sin(movement_age * 5.2) * 3.5
 			target_rotation = sin(movement_age * 5.2) * 0.025
@@ -451,16 +481,16 @@ func _animate_sprite(delta: float) -> void:
 	var altitude := absf(lift)
 	shadow.scale = shadow.scale.lerp(Vector2(1.0 + altitude * 0.012, 1.0 - altitude * 0.018), 1.0 - exp(-delta * 9.0))
 	shadow.color.a = lerpf(shadow.color.a, 0.48 - altitude * 0.016, smoothing)
-	if elite or boss or behavior in ["ember", "bomber", "guardian"] or telegraph_time > 0.0:
+	if allow_custom_redraw and (elite or boss or behavior in ["ember", "bomber", "guardian"] or telegraph_time > 0.0):
 		queue_redraw()
 
 
 func _locomotion_fps() -> float:
 	match behavior:
-		"swarm_flight", "assassin", "reaper": return 8.5
-		"ranged", "archer", "necromancer", "glacial": return 3.8
-		"brute", "guardian", "ossuary", "titan", "sovereign": return 4.2
-		_: return 6.5
+		"swarm_flight", "assassin", "reaper": return 9.5
+		"ranged", "archer", "necromancer", "glacial": return 5.5
+		"brute", "guardian", "ossuary", "titan", "sovereign": return 5.5
+		_: return 7.5
 
 
 func _cast_projectile(direction: Vector2) -> void:
@@ -479,14 +509,17 @@ func _spawn_radial_projectiles(count: int, projectile_speed: float, damage_scale
 
 
 func _spawn_enemy_projectile(direction: Vector2, amount: float, projectile_speed: float, size: float) -> void:
+	# O mago mantém sua identidade glacial, mas o ataque usa uma cor de perigo.
+	var mage_projectile := enemy_type == "mage"
+	var color: Color = Color("ff496d") if mage_projectile else definition_color
+	var spawn_position := global_position + direction * (hit_radius + 8.0)
+	if world and world.has_method("spawn_enemy_projectile"):
+		world.spawn_enemy_projectile(spawn_position, direction, amount, projectile_speed, color, size, mage_projectile)
+		return
 	var projectile = EnemyProjectileScene.instantiate()
-	projectile.global_position = global_position + direction * (hit_radius + 8.0)
-	var color: Color = GameDefs.enemy_data(enemy_type).color
-	projectile.setup(direction, amount, projectile_speed, color, size)
-	if world:
-		world.add_enemy_projectile(projectile)
-	else:
-		get_tree().current_scene.add_child(projectile)
+	get_tree().current_scene.add_child(projectile)
+	projectile.global_position = spawn_position
+	projectile.setup(direction, amount, projectile_speed, color, size, mage_projectile, null, player)
 
 
 func take_damage(amount: float, force := Vector2.ZERO, critical := false, source_id := "") -> void:
@@ -503,7 +536,7 @@ func take_damage(amount: float, force := Vector2.ZERO, critical := false, source
 	health_bar.visible = true
 	if world:
 		world.on_enemy_hit(global_position + Vector2(0.0, -hit_radius), amount, critical, boss)
-		world.spawn_effect(global_position, GameDefs.enemy_data(enemy_type).color, hit_radius * 1.3, 0.16)
+		world.spawn_effect(global_position, definition_color, hit_radius * 1.3, 0.16)
 		if not source_id.is_empty():
 			world.record_damage(source_id, actual_damage, boss)
 	var flash_color := Color("fff2a8") if critical else Color.WHITE

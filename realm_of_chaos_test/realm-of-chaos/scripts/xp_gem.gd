@@ -41,7 +41,7 @@ func _physics_process(delta: float) -> void:
 			player.collect_xp(value)
 		var world := get_tree().get_first_node_in_group("world")
 		if world and (pickup_kind == "heal" or value >= 8):
-			world.audio.play_pickup()
+			world.audio.play_pickup(pickup_kind)
 		queue_free()
 	queue_redraw()
 
@@ -53,10 +53,19 @@ func _draw() -> void:
 		draw_rect(Rect2(-2.0, bob - 7.0, 4.0, 14.0), Color.WHITE)
 		draw_rect(Rect2(-7.0, bob - 2.0, 14.0, 4.0), Color.WHITE)
 		return
-	var color := Color("63f2ff") if value < 8 else Color("d782ff")
-	draw_circle(Vector2(0, bob), 13.0, Color(color, 0.12))
-	var points := PackedVector2Array([
-		Vector2(0, bob - 8), Vector2(6, bob), Vector2(0, bob + 8), Vector2(-6, bob)
+	var color := Color("83ed63") if value < 8 else Color("ffd45f")
+	var highlight := Color("dcffb2") if value < 8 else Color("fff2ad")
+	var center := Vector2(0, bob)
+	# A silhueta redonda e o aro comunicam pickup mesmo durante combates cheios.
+	draw_circle(center, 15.0, Color(color, 0.13))
+	draw_circle(center, 9.0, Color("18351b") if value < 8 else Color("49330e"))
+	draw_circle(center, 7.0, color)
+	draw_arc(center, 10.0, 0.0, TAU, 24, Color(color, 0.92), 2.0)
+	draw_circle(center + Vector2(-2.4, -2.6), 2.2, highlight)
+	var sparkle := PackedVector2Array([
+		center + Vector2(7.0, -10.0), center + Vector2(8.2, -7.2),
+		center + Vector2(11.0, -6.0), center + Vector2(8.2, -4.8),
+		center + Vector2(7.0, -2.0), center + Vector2(5.8, -4.8),
+		center + Vector2(3.0, -6.0), center + Vector2(5.8, -7.2)
 	])
-	draw_colored_polygon(points, color)
-	draw_line(Vector2(0, bob - 5), Vector2(0, bob + 3), Color.WHITE, 2.0)
+	draw_colored_polygon(sparkle, highlight)

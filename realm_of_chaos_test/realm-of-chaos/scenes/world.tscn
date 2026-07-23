@@ -37,11 +37,16 @@ z_index = 12
 [node name="EnemyProjectiles" type="Node2D" parent="." unique_id=2085387807]
 z_index = 11
 
+[node name="EnemyProjectilePool" type="Node2D" parent="."]
+visible = false
+
 [node name="Effects" type="Node2D" parent="." unique_id=811499464]
 z_index = 14
 
 [node name="Player" type="CharacterBody2D" parent="." unique_id=778651700 groups=["player"]]
 z_index = 10
+collision_layer = 2
+collision_mask = 5
 script = ExtResource("2_player")
 bullet_scene = ExtResource("5_bullet")
 

@@ -190,8 +190,6 @@ func _show_profile() -> void:
 	popup.add_child(shade)
 	var panel := PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.position = Vector2(-510.0, -335.0)
-	panel.size = Vector2(1020.0, 670.0)
 	popup.add_child(panel)
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = Color("171126")
@@ -200,10 +198,10 @@ func _show_profile() -> void:
 	panel_style.set_corner_radius_all(14)
 	panel.add_theme_stylebox_override("panel", panel_style)
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 34)
-	margin.add_theme_constant_override("margin_right", 34)
-	margin.add_theme_constant_override("margin_top", 24)
-	margin.add_theme_constant_override("margin_bottom", 24)
+	margin.add_theme_constant_override("margin_left", 26)
+	margin.add_theme_constant_override("margin_right", 26)
+	margin.add_theme_constant_override("margin_top", 20)
+	margin.add_theme_constant_override("margin_bottom", 20)
 	panel.add_child(margin)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 10)
@@ -211,37 +209,56 @@ func _show_profile() -> void:
 	var heading := Label.new()
 	heading.text = "PERFIL DO RITUAL"
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	heading.add_theme_font_size_override("font_size", 30)
 	heading.add_theme_color_override("font_color", Color("ffd36b"))
 	box.add_child(heading)
+	var profile_scroll := ScrollContainer.new()
+	profile_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	profile_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	profile_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	profile_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	profile_scroll.focus_mode = Control.FOCUS_ALL
+	profile_scroll.scroll_vertical_custom_step = 34.0
+	box.add_child(profile_scroll)
+	var content_box := VBoxContainer.new()
+	content_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content_box.add_theme_constant_override("separation", 10)
+	profile_scroll.add_child(content_box)
 	var config := ConfigFile.new()
 	config.load(SAVE_PATH)
 	var selected := str(config.get_value("profile", "character", "eclipse_hunter"))
 	var character_heading := Label.new()
 	character_heading.text = "CAÇADOR ATIVO · escolha seu estilo"
 	character_heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	character_heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	character_heading.add_theme_font_size_override("font_size", 17)
 	character_heading.add_theme_color_override("font_color", Color("cba8ef"))
-	box.add_child(character_heading)
-	var character_row := HBoxContainer.new()
-	character_row.add_theme_constant_override("separation", 8)
-	box.add_child(character_row)
+	content_box.add_child(character_heading)
+	var character_grid := GridContainer.new()
+	character_grid.columns = 4
+	character_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	character_grid.add_theme_constant_override("h_separation", 8)
+	character_grid.add_theme_constant_override("v_separation", 8)
+	content_box.add_child(character_grid)
 	for definition in GameDefs.characters():
 		var button := Button.new()
-		button.custom_minimum_size = Vector2(230.0, 105.0)
+		button.custom_minimum_size = Vector2(0.0, 124.0)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.text = "%s%s\n%s\n%s" % ["◆ " if selected == str(definition.id) else "", definition.title, definition.role, definition.description]
+		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		button.add_theme_font_size_override("font_size", 14)
 		button.add_theme_color_override("font_color", definition.color)
 		button.disabled = selected == str(definition.id)
 		button.pressed.connect(_select_character.bind(str(definition.id)))
-		character_row.add_child(button)
+		character_grid.add_child(button)
 	var achievement_heading := Label.new()
 	achievement_heading.text = "CONQUISTAS"
 	achievement_heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	achievement_heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	achievement_heading.add_theme_font_size_override("font_size", 17)
 	achievement_heading.add_theme_color_override("font_color", Color("cba8ef"))
-	box.add_child(achievement_heading)
+	content_box.add_child(achievement_heading)
 	var achievement_text := Label.new()
 	var lines: Array[String] = []
 	for definition in GameDefs.achievements():
@@ -249,18 +266,24 @@ func _show_profile() -> void:
 		lines.append("%s %s — %s" % ["✓" if unlocked else "○", definition.title, definition.description])
 	achievement_text.text = "\n".join(lines)
 	achievement_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	achievement_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	achievement_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	achievement_text.add_theme_font_size_override("font_size", 13)
 	achievement_text.add_theme_color_override("font_color", Color("ded5e9"))
-	box.add_child(achievement_text)
+	content_box.add_child(achievement_text)
 	var settings_heading := Label.new()
 	settings_heading.text = "ACESSIBILIDADE E ÁUDIO"
 	settings_heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	settings_heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	settings_heading.add_theme_font_size_override("font_size", 17)
 	settings_heading.add_theme_color_override("font_color", Color("cba8ef"))
-	box.add_child(settings_heading)
-	var settings_row := HBoxContainer.new()
-	settings_row.add_theme_constant_override("separation", 8)
-	box.add_child(settings_row)
+	content_box.add_child(settings_heading)
+	var settings_grid := GridContainer.new()
+	settings_grid.columns = 5
+	settings_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	settings_grid.add_theme_constant_override("h_separation", 8)
+	settings_grid.add_theme_constant_override("v_separation", 8)
+	content_box.add_child(settings_grid)
 	for setting in [
 		{"id": "music", "title": "MÚSICA"}, {"id": "sfx", "title": "EFEITOS"},
 		{"id": "shake", "title": "TREMORES"}, {"id": "flash", "title": "FLASHES"}
@@ -269,22 +292,43 @@ func _show_profile() -> void:
 		var default_value := float(GameDefs.default_settings()[setting.id])
 		var value := float(config.get_value("settings", setting.id, default_value))
 		setting_button.text = "%s\n%d%%" % [setting.title, roundi(value * 100.0)]
-		setting_button.custom_minimum_size = Vector2(155.0, 58.0)
+		setting_button.custom_minimum_size = Vector2(0.0, 58.0)
 		setting_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		setting_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		setting_button.pressed.connect(_cycle_setting.bind(str(setting.id)))
-		settings_row.add_child(setting_button)
+		settings_grid.add_child(setting_button)
 	var fullscreen_button := Button.new()
 	var fullscreen := bool(config.get_value("settings", "fullscreen", false))
 	fullscreen_button.text = "TELA\n%s" % ("CHEIA" if fullscreen else "JANELA")
-	fullscreen_button.custom_minimum_size = Vector2(155.0, 58.0)
+	fullscreen_button.custom_minimum_size = Vector2(0.0, 58.0)
 	fullscreen_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	fullscreen_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	fullscreen_button.pressed.connect(_toggle_fullscreen)
-	settings_row.add_child(fullscreen_button)
+	settings_grid.add_child(fullscreen_button)
 	var close := Button.new()
 	close.text = "VOLTAR"
 	close.custom_minimum_size.y = 42.0
 	close.pressed.connect(func(): popup.queue_free())
 	box.add_child(close)
+	var profile_popup := popup
+	var update_profile_layout := func() -> void:
+		if not is_instance_valid(profile_popup) or not is_instance_valid(panel):
+			return
+		var viewport_size := profile_popup.size
+		var horizontal_inset := clampf(viewport_size.x * 0.035, 12.0, 40.0)
+		var vertical_inset := clampf(viewport_size.y * 0.035, 12.0, 28.0)
+		var panel_size := Vector2(
+			minf(1120.0, maxf(1.0, viewport_size.x - horizontal_inset * 2.0)),
+			minf(680.0, maxf(1.0, viewport_size.y - vertical_inset * 2.0))
+		)
+		panel.size = panel_size
+		panel.position = (viewport_size - panel_size) * 0.5
+		var content_width := maxf(1.0, panel_size.x - 70.0)
+		character_grid.columns = 4 if content_width >= 900.0 else (2 if content_width >= 430.0 else 1)
+		settings_grid.columns = 5 if content_width >= 780.0 else (3 if content_width >= 460.0 else (2 if content_width >= 300.0 else 1))
+	profile_popup.resized.connect(update_profile_layout)
+	update_profile_layout.call()
+	update_profile_layout.call_deferred()
 	close.grab_focus()
 
 
@@ -364,15 +408,24 @@ func _show_popup(title: String, content: String) -> void:
 	heading.add_theme_font_size_override("font_size", 34)
 	heading.add_theme_color_override("font_color", Color("ffd36b"))
 	box.add_child(heading)
+	var body_scroll := ScrollContainer.new()
+	body_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	body_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	body_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body_scroll.focus_mode = Control.FOCUS_ALL
+	body_scroll.scroll_vertical_custom_step = 32.0
+	box.add_child(body_scroll)
 	var body := Label.new()
 	body.text = content
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	body.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	body.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_theme_font_size_override("font_size", 19)
 	body.add_theme_color_override("font_color", Color("ddd4ec"))
-	box.add_child(body)
+	body_scroll.add_child(body)
 	var close := Button.new()
 	close.text = "FECHAR"
 	close.custom_minimum_size.y = 48

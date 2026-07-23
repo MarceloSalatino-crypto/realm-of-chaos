@@ -11,6 +11,9 @@ const WEAPON_IDS: Array[String] = [
 	"blood_scythe", "forbidden_grimoire", "rune_hammer", "storm_relic", "swarm_idol"
 ]
 const MAX_WEAPONS := 6
+const WALK_FRAME_DISTANCE := 21.5
+const WALK_MIN_SPEED := 6.0
+const WALK_MAX_FPS := 15.0
 const WEAPON_TEXTURES := {
 	"chaos_bolt": preload("res://assets/generated/hero_anim_chaos_bolt.png"),
 	"shadow_blades": preload("res://assets/generated/hero_anim_shadow_blades.png"),
@@ -205,12 +208,15 @@ func _physics_process(delta: float) -> void:
 		velocity = velocity.move_toward(desired_velocity, movement_acceleration * traction * delta)
 	else:
 		velocity = velocity.move_toward(Vector2.ZERO, movement_deceleration * traction * delta)
+	var movement_start_position := global_position
 	move_and_slide()
 	global_position.x = clampf(global_position.x, -5550.0, 5550.0)
 	global_position.y = clampf(global_position.y, -5550.0, 5550.0)
+	var distance_moved := movement_start_position.distance_to(global_position)
+	var actual_speed := distance_moved / maxf(delta, 0.0001)
+	var is_moving := actual_speed > WALK_MIN_SPEED
 
-	var is_moving := direction.length_squared() > 0.01
-	_animate_character(delta, direction, is_moving)
+	_animate_character(delta, direction, is_moving, distance_moved)
 	if invulnerability > 0.0:
 		visual.modulate.a = 0.45 if int(invulnerability * 18.0) % 2 == 0 else 1.0
 	else:
@@ -293,24 +299,28 @@ func _update_temporary_blessing(delta: float) -> void:
 		temporary_armor = 0.0
 
 
-func _animate_character(delta: float, direction: Vector2, is_moving: bool) -> void:
+func _animate_character(delta: float, direction: Vector2, is_moving: bool, distance_moved := 0.0) -> void:
 	attack_recoil = move_toward(attack_recoil, 0.0, delta * 4.0)
 	attack_flash = move_toward(attack_flash, 0.0, delta * 8.5)
 	hurt_recoil = move_toward(hurt_recoil, 0.0, delta * 6.0)
 	sprite.flip_h = last_direction.x < 0.0
+	if is_moving:
+		var actual_speed := distance_moved / maxf(delta, 0.0001)
+		var walk_fps := minf(actual_speed / WALK_FRAME_DISTANCE, WALK_MAX_FPS)
+		walk_animation_clock += delta * walk_fps
+	elif attack_recoil <= 0.0:
+		walk_animation_clock = 0.0
 
 	if attack_recoil > 0.0:
 		var attack_progress := clampf(1.0 - attack_recoil, 0.0, 0.999)
 		sprite.frame_coords = Vector2i(mini(3, int(attack_progress * 4.0)), 1)
 	elif is_moving:
-		walk_animation_clock += delta * 8.2
 		sprite.frame_coords = Vector2i(int(floor(walk_animation_clock)) % 4, 0)
 	else:
-		walk_animation_clock = 0.0
 		sprite.frame_coords = Vector2i.ZERO
 
 	var breathe := sin(motion_age * 2.35)
-	var stride := sin(motion_age * 8.2)
+	var stride := sin(walk_animation_clock * TAU / 4.0)
 	var hop: float = absf(stride) if is_moving else (breathe + 1.0) * 0.5
 	var target_scale := Vector2(1.0, 1.0)
 	var target_rotation := 0.0

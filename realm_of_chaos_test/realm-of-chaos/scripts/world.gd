@@ -2,6 +2,7 @@ extends Node2D
 
 const GameDefs = preload("res://scripts/game_defs.gd")
 const EnemyScene = preload("res://scenes/enemies/enemy.tscn")
+const EnemyProjectileScene = preload("res://scenes/enemies/enemy_projectile.tscn")
 const GemScene = preload("res://scenes/xp_gem.tscn")
 const EffectScript = preload("res://scripts/effect.gd")
 const DamageNumberScript = preload("res://scripts/damage_number.gd")
@@ -20,8 +21,14 @@ const EVENT_TIMES := [150.0, 450.0, 750.0, 1050.0, 1350.0]
 const SAVE_PATH := "user://realm_of_chaos.cfg"
 const GRID_CELL_SIZE := 180.0
 const MAX_PLAYER_PROJECTILES := 360
+const MAX_ENEMY_PROJECTILES := 260
+const ENEMY_PROJECTILE_POOL_LIMIT := 160
 const MAX_EFFECTS := 120
 const MAX_PICKUPS := 520
+const EFFECT_MEDIUM_LOAD := 36
+const EFFECT_HIGH_LOAD := 84
+const ENEMY_MEDIUM_VISUAL_LOAD := 120
+const ENEMY_HIGH_VISUAL_LOAD := 210
 
 var time_survived := 0.0
 var enemies_killed := 0
@@ -65,16 +72,20 @@ var damage_taken := 0.0
 var bosses_defeated := 0
 var accessibility_settings: Dictionary = {}
 var pickup_merge_cursor := 0
+var visual_view_half_size := Vector2(640.0, 360.0)
+var director_spawn_queue: Array[Dictionary] = []
 
 @onready var player = $Player
 @onready var ground: Sprite2D = $Ground
 @onready var enemies = $Enemies
 @onready var projectiles = $Projectiles
 @onready var enemy_projectiles = $EnemyProjectiles
+@onready var enemy_projectile_pool = $EnemyProjectilePool
 @onready var pickups = $Pickups
 @onready var effects = $Effects
 @onready var decorations = $Decorations
 @onready var hud = $HUD
+@onready var camera: Camera2D = $Player/Camera2D
 
 
 func _ready() -> void:
@@ -113,6 +124,7 @@ func _ready() -> void:
 	hud.resume_requested.connect(_resume_run)
 	hud.bind_world(self)
 	_generate_environment()
+	_refresh_visual_bounds()
 	last_stage = GameDefs.stage_name(time_survived)
 	hud.show_stage_banner("%s · ARMA SORTEADA: %s" % [str(biome.name), player.equipped_weapon_title()])
 	_rebuild_spatial_grid()
@@ -121,6 +133,8 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if game_ended or player.death_started:
 		return
+	_process_director_spawn_queue()
+	_refresh_visual_bounds()
 	time_survived = minf(RUN_DURATION, time_survived + delta)
 	spatial_timer -= delta
 	if spatial_timer <= 0.0:
@@ -205,6 +219,26 @@ func get_spawn_position(minimum := 610.0, maximum := 760.0) -> Vector2:
 	return Vector2(clampf(fallback.x, -5420.0, 5420.0), clampf(fallback.y, -5420.0, 5420.0))
 
 
+func _refresh_visual_bounds() -> void:
+	var viewport_size := get_viewport_rect().size
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+		return
+	var camera_zoom := Vector2.ONE
+	if is_instance_valid(camera):
+		camera_zoom = camera.zoom
+	visual_view_half_size = Vector2(
+		viewport_size.x * 0.5 / maxf(camera_zoom.x, 0.01),
+		viewport_size.y * 0.5 / maxf(camera_zoom.y, 0.01)
+	)
+
+
+func is_position_in_visual_bounds(position: Vector2, margin := 128.0) -> bool:
+	if not is_instance_valid(player):
+		return true
+	var offset: Vector2 = position - player.global_position
+	return absf(offset.x) <= visual_view_half_size.x + margin and absf(offset.y) <= visual_view_half_size.y + margin
+
+
 func _spawn_position_is_clear(position: Vector2) -> bool:
 	if is_instance_valid(obstacles):
 		for obstacle in obstacles.get_children():
@@ -220,8 +254,21 @@ func _spawn_position_is_clear(position: Vector2) -> bool:
 func _update_boss_schedule() -> void:
 	var schedule := GameDefs.boss_schedule()
 	while boss_index < schedule.size() and time_survived >= float(schedule[boss_index].time):
-		_spawn_scheduled_boss(schedule[boss_index], boss_index)
+		if is_processing():
+			director_spawn_queue.append({"type": "boss", "entry": schedule[boss_index], "index": boss_index})
+		else:
+			_spawn_scheduled_boss(schedule[boss_index], boss_index)
 		boss_index += 1
+
+
+func _process_director_spawn_queue() -> void:
+	if director_spawn_queue.is_empty():
+		return
+	var job: Dictionary = director_spawn_queue.pop_front()
+	if str(job.get("type", "")) == "boss":
+		_spawn_scheduled_boss(job.entry, int(job.index))
+	else:
+		spawn_enemy(str(job.kind), bool(job.get("elite", false)))
 
 
 func _spawn_scheduled_boss(entry: Dictionary, index: int) -> Node:
@@ -261,7 +308,11 @@ func _update_stage() -> void:
 	elif phase_id == "inferno":
 		surge_count = 12
 	for index in range(surge_count):
-		spawn_enemy("guardian" if index % 3 == 0 else ("bomber" if index % 2 == 0 else "assassin"), true)
+		var kind := "guardian" if index % 3 == 0 else ("bomber" if index % 2 == 0 else "assassin")
+		if is_processing():
+			director_spawn_queue.append({"type": "elite", "kind": kind, "elite": true})
+		else:
+			spawn_enemy(kind, true)
 
 
 func _update_hud() -> void:
@@ -428,12 +479,43 @@ func add_player_projectile(projectile: Node) -> void:
 	projectiles.add_child(projectile)
 
 
+func spawn_enemy_projectile(position: Vector2, direction: Vector2, amount: float, projectile_speed: float, color: Color, size: float, danger_style := false) -> Node:
+	var projectile: Node
+	if enemy_projectiles.get_child_count() >= MAX_ENEMY_PROJECTILES:
+		projectile = enemy_projectiles.get_child(0)
+		enemy_projectiles.move_child(projectile, enemy_projectiles.get_child_count() - 1)
+	elif enemy_projectile_pool.get_child_count() > 0:
+		projectile = enemy_projectile_pool.get_child(enemy_projectile_pool.get_child_count() - 1)
+		projectile.reparent(enemy_projectiles)
+	else:
+		projectile = EnemyProjectileScene.instantiate()
+		enemy_projectiles.add_child(projectile)
+	projectile.global_position = position
+	projectile.setup(direction, amount, projectile_speed, color, size, danger_style, self, player)
+	return projectile
+
+
+func recycle_enemy_projectile(projectile: Node) -> void:
+	if not is_instance_valid(projectile) or bool(projectile.get("active")):
+		return
+	if projectile.get_parent() == enemy_projectile_pool:
+		return
+	if enemy_projectile_pool.get_child_count() >= ENEMY_PROJECTILE_POOL_LIMIT:
+		projectile.queue_free()
+		return
+	projectile.reparent(enemy_projectile_pool)
+
+
 func add_enemy_projectile(projectile: Node) -> void:
-	if enemy_projectiles.get_child_count() >= 260:
+	# Compatibilidade para chamadas externas: novos disparos usam spawn_enemy_projectile().
+	if enemy_projectiles.get_child_count() >= MAX_ENEMY_PROJECTILES:
 		var oldest := enemy_projectiles.get_child(0)
-		enemy_projectiles.remove_child(oldest)
-		oldest.queue_free()
+		if oldest.has_method("prepare_for_pool"):
+			oldest.prepare_for_pool()
+		recycle_enemy_projectile(oldest)
 	enemy_projectiles.add_child(projectile)
+	if projectile.has_method("bind_runtime"):
+		projectile.bind_runtime(self, player)
 
 
 func _spawn_pickup(amount: int, position: Vector2, kind := "xp") -> Node:
@@ -459,7 +541,21 @@ func spawn_effect(position: Vector2, color: Color, radius: float, duration := 0.
 		return
 	var effect = EffectScript.new()
 	effects.add_child(effect)
-	effect.setup(position, color, radius, duration, filled)
+	effect.setup(position, color, radius, duration, filled, _effect_visual_quality(radius, duration))
+
+
+func _effect_visual_quality(radius: float, duration: float) -> int:
+	var effect_count := effects.get_child_count()
+	var enemy_count := enemies.get_child_count()
+	var quality := 2
+	if effect_count >= EFFECT_HIGH_LOAD or enemy_count >= ENEMY_HIGH_VISUAL_LOAD:
+		quality = 0
+	elif effect_count >= EFFECT_MEDIUM_LOAD or enemy_count >= ENEMY_MEDIUM_VISUAL_LOAD or enemy_projectiles.get_child_count() >= 96:
+		quality = 1
+	# Golpes grandes e telegráficos mantêm ao menos a leitura intermediária.
+	if radius >= 140.0 or duration >= 0.50:
+		quality = maxi(quality, 1)
+	return quality
 
 
 func spawn_weapon_flash(position: Vector2, atlas_frame: int, angle: float, scale_value: float, duration := 0.35, tint := Color.WHITE) -> void:
@@ -475,7 +571,7 @@ func spawn_lightning(chain_points: PackedVector2Array, color := Color("6eeaff"))
 		return
 	var lightning = LightningEffectScript.new()
 	effects.add_child(lightning)
-	lightning.setup(chain_points, color)
+	lightning.setup(chain_points, color, 0.24, _effect_visual_quality(80.0, 0.24))
 
 
 func spawn_damage_number(position: Vector2, amount: float, critical := false, healing := false, custom_text := "") -> void:
@@ -520,7 +616,7 @@ func on_player_damaged() -> void:
 func on_player_revived() -> void:
 	hud.show_stage_banner("PLUMA DA FÊNIX · VOCÊ RETORNOU")
 	spawn_effect(player.global_position, Color("ffb35a"), 240.0, 1.0, true)
-	audio.play_evolution()
+	audio.play_player_revive()
 
 
 func on_player_dash(direction: Vector2) -> void:
@@ -548,7 +644,7 @@ func activate_landmark(landmark: Node) -> void:
 				pickup.attracted = true
 	hud.show_stage_banner("SANTUÁRIO ATIVADO · %s · 40 SEGUNDOS" % blessing_name)
 	spawn_effect(landmark.global_position, landmark_color, 225.0, 0.90, true)
-	audio.play_reward()
+	audio.play_shrine_activate()
 	shake_camera(4.0, 0.22)
 
 
@@ -568,11 +664,11 @@ func shake_camera(strength: float, duration := 0.18) -> void:
 	strength *= float(accessibility_settings.get("shake", 0.75))
 	if strength <= 0.01:
 		return
-	var camera: Camera2D = player.get_node("Camera2D")
+	var player_camera: Camera2D = player.get_node("Camera2D")
 	var original := Vector2.ZERO
-	camera.offset = Vector2(randf_range(-strength, strength), randf_range(-strength, strength))
+	player_camera.offset = Vector2(randf_range(-strength, strength), randf_range(-strength, strength))
 	var tween := create_tween()
-	tween.tween_property(camera, "offset", original, duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(player_camera, "offset", original, duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 
 func _rebuild_spatial_grid() -> void:
