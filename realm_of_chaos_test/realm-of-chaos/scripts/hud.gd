@@ -16,7 +16,13 @@ var relic_options: Array[Dictionary] = []
 var modal_open := false
 var flash_intensity := 0.70
 var relic_overlay: Control
+var relic_panel: PanelContainer
+var relic_margin: MarginContainer
+var relic_box: VBoxContainer
 var relic_title: Label
+var relic_subtitle: Label
+var relic_scroll: ScrollContainer
+var relic_cards: GridContainer
 var relic_buttons: Array[Button] = []
 var boss_intro: Control
 var boss_intro_label: Label
@@ -55,8 +61,14 @@ var current_upgrade_level := 1
 ]
 @onready var pause_overlay: Control = $PauseOverlay
 @onready var end_overlay: Control = $EndOverlay
+@onready var end_panel: PanelContainer = $EndOverlay/Panel
+@onready var end_margin: MarginContainer = $EndOverlay/Panel/Margin
+@onready var end_vbox: VBoxContainer = $EndOverlay/Panel/Margin/VBox
 @onready var end_title: Label = $EndOverlay/Panel/Margin/VBox/Title
-@onready var end_summary: Label = $EndOverlay/Panel/Margin/VBox/Summary
+@onready var end_summary_scroll: ScrollContainer = $EndOverlay/Panel/Margin/VBox/SummaryScroll
+@onready var end_summary: Label = $EndOverlay/Panel/Margin/VBox/SummaryScroll/Summary
+@onready var end_restart_button: Button = $EndOverlay/Panel/Margin/VBox/Restart
+@onready var end_menu_button: Button = $EndOverlay/Panel/Margin/VBox/Menu
 
 
 func _ready() -> void:
@@ -72,7 +84,12 @@ func _ready() -> void:
 	_build_boss_intro()
 	_build_navigation_ui()
 	_build_choice_actions()
-	end_summary.add_theme_font_size_override("font_size", 18)
+	relic_overlay.resized.connect(_update_relic_layout)
+	end_overlay.resized.connect(_update_end_layout)
+	_update_relic_layout()
+	_update_end_layout()
+	_update_relic_layout.call_deferred()
+	_update_end_layout.call_deferred()
 
 
 func set_accessibility(new_flash_intensity: float) -> void:
@@ -142,48 +159,96 @@ func _build_relic_overlay() -> void:
 	shade.color = Color(0.015, 0.005, 0.035, 0.95)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	relic_overlay.add_child(shade)
-	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.position = Vector2(-500.0, -295.0)
-	panel.size = Vector2(1000.0, 590.0)
+	relic_panel = PanelContainer.new()
+	relic_panel.name = "Panel"
+	relic_panel.set_anchors_preset(Control.PRESET_CENTER)
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = Color("171027")
 	panel_style.border_color = Color("c88dff")
 	panel_style.set_border_width_all(2)
 	panel_style.set_corner_radius_all(16)
-	panel.add_theme_stylebox_override("panel", panel_style)
-	relic_overlay.add_child(panel)
-	var margin := MarginContainer.new()
-	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 34 if side in ["top", "bottom"] else 42)
-	panel.add_child(margin)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 18)
-	margin.add_child(box)
+	relic_panel.add_theme_stylebox_override("panel", panel_style)
+	relic_overlay.add_child(relic_panel)
+	relic_margin = MarginContainer.new()
+	relic_margin.name = "Margin"
+	relic_panel.add_child(relic_margin)
+	relic_box = VBoxContainer.new()
+	relic_box.name = "VBox"
+	relic_margin.add_child(relic_box)
 	relic_title = Label.new()
+	relic_title.name = "Title"
 	relic_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	relic_title.add_theme_font_size_override("font_size", 32)
 	relic_title.add_theme_color_override("font_color", Color("ffd36b"))
-	box.add_child(relic_title)
-	var subtitle := Label.new()
-	subtitle.text = "Uma relíquia ficará com você até o fim da partida"
-	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.add_theme_font_size_override("font_size", 17)
-	subtitle.add_theme_color_override("font_color", Color("cbb8df"))
-	box.add_child(subtitle)
-	var cards := HBoxContainer.new()
-	cards.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	cards.add_theme_constant_override("separation", 16)
-	box.add_child(cards)
+	relic_box.add_child(relic_title)
+	relic_subtitle = Label.new()
+	relic_subtitle.name = "Subtitle"
+	relic_subtitle.text = "Uma relíquia ficará com você até o fim da partida"
+	relic_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	relic_subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	relic_subtitle.add_theme_color_override("font_color", Color("cbb8df"))
+	relic_box.add_child(relic_subtitle)
+	relic_scroll = ScrollContainer.new()
+	relic_scroll.name = "CardsScroll"
+	relic_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	relic_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	relic_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	relic_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	relic_scroll.follow_focus = true
+	relic_scroll.focus_mode = Control.FOCUS_ALL
+	relic_box.add_child(relic_scroll)
+	relic_cards = GridContainer.new()
+	relic_cards.name = "Cards"
+	relic_cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	relic_cards.add_theme_constant_override("h_separation", 16)
+	relic_cards.add_theme_constant_override("v_separation", 16)
+	relic_scroll.add_child(relic_cards)
 	for index in range(3):
 		var button := Button.new()
-		button.custom_minimum_size = Vector2(285.0, 390.0)
+		button.name = "Card%d" % (index + 1)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.add_theme_font_size_override("font_size", 17)
+		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		button.pressed.connect(_on_relic_button_pressed.bind(index))
-		cards.add_child(button)
+		relic_cards.add_child(button)
 		relic_buttons.append(button)
 	relic_overlay.hide()
+
+
+func _update_relic_layout() -> void:
+	if not is_instance_valid(relic_overlay) or not is_instance_valid(relic_panel):
+		return
+	var viewport_size := relic_overlay.size
+	if viewport_size.x <= 1.0 or viewport_size.y <= 1.0:
+		return
+	var horizontal_inset := clampf(viewport_size.x * 0.03, 10.0, 38.0)
+	var vertical_inset := clampf(viewport_size.y * 0.035, 8.0, 28.0)
+	var panel_size := Vector2(
+		minf(1000.0, maxf(1.0, viewport_size.x - horizontal_inset * 2.0)),
+		minf(620.0, maxf(1.0, viewport_size.y - vertical_inset * 2.0))
+	)
+	relic_panel.size = panel_size
+	relic_panel.position = (viewport_size - panel_size) * 0.5
+	var horizontal_margin := roundf(clampf(viewport_size.x * 0.035, 14.0, 42.0))
+	var vertical_margin := roundf(clampf(viewport_size.y * 0.025, 8.0, 26.0))
+	relic_margin.add_theme_constant_override("margin_left", int(horizontal_margin))
+	relic_margin.add_theme_constant_override("margin_right", int(horizontal_margin))
+	relic_margin.add_theme_constant_override("margin_top", int(vertical_margin))
+	relic_margin.add_theme_constant_override("margin_bottom", int(vertical_margin))
+	var spacing := int(roundf(clampf(viewport_size.y * 0.022, 7.0, 18.0)))
+	relic_box.add_theme_constant_override("separation", spacing)
+	relic_cards.add_theme_constant_override("h_separation", spacing)
+	relic_cards.add_theme_constant_override("v_separation", spacing)
+	var content_width := panel_size.x - horizontal_margin * 2.0
+	var column_count := 3 if content_width >= 760.0 else (2 if content_width >= 520.0 else 1)
+	relic_cards.columns = column_count
+	var card_height := 350.0 if column_count == 3 else (220.0 if column_count == 2 else 180.0)
+	var title_size := int(roundf(clampf(minf(viewport_size.x * 0.032, viewport_size.y * 0.052), 22.0, 32.0)))
+	var subtitle_size := int(roundf(clampf(viewport_size.y * 0.026, 13.0, 17.0)))
+	var button_size := int(roundf(clampf(viewport_size.y * 0.026, 14.0, 17.0)))
+	relic_title.add_theme_font_size_override("font_size", title_size)
+	relic_subtitle.add_theme_font_size_override("font_size", subtitle_size)
+	for button in relic_buttons:
+		button.custom_minimum_size = Vector2(0.0, card_height)
+		button.add_theme_font_size_override("font_size", button_size)
 
 
 func _build_boss_intro() -> void:
@@ -335,6 +400,9 @@ func show_relic_choice(options: Array[Dictionary], boss_name := "") -> void:
 		]
 		button.add_theme_color_override("font_color", Color("eadbff"))
 		button.add_theme_color_override("font_hover_color", Color("ffd36b"))
+	relic_scroll.scroll_vertical = 0
+	_update_relic_layout()
+	_update_relic_layout.call_deferred()
 	relic_buttons[0].grab_focus()
 
 
@@ -429,7 +497,49 @@ func show_end_screen(
 		achievement_text = "\n\nCONQUISTA DESBLOQUEADA  ·  %s" % ", ".join(new_achievements)
 	end_summary.text = "%s\n\nTempo sobrevivido  %02d:%02d  ·  Inimigos mortos  %d  ·  Nível  %d\nEssência conquistada  %d\n\n%s%s" % [result_line, minutes, seconds, kills, level, essence, extra_stats, achievement_text]
 	$EndOverlay/Panel/Margin/VBox/Restart.text = "PRÓXIMA FASE" if victory else "TENTAR NOVAMENTE"
+	end_summary_scroll.scroll_vertical = 0
+	_update_end_layout()
+	_update_end_layout.call_deferred()
 	$EndOverlay/Panel/Margin/VBox/Restart.grab_focus()
+
+
+func _update_end_layout() -> void:
+	if not is_instance_valid(end_overlay) or not is_instance_valid(end_panel):
+		return
+	var viewport_size := end_overlay.size
+	if viewport_size.x <= 1.0 or viewport_size.y <= 1.0:
+		return
+	var horizontal_inset := clampf(viewport_size.x * 0.035, 10.0, 40.0)
+	var vertical_inset := clampf(viewport_size.y * 0.035, 8.0, 28.0)
+	var panel_size := Vector2(
+		minf(920.0, maxf(1.0, viewport_size.x - horizontal_inset * 2.0)),
+		minf(650.0, maxf(1.0, viewport_size.y - vertical_inset * 2.0))
+	)
+	end_panel.size = panel_size
+	end_panel.position = (viewport_size - panel_size) * 0.5
+	var horizontal_margin := int(roundf(clampf(viewport_size.x * 0.04, 16.0, 50.0)))
+	var vertical_margin := int(roundf(clampf(viewport_size.y * 0.035, 10.0, 30.0)))
+	end_margin.add_theme_constant_override("margin_left", horizontal_margin)
+	end_margin.add_theme_constant_override("margin_right", horizontal_margin)
+	end_margin.add_theme_constant_override("margin_top", vertical_margin)
+	end_margin.add_theme_constant_override("margin_bottom", vertical_margin)
+	end_vbox.add_theme_constant_override(
+		"separation",
+		int(roundf(clampf(viewport_size.y * 0.02, 8.0, 20.0)))
+	)
+	end_title.add_theme_font_size_override(
+		"font_size",
+		int(roundf(clampf(viewport_size.y * 0.052, 24.0, 38.0)))
+	)
+	end_summary.add_theme_font_size_override(
+		"font_size",
+		int(roundf(clampf(viewport_size.y * 0.025, 14.0, 18.0)))
+	)
+	var button_height := roundf(clampf(viewport_size.y * 0.075, 42.0, 58.0))
+	var button_font_size := int(roundf(clampf(viewport_size.y * 0.032, 15.0, 20.0)))
+	for button in [end_restart_button, end_menu_button]:
+		button.custom_minimum_size = Vector2(0.0, button_height)
+		button.add_theme_font_size_override("font_size", button_font_size)
 
 
 func _unhandled_input(event: InputEvent) -> void:

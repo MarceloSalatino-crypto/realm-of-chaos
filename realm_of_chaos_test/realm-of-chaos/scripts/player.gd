@@ -820,26 +820,32 @@ func apply_upgrade(upgrade_id: String, rarity := "COMUM") -> void:
 		weapon_levels[upgrade_id] = mini(_upgrade_max(upgrade_id), int(weapon_levels[upgrade_id]) + bonus)
 		_check_weapon_evolutions()
 		return
-	passive_levels[upgrade_id] = mini(_upgrade_max(upgrade_id), int(passive_levels.get(upgrade_id, 0)) + bonus)
+	var previous_level := int(passive_levels.get(upgrade_id, 0))
+	var new_level := mini(_upgrade_max(upgrade_id), previous_level + bonus)
+	var applied_levels := new_level - previous_level
+	if applied_levels <= 0:
+		return
+	passive_levels[upgrade_id] = new_level
+	var rare_upgrade := rarity == "RARO"
 	match upgrade_id:
 		"might":
-			damage_multiplier *= 1.15 if rarity == "COMUM" else 1.22
+			damage_multiplier *= 1.22 if rare_upgrade else pow(1.15, applied_levels)
 		"haste":
-			cooldown_multiplier *= 0.90 if rarity == "COMUM" else 0.84
+			cooldown_multiplier *= 0.84 if rare_upgrade else pow(0.90, applied_levels)
 		"vitality":
-			var gain := 25.0 if rarity == "COMUM" else 40.0
+			var gain := 40.0 if rare_upgrade else 25.0 * applied_levels
 			max_hp += gain
 			heal(gain)
 		"swiftness":
-			move_speed *= 1.08 if rarity == "COMUM" else 1.13
+			move_speed *= 1.13 if rare_upgrade else pow(1.08, applied_levels)
 		"magnet":
-			pickup_radius *= 1.35 if rarity == "COMUM" else 1.55
+			pickup_radius *= 1.55 if rare_upgrade else pow(1.35, applied_levels)
 		"armor":
-			armor += 2.0 if rarity == "COMUM" else 3.0
+			armor += 3.0 if rare_upgrade else 2.0 * applied_levels
 		"regeneration":
-			regeneration += 0.65 if rarity == "COMUM" else 1.0
+			regeneration += 1.0 if rare_upgrade else 0.65 * applied_levels
 		"critical":
-			crit_chance += 0.07 if rarity == "COMUM" else 0.11
+			crit_chance += 0.11 if rare_upgrade else 0.07 * applied_levels
 	_check_weapon_evolutions()
 
 
