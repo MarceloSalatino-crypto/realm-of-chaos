@@ -137,7 +137,6 @@ func _run() -> void:
 	_check(world.hud.end_title.text == "VITÓRIA!" and "25:00" in world.hud.end_summary.text and world.hud.get_node("EndOverlay/Panel/Margin/VBox/Restart").text == "PRÓXIMA FASE", "tela de vitória do chefe final incorreta")
 	_check(world.hud.get_node("EndOverlay/Panel/Margin/VBox/Restart") != null and world.hud.get_node("EndOverlay/Panel/Margin/VBox/Menu") != null, "telas finais sem reiniciar ou menu")
 	world.hud.end_overlay.hide()
-	world.hud.modal_open = false
 	world.player.disabled = false
 	world.player.invulnerability = 0.0
 	world.player.dodge_chance = 0.0

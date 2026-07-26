@@ -40,10 +40,6 @@ func setup(
 	queue_redraw()
 
 
-func init(dir: Vector2) -> void:
-	setup(dir, damage, speed, pierce, hit_radius, projectile_color)
-
-
 func _physics_process(delta: float) -> void:
 	global_position += direction * speed * delta
 	lifetime -= delta

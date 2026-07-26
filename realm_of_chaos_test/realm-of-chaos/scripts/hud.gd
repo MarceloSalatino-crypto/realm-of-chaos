@@ -13,7 +13,6 @@ signal resume_requested
 
 var upgrade_options: Array[Dictionary] = []
 var relic_options: Array[Dictionary] = []
-var modal_open := false
 var flash_intensity := 0.70
 var relic_overlay: Control
 var relic_panel: PanelContainer
@@ -35,6 +34,9 @@ var skip_button: Button
 var banish_mode := false
 var banish_count_display := 0
 var current_upgrade_level := 1
+var stage_banner_tween: Tween
+var boss_intro_tween: Tween
+var damage_flash_tween: Tween
 
 @onready var health_bar: ProgressBar = $Top/HealthBar
 @onready var health_label: Label = $Top/HealthBar/Label
@@ -344,7 +346,6 @@ func show_event(title: String, color: Color) -> void:
 
 
 func show_level_up(new_level: int, options: Array[Dictionary], rerolls := 0, banishes := 0, skips := 0) -> void:
-	modal_open = true
 	banish_mode = false
 	banish_count_display = banishes
 	current_upgrade_level = new_level
@@ -379,12 +380,10 @@ func show_level_up(new_level: int, options: Array[Dictionary], rerolls := 0, ban
 
 
 func hide_level_up() -> void:
-	modal_open = false
 	upgrade_overlay.hide()
 
 
 func show_relic_choice(options: Array[Dictionary], boss_name := "") -> void:
-	modal_open = true
 	relic_options = options
 	relic_title.text = "TESOURO DE %s" % boss_name if not boss_name.is_empty() else "ESCOLHA UMA RELÍQUIA"
 	relic_overlay.show()
@@ -407,7 +406,6 @@ func show_relic_choice(options: Array[Dictionary], boss_name := "") -> void:
 
 
 func hide_relic_choice() -> void:
-	modal_open = false
 	relic_overlay.hide()
 
 
@@ -448,44 +446,49 @@ func _rarity_color(rarity: String) -> Color:
 
 
 func show_stage_banner(text: String) -> void:
+	if stage_banner_tween and stage_banner_tween.is_valid():
+		stage_banner_tween.kill()
 	stage_banner.text = text
 	stage_banner.modulate = Color(1, 1, 1, 0)
 	stage_banner.show()
-	var tween := create_tween()
-	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
-	tween.tween_property(stage_banner, "modulate", Color.WHITE, 0.25)
-	tween.tween_interval(1.65)
-	tween.tween_property(stage_banner, "modulate", Color(1, 1, 1, 0), 0.45)
-	tween.tween_callback(stage_banner.hide)
+	stage_banner_tween = create_tween()
+	stage_banner_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	stage_banner_tween.tween_property(stage_banner, "modulate", Color.WHITE, 0.25)
+	stage_banner_tween.tween_interval(1.65)
+	stage_banner_tween.tween_property(stage_banner, "modulate", Color(1, 1, 1, 0), 0.45)
+	stage_banner_tween.tween_callback(stage_banner.hide)
 
 
 func show_boss_intro(boss_name: String, subtitle: String, final_boss := false) -> void:
+	if boss_intro_tween and boss_intro_tween.is_valid():
+		boss_intro_tween.kill()
 	boss_intro_label.text = "%s\n%s" % [subtitle, boss_name]
 	boss_intro_label.add_theme_color_override("font_color", Color("ffd36b") if final_boss else Color("f2c4ff"))
 	boss_intro.modulate = Color(1, 1, 1, 0)
 	boss_intro.show()
-	var tween := create_tween()
-	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
-	tween.tween_property(boss_intro, "modulate", Color.WHITE, 0.22)
-	tween.tween_interval(1.25)
-	tween.tween_property(boss_intro, "modulate", Color(1, 1, 1, 0), 0.40)
-	tween.tween_callback(boss_intro.hide)
+	boss_intro_tween = create_tween()
+	boss_intro_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	boss_intro_tween.tween_property(boss_intro, "modulate", Color.WHITE, 0.22)
+	boss_intro_tween.tween_interval(1.25)
+	boss_intro_tween.tween_property(boss_intro, "modulate", Color(1, 1, 1, 0), 0.40)
+	boss_intro_tween.tween_callback(boss_intro.hide)
 
 
 func flash_damage(intensity := -1.0) -> void:
 	var strength := flash_intensity if intensity < 0.0 else clampf(intensity, 0.0, 1.0)
 	if strength <= 0.01:
 		return
+	if damage_flash_tween and damage_flash_tween.is_valid():
+		damage_flash_tween.kill()
 	damage_flash.color = Color(0.65, 0.02, 0.12, 0.32 * strength)
-	var tween := create_tween()
-	tween.tween_property(damage_flash, "color", Color(0.65, 0.02, 0.12, 0.0), 0.35)
+	damage_flash_tween = create_tween()
+	damage_flash_tween.tween_property(damage_flash, "color", Color(0.65, 0.02, 0.12, 0.0), 0.35)
 
 
 func show_end_screen(
 	victory: bool, survived: float, kills: int, level: int, essence := 0,
 	next_biome := "", extra_stats := "", new_achievements: Array[String] = []
 ) -> void:
-	modal_open = true
 	end_overlay.show()
 	end_title.text = "VITÓRIA!" if victory else "GAME OVER"
 	end_title.add_theme_color_override("font_color", Color("ffd36b") if victory else Color("ff687d"))
@@ -553,7 +556,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		_on_resume_pressed()
 	else:
 		pause_overlay.show()
-		modal_open = true
 		get_tree().paused = true
 		$PauseOverlay/Panel/VBox/Resume.grab_focus()
 	get_viewport().set_input_as_handled()
@@ -561,5 +563,4 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _on_resume_pressed() -> void:
 	pause_overlay.hide()
-	modal_open = false
 	resume_requested.emit()

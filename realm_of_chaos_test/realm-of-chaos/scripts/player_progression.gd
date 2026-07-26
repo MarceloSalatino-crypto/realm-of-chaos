@@ -1,0 +1,331 @@
+extends RefCounted
+
+const GameDefs = preload("res://scripts/game_defs.gd")
+
+var player
+
+
+func _init(owner_player) -> void:
+	player = owner_player
+
+
+func collect_xp(amount: int) -> void:
+	player.experience += amount
+	while player.experience >= player.experience_needed:
+		player.experience -= player.experience_needed
+		player.level += 1
+		player.experience_needed = int(round(10.0 + pow(player.level, 1.34) * 5.2))
+		player.level_up_requested.emit()
+
+
+func get_upgrade_options(count: int, excluded_ids: Array[String] = []) -> Array[Dictionary]:
+	var pool: Array[Dictionary] = []
+	var fallback_pool: Array[Dictionary] = []
+	for definition in GameDefs.upgrades():
+		var upgrade_id := str(definition.id)
+		if player.banished_upgrades.has(upgrade_id):
+			continue
+		if player.weapon_levels.has(upgrade_id) and int(player.weapon_levels[upgrade_id]) <= 0 and active_weapon_count() >= player.MAX_WEAPONS:
+			continue
+		if get_upgrade_level(definition.id) < int(definition.max):
+			var candidate := definition.duplicate()
+			if upgrade_id in excluded_ids:
+				fallback_pool.append(candidate)
+			else:
+				pool.append(candidate)
+	if pool.size() < count:
+		fallback_pool.shuffle()
+		pool.append_array(fallback_pool.slice(0, count - pool.size()))
+	pool.shuffle()
+	var options: Array[Dictionary] = []
+	for definition in pool.slice(0, mini(count, pool.size())):
+		var upgrade_id := str(definition.id)
+		var current := get_upgrade_level(upgrade_id)
+		var rarity := roll_rarity()
+		var levels_gained := 2 if rarity == "LENDÁRIO" else 1
+		definition["current_level"] = current
+		definition["level"] = mini(int(definition.max), current + levels_gained)
+		definition["levels_gained"] = mini(levels_gained, int(definition.max) - current)
+		definition["rarity"] = rarity
+		definition["category"] = "NOVA ARMA" if player.weapon_levels.has(upgrade_id) and current == 0 else ("ARMA" if player.weapon_levels.has(upgrade_id) else "PASSIVO")
+		definition["evolution_hint"] = evolution_hint_for(upgrade_id)
+		options.append(definition)
+	return options
+
+
+func evolution_hint_for(upgrade_id: String) -> String:
+	if player.weapon_levels.has(upgrade_id):
+		var evolution := GameDefs.evolution_data(upgrade_id)
+		if evolution.is_empty():
+			return ""
+		return "EVOLUI COM %s NV.%d" % [GameDefs.upgrade_title(str(evolution.passive)).to_upper(), int(evolution.passive_level)]
+	var synergies: Array[String] = []
+	for weapon_id in player.WEAPON_IDS:
+		if int(player.weapon_levels.get(weapon_id, 0)) <= 0 or bool(player.evolved_weapons.get(weapon_id, false)):
+			continue
+		var evolution := GameDefs.evolution_data(weapon_id)
+		if str(evolution.get("passive", "")) == upgrade_id:
+			synergies.append(str(player.WEAPON_TITLES.get(weapon_id, weapon_id)).capitalize())
+	if synergies.is_empty():
+		return ""
+	return "COMBINA COM %s" % ", ".join(synergies)
+
+
+func active_weapon_count() -> int:
+	var count := 0
+	for weapon_id in player.WEAPON_IDS:
+		if int(player.weapon_levels.get(weapon_id, 0)) > 0:
+			count += 1
+	return count
+
+
+func banish_upgrade(upgrade_id: String) -> void:
+	player.banished_upgrades[upgrade_id] = true
+
+
+func roll_rarity() -> String:
+	var roll := randf()
+	if roll < 0.08:
+		return "LENDÁRIO"
+	if roll < 0.28:
+		return "RARO"
+	return "COMUM"
+
+
+func get_upgrade_level(upgrade_id: String) -> int:
+	if player.weapon_levels.has(upgrade_id):
+		return int(player.weapon_levels[upgrade_id])
+	return int(player.passive_levels.get(upgrade_id, 0))
+
+
+func apply_upgrade(upgrade_id: String, rarity := "COMUM") -> void:
+	var bonus := 2 if rarity == "LENDÁRIO" else 1
+	if player.weapon_levels.has(upgrade_id):
+		if int(player.weapon_levels[upgrade_id]) <= 0 and active_weapon_count() >= player.MAX_WEAPONS:
+			return
+		player.weapon_levels[upgrade_id] = mini(upgrade_max(upgrade_id), int(player.weapon_levels[upgrade_id]) + bonus)
+		check_weapon_evolutions()
+		return
+	var previous_level := int(player.passive_levels.get(upgrade_id, 0))
+	var new_level := mini(upgrade_max(upgrade_id), previous_level + bonus)
+	var applied_levels := new_level - previous_level
+	if applied_levels <= 0:
+		return
+	player.passive_levels[upgrade_id] = new_level
+	var rare_upgrade := rarity == "RARO"
+	match upgrade_id:
+		"might":
+			player.damage_multiplier *= 1.22 if rare_upgrade else pow(1.15, applied_levels)
+		"haste":
+			player.cooldown_multiplier *= 0.84 if rare_upgrade else pow(0.90, applied_levels)
+		"vitality":
+			var gain := 40.0 if rare_upgrade else 25.0 * applied_levels
+			player.max_hp += gain
+			player.heal(gain)
+		"swiftness":
+			player.move_speed *= 1.13 if rare_upgrade else pow(1.08, applied_levels)
+		"magnet":
+			player.pickup_radius *= 1.55 if rare_upgrade else pow(1.35, applied_levels)
+		"armor":
+			player.armor += 3.0 if rare_upgrade else 2.0 * applied_levels
+		"regeneration":
+			player.regeneration += 1.0 if rare_upgrade else 0.65 * applied_levels
+		"critical":
+			player.crit_chance += 0.11 if rare_upgrade else 0.07 * applied_levels
+	check_weapon_evolutions()
+
+
+func upgrade_max(upgrade_id: String) -> int:
+	for definition in GameDefs.upgrades():
+		if str(definition.id) == upgrade_id:
+			return int(definition.max)
+	return 8
+
+
+func check_weapon_evolutions() -> void:
+	for weapon_id in player.WEAPON_IDS:
+		if bool(player.evolved_weapons[weapon_id]):
+			continue
+		var evolution := GameDefs.evolution_data(weapon_id)
+		if evolution.is_empty():
+			continue
+		if int(player.weapon_levels[weapon_id]) < int(evolution.weapon_level):
+			continue
+		if int(player.passive_levels.get(str(evolution.passive), 0)) < int(evolution.passive_level):
+			continue
+		player.evolved_weapons[weapon_id] = true
+		var world: Node = player.get_tree().get_first_node_in_group("world")
+		if world:
+			world.on_weapon_evolved(str(evolution.title))
+
+
+func apply_meta_bonuses(meta: Dictionary) -> void:
+	var power_level := int(meta.get("power", 0))
+	var vitality_level := int(meta.get("vitality", 0))
+	var speed_level := int(meta.get("speed", 0))
+	var fortune_level := int(meta.get("fortune", 0))
+	player.damage_multiplier *= 1.0 + power_level * 0.05
+	player.max_hp += vitality_level * 10.0
+	player.hp = player.max_hp
+	player.move_speed *= 1.0 + speed_level * 0.03
+	player.crit_chance += fortune_level * 0.015
+
+
+func apply_landmark_blessing(kind: String, duration := 40.0) -> String:
+	player.blessing_time = duration
+	player.temporary_damage_multiplier = 1.0
+	player.temporary_cooldown_multiplier = 1.0
+	player.temporary_move_multiplier = 1.0
+	player.temporary_pickup_multiplier = 1.0
+	player.temporary_crit_bonus = 0.0
+	player.temporary_armor = 0.0
+	match kind:
+		"altar":
+			player.blessing_title = "FÚRIA RUBRA"
+			player.temporary_damage_multiplier = 1.32
+			player.heal(player.max_hp * 0.25)
+		"obelisk":
+			player.blessing_title = "FLUXO CRONAL"
+			player.temporary_cooldown_multiplier = 0.72
+			player.temporary_crit_bonus = 0.12
+		"tree":
+			player.blessing_title = "CHAMADO DAS ALMAS"
+			player.temporary_move_multiplier = 1.24
+			player.temporary_pickup_multiplier = 2.6
+			player.heal(player.max_hp * 0.12)
+		"portal":
+			player.blessing_title = "PELE DO VAZIO"
+			player.temporary_armor = 7.0
+			player.temporary_move_multiplier = 1.12
+		_:
+			player.blessing_title = "BÊNÇÃO DO MAPA"
+	return player.blessing_title
+
+
+func apply_character(selected_id: String) -> void:
+	if player.character_applied:
+		return
+	player.character_applied = true
+	player.character_id = selected_id
+	var definition := GameDefs.character_data(selected_id)
+	player.character_color = definition.color
+	player.character_skill_name = str(definition.get("skill", "HABILIDADE DO CAÇADOR"))
+	player._apply_character_visual()
+	match player.character_id:
+		"glacial_oracle":
+			player.armor += 3.0
+			player.cooldown_multiplier *= 0.90
+		"crimson_knight":
+			player.max_hp += 35.0
+			player.life_steal += 0.004
+		"void_automaton":
+			player.damage_multiplier *= 1.18
+			player.move_speed *= 1.08
+			player.max_hp -= 15.0
+		_:
+			player.damage_multiplier *= 1.08
+			player.crit_chance += 0.05
+	player.hp = player.max_hp
+
+
+func get_relic_options(count: int) -> Array[Dictionary]:
+	var pool: Array[Dictionary] = []
+	for definition in GameDefs.relics():
+		if int(player.relic_levels.get(str(definition.id), 0)) < int(definition.max):
+			var option := definition.duplicate()
+			option["level"] = int(player.relic_levels.get(str(definition.id), 0)) + 1
+			pool.append(option)
+	pool.shuffle()
+	return pool.slice(0, mini(count, pool.size()))
+
+
+func apply_relic(relic_id: String) -> void:
+	var current := int(player.relic_levels.get(relic_id, 0))
+	var maximum := 1
+	for definition in GameDefs.relics():
+		if str(definition.id) == relic_id:
+			maximum = int(definition.max)
+			break
+	if current >= maximum:
+		return
+	player.relic_levels[relic_id] = current + 1
+	match relic_id:
+		"glass_cannon":
+			player.damage_multiplier *= 1.30
+			player.max_hp *= 0.88
+			player.hp = minf(player.hp, player.max_hp)
+		"blood_fang":
+			player.life_steal += 0.0045
+		"storm_crown":
+			player.projectile_bonus += 1
+			player.damage_multiplier *= 1.08
+		"void_boots":
+			player.move_speed *= 1.12
+			player.dodge_chance += 0.06
+		"magnet_core":
+			player.pickup_radius *= 1.55
+			player.move_speed *= 1.08
+		"boss_hunter":
+			player.boss_damage_multiplier *= 1.25
+		"phoenix_feather":
+			player.revive_charges += 1
+		"chrono_shard":
+			player.cooldown_multiplier *= 0.88
+		"iron_heart":
+			player.max_hp += 30.0
+			player.armor += 2.0
+			player.heal(30.0)
+		"soul_lens":
+			player.crit_chance += 0.10
+			player.critical_multiplier += 0.20
+
+
+func all_weapons_evolved() -> bool:
+	var owned_weapons := 0
+	for weapon_id in player.WEAPON_IDS:
+		if int(player.weapon_levels.get(weapon_id, 0)) <= 0:
+			continue
+		owned_weapons += 1
+		if not bool(player.evolved_weapons.get(weapon_id, false)):
+			return false
+	return owned_weapons >= player.MAX_WEAPONS
+
+
+func relic_summary() -> String:
+	var names: Array[String] = []
+	for definition in GameDefs.relics():
+		var relic_level := int(player.relic_levels.get(str(definition.id), 0))
+		if relic_level > 0:
+			names.append("%s %d" % [str(definition.title).capitalize(), relic_level])
+	return "Nenhuma" if names.is_empty() else ", ".join(names)
+
+
+func grant_boss_reward(final_reward := false) -> void:
+	player.damage_multiplier *= 1.08 if final_reward else 1.045
+	player.max_hp += 12.0 if final_reward else 5.0
+	player.heal(player.max_hp * (0.35 if final_reward else 0.18))
+
+
+func weapon_summary() -> String:
+	var names: Array[String] = []
+	if player.weapon_levels.chaos_bolt > 0:
+		names.append("BALISTA ✦" if player.evolved_weapons.chaos_bolt else "Besta %d" % player.weapon_levels.chaos_bolt)
+	if player.weapon_levels.shadow_blades > 0:
+		names.append("DANÇA ◆" if player.evolved_weapons.shadow_blades else "Lâmina %d" % player.weapon_levels.shadow_blades)
+	if player.weapon_levels.soul_orbit > 0:
+		names.append("DEVORADOR ◉" if player.evolved_weapons.soul_orbit else "Cetro %d" % player.weapon_levels.soul_orbit)
+	if player.weapon_levels.chaos_nova > 0:
+		names.append("COLAPSO ☼" if player.evolved_weapons.chaos_nova else "Cajado %d" % player.weapon_levels.chaos_nova)
+	if player.weapon_levels.blood_scythe > 0:
+		names.append("CEIFADORA ☾" if player.evolved_weapons.blood_scythe else "Foice %d" % player.weapon_levels.blood_scythe)
+	if player.weapon_levels.forbidden_grimoire > 0:
+		names.append("CÓDICE ▤" if player.evolved_weapons.forbidden_grimoire else "Grimório %d" % player.weapon_levels.forbidden_grimoire)
+	if player.weapon_levels.rune_hammer > 0:
+		names.append("CATACLISMO ◆" if player.evolved_weapons.rune_hammer else "Martelo %d" % player.weapon_levels.rune_hammer)
+	if player.weapon_levels.storm_relic > 0:
+		names.append("TEMPESTADE ϟ" if player.evolved_weapons.storm_relic else "Relíquia %d" % player.weapon_levels.storm_relic)
+	if player.weapon_levels.swarm_idol > 0:
+		names.append("LEGIÃO ◉" if player.evolved_weapons.swarm_idol else "Ídolo %d" % player.weapon_levels.swarm_idol)
+	if names.size() <= 3:
+		return "  ·  ".join(names)
+	return "%s\n%s" % ["  ·  ".join(names.slice(0, 3)), "  ·  ".join(names.slice(3))]

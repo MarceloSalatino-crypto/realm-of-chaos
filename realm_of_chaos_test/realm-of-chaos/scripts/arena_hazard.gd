@@ -1,10 +1,17 @@
 class_name ArenaHazard
 extends Node2D
 
+const ICE_REDRAW_INTERVAL := 1.0 / 14.0
+const VOID_REDRAW_INTERVAL := 1.0 / 20.0
+
 var hazard_kind := "roots"
 var radius := 105.0
 var animation_time := 0.0
 var seed := 1
+var visual_on_screen := false
+var redraw_interval := ICE_REDRAW_INTERVAL
+var redraw_timer := 0.0
+var screen_notifier: VisibleOnScreenNotifier2D
 
 
 func setup(kind: String, hazard_position: Vector2, hazard_radius: float, visual_seed: int) -> void:
@@ -14,12 +21,43 @@ func setup(kind: String, hazard_position: Vector2, hazard_radius: float, visual_
 	seed = visual_seed
 	add_to_group("arena_hazards")
 	z_index = -2
-	queue_redraw()
+	screen_notifier = VisibleOnScreenNotifier2D.new()
+	screen_notifier.name = "VisibleOnScreenNotifier2D"
+	screen_notifier.rect = Rect2(
+		Vector2.ONE * -(radius + 8.0),
+		Vector2.ONE * (radius + 8.0) * 2.0
+	)
+	screen_notifier.show_rect = false
+	add_child(screen_notifier)
+	screen_notifier.screen_entered.connect(_on_screen_entered)
+	screen_notifier.screen_exited.connect(_on_screen_exited)
+	redraw_interval = VOID_REDRAW_INTERVAL if hazard_kind == "void" else ICE_REDRAW_INTERVAL
+	redraw_timer = redraw_interval * (0.25 + _visual_phase() * 0.75)
+	set_process(hazard_kind != "roots")
 
 
 func _process(delta: float) -> void:
 	animation_time += delta
+	if not visual_on_screen:
+		return
+	redraw_timer -= delta
+	if redraw_timer <= 0.0:
+		redraw_timer += redraw_interval
+		queue_redraw()
+
+
+func _visual_phase() -> float:
+	return float(posmod(seed, 997)) / 997.0
+
+
+func _on_screen_entered() -> void:
+	visual_on_screen = true
 	queue_redraw()
+	redraw_timer = redraw_interval * (0.25 + _visual_phase() * 0.75)
+
+
+func _on_screen_exited() -> void:
+	visual_on_screen = false
 
 
 func contains_point(point: Vector2) -> bool:

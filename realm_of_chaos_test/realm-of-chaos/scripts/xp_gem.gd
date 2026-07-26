@@ -1,11 +1,24 @@
 extends Area2D
 
+const MEDIUM_VISUAL_LOAD := 160
+const HIGH_VISUAL_LOAD := 360
+const NORMAL_REDRAW_INTERVAL := 1.0 / 30.0
+const MEDIUM_REDRAW_INTERVAL := 1.0 / 20.0
+const HIGH_REDRAW_INTERVAL := 1.0 / 15.0
+const VISUAL_LOAD_REFRESH_INTERVAL := 0.50
+
 var value := 1
 var pickup_kind := "xp"
 var player: Node2D
 var velocity := Vector2.ZERO
 var age := 0.0
 var attracted := false
+var visual_on_screen := false
+var redraw_interval := NORMAL_REDRAW_INTERVAL
+var redraw_timer := 0.0
+var visual_load_timer := 0.0
+
+@onready var screen_notifier: VisibleOnScreenNotifier2D = $VisibleOnScreenNotifier2D
 
 
 func setup(amount: int, world_position: Vector2, kind := "xp") -> void:
@@ -13,15 +26,21 @@ func setup(amount: int, world_position: Vector2, kind := "xp") -> void:
 	pickup_kind = kind
 	global_position = world_position
 	rotation = randf() * TAU
-	queue_redraw()
 
 
 func _ready() -> void:
 	player = get_tree().get_first_node_in_group("player")
+	screen_notifier.screen_entered.connect(_on_screen_entered)
+	screen_notifier.screen_exited.connect(_on_screen_exited)
+	var visual_phase := _visual_phase()
+	redraw_timer = NORMAL_REDRAW_INTERVAL * (0.25 + visual_phase * 0.75)
+	visual_load_timer = VISUAL_LOAD_REFRESH_INTERVAL * visual_phase
+	_refresh_visual_load()
 
 
 func _physics_process(delta: float) -> void:
 	age += delta
+	_update_visual_animation(delta)
 	if not is_instance_valid(player):
 		return
 	var distance := global_position.distance_to(player.global_position)
@@ -43,7 +62,51 @@ func _physics_process(delta: float) -> void:
 		if world and (pickup_kind == "heal" or value >= 8):
 			world.audio.play_pickup(pickup_kind)
 		queue_free()
+		return
+
+
+func request_visual_refresh() -> void:
+	if visual_on_screen:
+		queue_redraw()
+
+
+func _update_visual_animation(delta: float) -> void:
+	visual_load_timer -= delta
+	if visual_load_timer <= 0.0:
+		visual_load_timer += VISUAL_LOAD_REFRESH_INTERVAL
+		_refresh_visual_load()
+	if not visual_on_screen:
+		return
+	redraw_timer -= delta
+	if redraw_timer <= 0.0:
+		redraw_timer += redraw_interval
+		queue_redraw()
+
+
+func _refresh_visual_load() -> void:
+	var pickup_count := get_parent().get_child_count() if is_instance_valid(get_parent()) else 0
+	if pickup_count >= HIGH_VISUAL_LOAD:
+		redraw_interval = HIGH_REDRAW_INTERVAL
+	elif pickup_count >= MEDIUM_VISUAL_LOAD:
+		redraw_interval = MEDIUM_REDRAW_INTERVAL
+	else:
+		redraw_interval = NORMAL_REDRAW_INTERVAL
+	redraw_timer = minf(redraw_timer, redraw_interval)
+
+
+func _visual_phase() -> float:
+	return float(get_instance_id() % 997) / 997.0
+
+
+func _on_screen_entered() -> void:
+	visual_on_screen = true
+	_refresh_visual_load()
 	queue_redraw()
+	redraw_timer = redraw_interval * (0.25 + _visual_phase() * 0.75)
+
+
+func _on_screen_exited() -> void:
+	visual_on_screen = false
 
 
 func _draw() -> void:

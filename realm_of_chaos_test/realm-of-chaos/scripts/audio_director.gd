@@ -15,6 +15,7 @@ var last_played_msec: Dictionary = {}
 var active_sfx := 0
 var active_sfx_by_key: Dictionary = {}
 var active_sfx_players: Dictionary = {}
+var active_sfx_voice_order: Array[AudioStreamPlayer] = []
 var last_sample_variant: Dictionary = {}
 
 const MUSIC_BUS_NAME := &"Music"
@@ -58,6 +59,14 @@ const SFX_HEADROOM_DB := -10.0
 const SFX_BUS_TRIM_DB := -11.0
 const MAX_SIMULTANEOUS_SFX := 10
 const MAX_SIMULTANEOUS_PER_KEY := 2
+const ESSENTIAL_SFX_KEYS := [
+	"hurt",
+	"player_revive",
+	"evolution",
+	"boss",
+	"reward",
+	"shrine"
+]
 
 
 func _ready() -> void:
@@ -235,7 +244,8 @@ func _play_sample(key: String, variants: Array = []) -> void:
 	if int(active_sfx_by_key.get(key, 0)) >= _voice_limit_for(key):
 		_stop_oldest_sfx_voice(key)
 	if active_sfx >= MAX_SIMULTANEOUS_SFX:
-		return
+		if not _is_essential_sfx(key) or not _stop_oldest_common_sfx_voice():
+			return
 	var stream: AudioStream = _sample_for(key, variants)
 	if stream == null:
 		return
@@ -250,6 +260,8 @@ func _play_sample(key: String, variants: Array = []) -> void:
 	var key_players: Array = active_sfx_players.get(key, [])
 	key_players.append(player)
 	active_sfx_players[key] = key_players
+	active_sfx_voice_order.append(player)
+	player.set_meta(&"sfx_key", key)
 	player.finished.connect(_on_sfx_finished.bind(player, key))
 	player.play()
 
@@ -281,6 +293,10 @@ func _voice_limit_for(key: String) -> int:
 	return MAX_SIMULTANEOUS_PER_KEY
 
 
+func _is_essential_sfx(key: String) -> bool:
+	return key in ESSENTIAL_SFX_KEYS
+
+
 func _on_sfx_finished(player: AudioStreamPlayer, key: String) -> void:
 	_release_sfx_player(player, key)
 
@@ -295,11 +311,26 @@ func _stop_oldest_sfx_voice(key: String) -> void:
 	_release_sfx_player(oldest_player, key)
 
 
+func _stop_oldest_common_sfx_voice() -> bool:
+	for player in active_sfx_voice_order.duplicate():
+		if not is_instance_valid(player):
+			active_sfx_voice_order.erase(player)
+			continue
+		var key := str(player.get_meta(&"sfx_key", ""))
+		if _is_essential_sfx(key):
+			continue
+		player.stop()
+		_release_sfx_player(player, key)
+		return true
+	return false
+
+
 func _release_sfx_player(player: AudioStreamPlayer, key: String) -> void:
 	var key_players: Array = active_sfx_players.get(key, [])
 	if not key_players.has(player):
 		return
 	key_players.erase(player)
+	active_sfx_voice_order.erase(player)
 	if key_players.is_empty():
 		active_sfx_players.erase(key)
 	else:

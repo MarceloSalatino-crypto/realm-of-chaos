@@ -12,3 +12,7 @@ script = ExtResource("1_gem")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("Circle_gem")
+
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="."]
+rect = Rect2(-18, -18, 36, 36)
+show_rect = false
