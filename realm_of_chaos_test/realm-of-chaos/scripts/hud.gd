@@ -24,10 +24,11 @@ var relic_scroll: ScrollContainer
 var relic_cards: GridContainer
 var relic_buttons: Array[Button] = []
 var boss_intro: Control
+var boss_intro_band: ColorRect
 var boss_intro_label: Label
 var minimap: Control
 var dash_label: Label
-var choice_action_row: HBoxContainer
+var choice_action_row: GridContainer
 var reroll_button: Button
 var banish_button: Button
 var skip_button: Button
@@ -54,14 +55,27 @@ var damage_flash_tween: Tween
 @onready var stage_banner: Label = $StageBanner
 @onready var damage_flash: ColorRect = $DamageFlash
 @onready var upgrade_overlay: Control = $UpgradeOverlay
+@onready var upgrade_panel: PanelContainer = $UpgradeOverlay/Panel
+@onready var upgrade_margin: MarginContainer = $UpgradeOverlay/Panel/Margin
+@onready var upgrade_vbox: VBoxContainer = $UpgradeOverlay/Panel/Margin/VBox
 @onready var upgrade_title: Label = $UpgradeOverlay/Panel/Margin/VBox/Title
 @onready var upgrade_hint: Label = $UpgradeOverlay/Panel/Margin/VBox/Hint
+@onready var upgrade_scroll: ScrollContainer = $UpgradeOverlay/Panel/Margin/VBox/CardsScroll
+@onready var upgrade_cards: GridContainer = $UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards
 @onready var upgrade_buttons: Array[Button] = [
-	$UpgradeOverlay/Panel/Margin/VBox/Cards/Card1,
-	$UpgradeOverlay/Panel/Margin/VBox/Cards/Card2,
-	$UpgradeOverlay/Panel/Margin/VBox/Cards/Card3
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card1,
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card2,
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card3
 ]
 @onready var pause_overlay: Control = $PauseOverlay
+@onready var pause_panel: PanelContainer = $PauseOverlay/Panel
+@onready var pause_vbox: VBoxContainer = $PauseOverlay/Panel/VBox
+@onready var pause_title: Label = $PauseOverlay/Panel/VBox/Title
+@onready var pause_buttons: Array[Button] = [
+	$PauseOverlay/Panel/VBox/Resume,
+	$PauseOverlay/Panel/VBox/Restart,
+	$PauseOverlay/Panel/VBox/Menu
+]
 @onready var end_overlay: Control = $EndOverlay
 @onready var end_panel: PanelContainer = $EndOverlay/Panel
 @onready var end_margin: MarginContainer = $EndOverlay/Panel/Margin
@@ -88,10 +102,13 @@ func _ready() -> void:
 	_build_choice_actions()
 	relic_overlay.resized.connect(_update_relic_layout)
 	end_overlay.resized.connect(_update_end_layout)
+	upgrade_overlay.resized.connect(_update_responsive_hud_layout)
 	_update_relic_layout()
 	_update_end_layout()
+	_update_responsive_hud_layout()
 	_update_relic_layout.call_deferred()
 	_update_end_layout.call_deferred()
+	_update_responsive_hud_layout.call_deferred()
 
 
 func set_accessibility(new_flash_intensity: float) -> void:
@@ -122,16 +139,20 @@ func _build_navigation_ui() -> void:
 
 
 func _build_choice_actions() -> void:
-	choice_action_row = HBoxContainer.new()
+	choice_action_row = GridContainer.new()
 	choice_action_row.name = "ChoiceActions"
-	choice_action_row.add_theme_constant_override("separation", 12)
+	choice_action_row.columns = 3
+	choice_action_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	choice_action_row.add_theme_constant_override("h_separation", 12)
+	choice_action_row.add_theme_constant_override("v_separation", 8)
 	$UpgradeOverlay/Panel/Margin/VBox.add_child(choice_action_row)
 	reroll_button = Button.new()
 	banish_button = Button.new()
 	skip_button = Button.new()
 	for button in [reroll_button, banish_button, skip_button]:
-		button.custom_minimum_size = Vector2(205.0, 46.0)
+		button.custom_minimum_size = Vector2(0.0, 46.0)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		choice_action_row.add_child(button)
 	reroll_button.pressed.connect(func(): reroll_requested.emit())
 	banish_button.pressed.connect(_toggle_banish_mode)
@@ -260,23 +281,148 @@ func _build_boss_intro() -> void:
 	boss_intro.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(boss_intro)
 	var band := ColorRect.new()
-	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	band.color = Color(0.03, 0.005, 0.06, 0.86)
-	band.set_anchors_preset(Control.PRESET_CENTER)
-	band.position = Vector2(-580.0, -78.0)
-	band.size = Vector2(1160.0, 156.0)
-	boss_intro.add_child(band)
+	boss_intro_band = band
+	boss_intro_band.name = "Band"
+	boss_intro_band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	boss_intro_band.color = Color(0.03, 0.005, 0.06, 0.86)
+	boss_intro_band.set_anchors_preset(Control.PRESET_CENTER)
+	boss_intro.add_child(boss_intro_band)
 	boss_intro_label = Label.new()
+	boss_intro_label.name = "Label"
 	boss_intro_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	boss_intro_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	boss_intro_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	boss_intro_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	boss_intro_label.add_theme_font_size_override("font_size", 34)
+	boss_intro_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	boss_intro_label.add_theme_color_override("font_color", Color("f2c4ff"))
 	boss_intro_label.add_theme_color_override("font_outline_color", Color(0.04, 0.01, 0.07, 1.0))
-	boss_intro_label.add_theme_constant_override("outline_size", 7)
-	boss_intro.add_child(boss_intro_label)
+	boss_intro_band.add_child(boss_intro_label)
 	boss_intro.hide()
+
+
+func _update_responsive_hud_layout() -> void:
+	if not is_instance_valid(upgrade_overlay):
+		return
+	var viewport_size := upgrade_overlay.size
+	if viewport_size.x <= 1.0 or viewport_size.y <= 1.0:
+		return
+	_update_upgrade_layout(viewport_size)
+	_update_pause_layout(viewport_size)
+	_update_banner_layout(viewport_size)
+
+
+func _update_upgrade_layout(viewport_size: Vector2) -> void:
+	var horizontal_inset := clampf(viewport_size.x * 0.035, 12.0, 40.0)
+	var vertical_inset := clampf(viewport_size.y * 0.035, 8.0, 28.0)
+	var panel_size := Vector2(
+		minf(1120.0, maxf(1.0, viewport_size.x - horizontal_inset * 2.0)),
+		minf(600.0, maxf(1.0, viewport_size.y - vertical_inset * 2.0))
+	)
+	upgrade_panel.size = panel_size
+	upgrade_panel.position = (viewport_size - panel_size) * 0.5
+	var horizontal_margin := int(roundf(clampf(viewport_size.x * 0.032, 14.0, 36.0)))
+	var vertical_margin := int(roundf(clampf(viewport_size.y * 0.024, 7.0, 28.0)))
+	for side in ["margin_left", "margin_right"]:
+		upgrade_margin.add_theme_constant_override(side, horizontal_margin)
+	for side in ["margin_top", "margin_bottom"]:
+		upgrade_margin.add_theme_constant_override(side, vertical_margin)
+	var spacing := int(roundf(clampf(viewport_size.y * 0.015, 5.0, 16.0)))
+	upgrade_vbox.add_theme_constant_override("separation", spacing)
+	upgrade_cards.add_theme_constant_override("h_separation", spacing)
+	upgrade_cards.add_theme_constant_override("v_separation", spacing)
+	choice_action_row.add_theme_constant_override("h_separation", spacing)
+	choice_action_row.add_theme_constant_override("v_separation", spacing)
+	var content_width := maxf(1.0, panel_size.x - horizontal_margin * 2.0)
+	var column_count := 3 if content_width >= 880.0 else (2 if content_width >= 640.0 else 1)
+	upgrade_cards.columns = column_count
+	choice_action_row.columns = 3 if content_width >= 480.0 else 1
+	var card_height := roundf(clampf(viewport_size.y * 0.54, 220.0, 390.0))
+	var card_font_size := int(roundf(clampf(viewport_size.y * 0.025, 14.0, 18.0)))
+	var card_width := floorf(
+		maxf(1.0, content_width - 18.0 - spacing * float(column_count - 1)) / float(column_count)
+	)
+	for button in upgrade_buttons:
+		button.custom_minimum_size = Vector2(card_width, card_height)
+		button.add_theme_font_size_override("font_size", card_font_size)
+	upgrade_title.add_theme_font_size_override(
+		"font_size",
+		int(roundf(clampf(minf(viewport_size.x * 0.035, viewport_size.y * 0.045), 20.0, 30.0)))
+	)
+	upgrade_hint.add_theme_font_size_override(
+		"font_size",
+		int(roundf(clampf(viewport_size.y * 0.023, 12.0, 15.0)))
+	)
+	var action_height := roundf(clampf(viewport_size.y * 0.065, 40.0, 46.0))
+	var action_font_size := int(roundf(clampf(viewport_size.y * 0.024, 13.0, 16.0)))
+	for button in [reroll_button, banish_button, skip_button]:
+		button.custom_minimum_size = Vector2(0.0, action_height)
+		button.add_theme_font_size_override("font_size", action_font_size)
+	# A largura final dos cartões altera o mínimo combinado do painel.
+	# Reaplique o alvo depois que todos os mínimos responsivos estiverem atualizados.
+	upgrade_panel.size = panel_size
+	upgrade_panel.position = (viewport_size - panel_size) * 0.5
+
+
+func _update_pause_layout(viewport_size: Vector2) -> void:
+	var horizontal_inset := clampf(viewport_size.x * 0.04, 14.0, 36.0)
+	var vertical_inset := clampf(viewport_size.y * 0.035, 8.0, 26.0)
+	var panel_size := Vector2(
+		minf(480.0, maxf(1.0, viewport_size.x - horizontal_inset * 2.0)),
+		minf(450.0, maxf(1.0, viewport_size.y - vertical_inset * 2.0))
+	)
+	pause_panel.size = panel_size
+	pause_panel.position = (viewport_size - panel_size) * 0.5
+	pause_vbox.add_theme_constant_override(
+		"separation",
+		int(roundf(clampf(viewport_size.y * 0.028, 9.0, 18.0)))
+	)
+	pause_title.add_theme_font_size_override(
+		"font_size",
+		int(roundf(clampf(minf(viewport_size.x * 0.06, viewport_size.y * 0.053), 24.0, 38.0)))
+	)
+	var button_height := roundf(clampf(viewport_size.y * 0.078, 42.0, 58.0))
+	var button_font_size := int(roundf(clampf(viewport_size.y * 0.03, 16.0, 20.0)))
+	for button in pause_buttons:
+		button.custom_minimum_size = Vector2(0.0, button_height)
+		button.add_theme_font_size_override("font_size", button_font_size)
+
+
+func _update_banner_layout(viewport_size: Vector2) -> void:
+	var horizontal_inset := clampf(viewport_size.x * 0.03, 10.0, 36.0)
+	var stage_size := Vector2(
+		minf(1020.0, maxf(1.0, viewport_size.x - horizontal_inset * 2.0)),
+		roundf(clampf(viewport_size.y * 0.09, 60.0, 72.0))
+	)
+	stage_banner.size = stage_size
+	stage_banner.position = Vector2((viewport_size.x - stage_size.x) * 0.5, viewport_size.y * 0.25)
+	stage_banner.add_theme_font_size_override(
+		"font_size",
+		int(roundf(clampf(minf(viewport_size.x * 0.045, viewport_size.y * 0.049), 21.0, 35.0)))
+	)
+	var boss_width := minf(620.0, maxf(1.0, viewport_size.x - horizontal_inset * 2.0))
+	boss_panel.size.x = boss_width
+	boss_panel.position.x = (viewport_size.x - boss_width) * 0.5
+	boss_panel.position.y = 112.0
+	boss_label.add_theme_font_size_override(
+		"font_size",
+		int(roundf(clampf(viewport_size.y * 0.024, 14.0, 17.0)))
+	)
+	world_event_label.size.x = boss_width
+	world_event_label.position.x = (viewport_size.x - boss_width) * 0.5
+	var band_size := Vector2(
+		minf(1160.0, maxf(1.0, viewport_size.x - horizontal_inset * 2.0)),
+		roundf(clampf(viewport_size.y * 0.217, 96.0, 156.0))
+	)
+	boss_intro_band.size = band_size
+	boss_intro_band.position = (viewport_size - band_size) * 0.5
+	boss_intro_label.add_theme_font_size_override(
+		"font_size",
+		int(roundf(clampf(minf(viewport_size.x * 0.046, viewport_size.y * 0.047), 22.0, 34.0)))
+	)
+	boss_intro_label.add_theme_constant_override(
+		"outline_size",
+		int(roundf(clampf(viewport_size.y * 0.01, 4.0, 7.0)))
+	)
 
 
 func update_run(
@@ -376,7 +522,11 @@ func show_level_up(new_level: int, options: Array[Dictionary], rerolls := 0, ban
 	reroll_button.disabled = rerolls <= 0
 	banish_button.disabled = banishes <= 0
 	skip_button.disabled = skips <= 0
+	upgrade_scroll.scroll_vertical = 0
+	_update_responsive_hud_layout()
+	_update_responsive_hud_layout.call_deferred()
 	upgrade_buttons[0].grab_focus()
+	upgrade_scroll.set_deferred("scroll_vertical", 0)
 
 
 func hide_level_up() -> void:

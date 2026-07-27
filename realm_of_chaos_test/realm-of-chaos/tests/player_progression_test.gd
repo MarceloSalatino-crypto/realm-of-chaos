@@ -107,7 +107,8 @@ func _run() -> void:
 	var player = world.player
 
 	for method_name in [
-		&"collect_xp", &"get_upgrade_options", &"_evolution_hint_for",
+		&"collect_xp", &"get_upgrade_options", &"is_build_complete", &"refresh_build_complete",
+		&"_evolution_hint_for",
 		&"active_weapon_count", &"banish_upgrade", &"_roll_rarity",
 		&"get_upgrade_level", &"apply_upgrade", &"_upgrade_max",
 		&"_check_weapon_evolutions", &"apply_meta_bonuses",

@@ -119,15 +119,23 @@ func _run() -> void:
 		_check(scheduled_boss != null and scheduled_boss.boss and scheduled_boss.sprite.hframes == 4, "falha ao criar chefe agendado: " + str(boss_schedule[index].kind))
 		if scheduled_boss:
 			scheduled_boss.set_physics_process(false)
+			if index == 0:
+				scheduled_boss._begin_special("slam", 0.8)
+				_check(
+					scheduled_boss.pending_special == "slam"
+					and scheduled_boss.telegraph_time > 0.0
+					and scheduled_boss.sprite.frame <= 3,
+					"mini-chefe não sinalizou o ataque"
+				)
+			if index < boss_schedule.size() - 1:
+				scheduled_boss.take_damage(scheduled_boss.max_hp * 2.0, Vector2.ZERO, true)
+				await process_frame
 	_check(world.boss_spawn_log.size() == 5 and world.final_boss_spawned, "diretor não registrou os cinco confrontos")
 	var final_boss = world.active_boss
 	_check(final_boss.final_boss and final_boss.enemy_type == "chaos_sovereign", "chefe dos 25 minutos não foi marcado como final")
 	final_boss.hp = final_boss.max_hp * 0.30
 	final_boss._update_boss_phase()
 	_check(final_boss.boss_phase == 3, "chefe final não entrou na terceira fase")
-	var colossus = world.enemies.get_children().filter(func(candidate): return candidate.enemy_type == "ossuary_colossus")[0]
-	colossus._begin_special("slam", 0.8)
-	_check(colossus.pending_special == "slam" and colossus.telegraph_time > 0.0 and colossus.sprite.frame <= 3, "mini-chefe não sinalizou o ataque")
 
 	world.hud.show_end_screen(false, 742.0, 99, 12)
 	_check(world.hud.end_overlay.visible and world.hud.end_title.text == "GAME OVER", "tela de derrota não abriu")

@@ -2,6 +2,7 @@ extends RefCounted
 
 const GameDefs = preload("res://scripts/game_defs.gd")
 const RewardChestScript = preload("res://scripts/reward_chest.gd")
+const COMPLETE_BUILD_CHEST_CHANCE := 0.30
 
 var world
 
@@ -33,13 +34,17 @@ func update_hud() -> void:
 
 func handle_enemy_death(enemy: Node, xp_value: int, was_elite: bool, was_boss: bool) -> void:
 	world.enemies_killed += 1
+	var build_complete: bool = world.player.is_build_complete()
 	if was_boss:
 		world.essence_earned += 50 if enemy.final_boss else 18
 	elif was_elite:
 		world.essence_earned += 3
 	elif world.enemies_killed % 7 == 0:
 		world.essence_earned += 1
-	world._spawn_pickup(xp_value, enemy.global_position, "xp")
+	if build_complete:
+		world.player.collect_xp(xp_value)
+	else:
+		world._spawn_pickup(xp_value, enemy.global_position, "xp")
 	var death_color: Color = GameDefs.enemy_data(enemy.enemy_type).color
 	world.spawn_effect(enemy.global_position, death_color, enemy.hit_radius * 2.2, 0.32, true)
 	if (was_elite and randf() < 0.35) or (not was_elite and randf() < 0.018):
@@ -52,21 +57,36 @@ func handle_enemy_death(enemy: Node, xp_value: int, was_elite: bool, was_boss: b
 		if is_instance_valid(world.active_boss_arena):
 			world.active_boss_arena.finish()
 			world.active_boss_arena = null
-	for index in range(10 if enemy.final_boss else 7):
-		world._spawn_pickup(
-			18 if enemy.final_boss else 12,
-			enemy.global_position + Vector2.RIGHT.rotated(TAU * index / 10.0) * randf_range(28.0, 92.0),
-			"xp"
-		)
+	var extra_xp_count := 10 if enemy.final_boss else 7
+	var extra_xp_value := 18 if enemy.final_boss else 12
+	if build_complete:
+		world.player.collect_xp(extra_xp_count * extra_xp_value)
+	else:
+		for index in range(extra_xp_count):
+			world._spawn_pickup(
+				extra_xp_value,
+				enemy.global_position + Vector2.RIGHT.rotated(TAU * index / 10.0) * randf_range(28.0, 92.0),
+				"xp"
+			)
 	world.player.grant_boss_reward(enemy.final_boss)
 	shake_camera(12.0, 0.55)
 	if enemy.final_boss:
 		world.hud.show_stage_banner("SOBERANO DERROTADO · PRÓXIMA FASE DESBLOQUEADA")
 		world.call_deferred("_end_run", true)
 	else:
-		spawn_reward_chest(enemy.global_position, str(GameDefs.enemy_data(enemy.enemy_type).name))
-		world.hud.show_stage_banner("MINI-CHEFE BANIDO · O BAÚ DO RITUAL SURGIU")
+		if should_spawn_reward_chest(build_complete):
+			spawn_reward_chest(enemy.global_position, str(GameDefs.enemy_data(enemy.enemy_type).name))
+			world.hud.show_stage_banner("MINI-CHEFE BANIDO · O BAÚ DO RITUAL SURGIU")
+		else:
+			world.hud.show_stage_banner("MINI-CHEFE BANIDO · O RITUAL CONTINUA")
 		world.audio.set_music_stage(str(GameDefs.difficulty_data(world.time_survived).id))
+
+
+func should_spawn_reward_chest(build_complete: bool, chance_roll := -1.0) -> bool:
+	if not build_complete:
+		return true
+	var resolved_roll := randf() if chance_roll < 0.0 else chance_roll
+	return resolved_roll < COMPLETE_BUILD_CHEST_CHANCE
 
 
 func spawn_reward_chest(chest_position: Vector2, boss_name: String) -> Node:
@@ -281,9 +301,12 @@ func end_run(victory: bool) -> void:
 	var new_achievements: Array[String] = world._evaluate_achievements(victory)
 	world._save_record(victory)
 	var next_biome := str(GameDefs.biome_data(world.run_cycle + 1).name) if victory else str(world.biome.name)
+	var final_stats := run_stats_text()
+	if world.persistence.write_failed:
+		final_stats += "\n\nAVISO · NÃO FOI POSSÍVEL SALVAR O PROGRESSO.\nSeu save anterior e o backup foram mantidos."
 	world.hud.show_end_screen(
 		victory, world.time_survived, world.enemies_killed, world.player.level,
-		world.essence_earned, next_biome, run_stats_text(), new_achievements
+		world.essence_earned, next_biome, final_stats, new_achievements
 	)
 
 

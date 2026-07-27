@@ -172,11 +172,12 @@ func update_boss_phase() -> void:
 		return
 	var ratio: float = enemy.hp / enemy.max_hp
 	var new_phase := 3 if ratio <= 0.34 else (2 if ratio <= 0.67 else 1)
-	if new_phase == enemy.boss_phase:
+	if new_phase <= enemy.boss_phase:
 		return
+	for _crossed_phase in range(enemy.boss_phase + 1, new_phase + 1):
+		enemy.move_speed *= 1.13
+		enemy.contact_damage *= 1.08
 	enemy.boss_phase = new_phase
-	enemy.move_speed *= 1.13
-	enemy.contact_damage *= 1.08
 	enemy.special_cooldown = 0.35
 	if enemy.world:
 		enemy.world.on_boss_phase_changed(enemy, enemy.boss_phase)

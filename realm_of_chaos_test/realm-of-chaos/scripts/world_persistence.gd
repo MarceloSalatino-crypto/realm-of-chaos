@@ -1,9 +1,14 @@
 extends RefCounted
 
 const GameDefs = preload("res://scripts/game_defs.gd")
+const SaveStoreScript = preload("res://scripts/save_store.gd")
 
 var world
 var save_path: String
+var load_status := SaveStoreScript.STATUS_OK
+var load_warning := ""
+var write_failed := false
+var last_write_error := OK
 
 
 func _init(owner_world, persistence_path: String) -> void:
@@ -27,8 +32,7 @@ func evaluate_achievements(victory: bool) -> Array[String]:
 		earned_ids.append("untouchable")
 	if world.shrines_activated >= 4:
 		earned_ids.append("cartographer")
-	var config := ConfigFile.new()
-	config.load(save_path)
+	var config := _load_config()
 	var newly_unlocked: Array[String] = []
 	for definition in GameDefs.achievements():
 		var achievement_id := str(definition.id)
@@ -36,16 +40,15 @@ func evaluate_achievements(victory: bool) -> Array[String]:
 			continue
 		newly_unlocked.append(str(definition.title))
 		config.set_value("achievements", achievement_id, true)
-	if not world.suppress_save:
-		config.save(save_path)
+	if not world.suppress_save and not newly_unlocked.is_empty():
+		_save_config(config)
 	return newly_unlocked
 
 
 func save_record(victory: bool) -> void:
 	if world.suppress_save:
 		return
-	var config := ConfigFile.new()
-	config.load(save_path)
+	var config := _load_config()
 	var best_time := float(config.get_value("record", "best_time", 0.0))
 	var best_kills := int(config.get_value("record", "best_kills", 0))
 	config.set_value("record", "best_time", maxf(best_time, world.time_survived))
@@ -55,12 +58,11 @@ func save_record(victory: bool) -> void:
 	if victory:
 		config.set_value("progress", "active_cycle", world.run_cycle + 1)
 		config.set_value("progress", "highest_cycle", maxi(world.run_cycle + 1, int(config.get_value("progress", "highest_cycle", 0))))
-	config.save(save_path)
+	_save_config(config)
 
 
 func load_progression() -> void:
-	var config := ConfigFile.new()
-	config.load(save_path)
+	var config := _load_config()
 	world.run_cycle = int(config.get_value("progress", "active_cycle", 0))
 	world.biome = GameDefs.biome_data(world.run_cycle)
 	var meta := {
@@ -76,3 +78,22 @@ func load_progression() -> void:
 		world.accessibility_settings[setting_id] = config.get_value("settings", setting_id, world.accessibility_settings[setting_id])
 	world.audio.set_levels(float(world.accessibility_settings.music), float(world.accessibility_settings.sfx))
 	world.hud.set_accessibility(float(world.accessibility_settings.flash))
+
+
+func _load_config() -> ConfigFile:
+	var result := SaveStoreScript.load_config(save_path, not world.suppress_save)
+	var status := str(result.status)
+	if status in [SaveStoreScript.STATUS_RECOVERED, SaveStoreScript.STATUS_FAILED]:
+		load_status = status
+		load_warning = str(result.message)
+		push_warning(load_warning)
+	return result.config
+
+
+func _save_config(config: ConfigFile) -> Error:
+	var save_error := SaveStoreScript.save_config(config, save_path)
+	if save_error != OK:
+		write_failed = true
+		last_write_error = save_error
+		push_warning("Não foi possível salvar o progresso (erro %d)." % save_error)
+	return save_error

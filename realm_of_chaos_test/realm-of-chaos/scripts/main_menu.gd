@@ -1,6 +1,7 @@
 extends Control
 
 const GameDefs = preload("res://scripts/game_defs.gd")
+const SaveStoreScript = preload("res://scripts/save_store.gd")
 const SAVE_PATH := "user://realm_of_chaos.cfg"
 
 var animation_time := 0.0
@@ -8,6 +9,10 @@ var popup: Control
 var hero_base_y := 0.0
 var profile_button: Button
 var transitioning := false
+var save_path := SAVE_PATH
+var save_load_status := SaveStoreScript.STATUS_MISSING
+var save_load_notice_shown := false
+var last_save_error := OK
 
 @onready var hero: TextureRect = $Hero
 @onready var play_button: Button = $Menu/Play
@@ -68,8 +73,8 @@ func _on_play() -> void:
 
 
 func _load_records() -> void:
-	var config := ConfigFile.new()
-	if config.load(SAVE_PATH) != OK:
+	var config := _load_save_config(true)
+	if save_load_status in [SaveStoreScript.STATUS_MISSING, SaveStoreScript.STATUS_FAILED]:
 		records_label.text = "SEU PRIMEIRO RITUAL AGUARDA"
 		return
 	var best_time := float(config.get_value("record", "best_time", 0.0))
@@ -86,6 +91,37 @@ func _load_records() -> void:
 	records_label.text = "%s · %d ESSÊNCIAS\nRECORDE %02d:%02d · %d BANIDOS · %d VITÓRIAS" % [
 		str(GameDefs.biome_data(cycle).name), essence, int(best_time) / 60, int(best_time) % 60, best_kills, victories
 	]
+
+
+func _load_save_config(notify := true) -> ConfigFile:
+	var result := SaveStoreScript.load_config(save_path)
+	save_load_status = str(result.status)
+	if (
+		notify
+		and not save_load_notice_shown
+		and save_load_status in [SaveStoreScript.STATUS_RECOVERED, SaveStoreScript.STATUS_FAILED]
+	):
+		save_load_notice_shown = true
+		var title := "PROGRESSO RECUPERADO" if save_load_status == SaveStoreScript.STATUS_RECOVERED else "AVISO DE PROGRESSO"
+		call_deferred("_show_save_notice", title, str(result.message))
+	return result.config
+
+
+func _save_config_safely(config: ConfigFile) -> bool:
+	last_save_error = SaveStoreScript.save_config(config, save_path)
+	if last_save_error == OK:
+		return true
+	push_warning("Não foi possível salvar o progresso pelo menu (erro %d)." % last_save_error)
+	_show_save_notice(
+		"FALHA AO SALVAR",
+		"Não foi possível salvar suas alterações.\nSeu progresso anterior e o backup foram mantidos."
+	)
+	return false
+
+
+func _show_save_notice(title: String, message: String) -> void:
+	if is_inside_tree():
+		_show_popup(title, message)
 
 
 func _show_instructions() -> void:
@@ -107,9 +143,8 @@ func _show_meta_progression() -> void:
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	popup.add_child(shade)
 	var panel := PanelContainer.new()
+	panel.name = "MetaPanel"
 	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.position = Vector2(-440, -305)
-	panel.size = Vector2(880, 610)
 	popup.add_child(panel)
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = Color("171126")
@@ -118,49 +153,105 @@ func _show_meta_progression() -> void:
 	panel_style.set_corner_radius_all(14)
 	panel.add_theme_stylebox_override("panel", panel_style)
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 44)
-	margin.add_theme_constant_override("margin_right", 44)
-	margin.add_theme_constant_override("margin_top", 30)
-	margin.add_theme_constant_override("margin_bottom", 30)
+	margin.name = "Margin"
 	panel.add_child(margin)
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 12)
+	box.name = "VBox"
 	margin.add_child(box)
-	var config := ConfigFile.new()
-	config.load(SAVE_PATH)
+	var config := _load_save_config()
 	var essence := int(config.get_value("meta", "essence", 0))
 	var heading := Label.new()
+	heading.name = "Title"
 	heading.text = "LEGADO DO CAÇADOR"
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	heading.add_theme_font_size_override("font_size", 32)
+	heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	heading.add_theme_color_override("font_color", Color("ffd36b"))
 	box.add_child(heading)
 	var balance := Label.new()
+	balance.name = "Balance"
 	balance.text = "ESSÊNCIA DISPONÍVEL  %d" % essence
 	balance.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	balance.add_theme_font_size_override("font_size", 18)
+	balance.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	balance.add_theme_color_override("font_color", Color("c89aff"))
 	box.add_child(balance)
+	var meta_scroll := ScrollContainer.new()
+	meta_scroll.name = "UpgradeScroll"
+	meta_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	meta_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	meta_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	meta_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	meta_scroll.focus_mode = Control.FOCUS_ALL
+	meta_scroll.follow_focus = true
+	meta_scroll.scroll_vertical_custom_step = 34.0
+	box.add_child(meta_scroll)
+	var upgrade_box := VBoxContainer.new()
+	upgrade_box.name = "Upgrades"
+	upgrade_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	meta_scroll.add_child(upgrade_box)
+	var upgrade_buttons: Array[Button] = []
 	for definition in GameDefs.meta_upgrades():
 		var level := int(config.get_value("meta", str(definition.id), 0))
 		var cost := GameDefs.meta_cost(definition, level)
 		var button := Button.new()
-		button.custom_minimum_size.y = 74.0
+		button.name = "Upgrade_%s" % str(definition.id)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		button.text = "%s  ·  NÍVEL %d/%d\n%s  ·  CUSTO %d" % [definition.title, level, definition.max, definition.description, cost]
 		button.disabled = level >= int(definition.max) or essence < cost
 		button.pressed.connect(_buy_meta_upgrade.bind(str(definition.id)))
-		box.add_child(button)
+		upgrade_box.add_child(button)
+		upgrade_buttons.append(button)
 	var close := Button.new()
+	close.name = "Close"
 	close.text = "VOLTAR"
-	close.custom_minimum_size.y = 48
 	close.pressed.connect(func(): popup.queue_free())
 	box.add_child(close)
+	var meta_popup := popup
+	var update_meta_layout := func() -> void:
+		if not is_instance_valid(meta_popup) or not is_instance_valid(panel):
+			return
+		var viewport_size := meta_popup.size
+		if viewport_size.x <= 1.0 or viewport_size.y <= 1.0:
+			return
+		var horizontal_inset := clampf(viewport_size.x * 0.035, 12.0, 40.0)
+		var vertical_inset := clampf(viewport_size.y * 0.035, 8.0, 28.0)
+		var panel_size := Vector2(
+			minf(880.0, maxf(1.0, viewport_size.x - horizontal_inset * 2.0)),
+			minf(610.0, maxf(1.0, viewport_size.y - vertical_inset * 2.0))
+		)
+		panel.size = panel_size
+		panel.position = (viewport_size - panel_size) * 0.5
+		var horizontal_margin := int(roundf(clampf(viewport_size.x * 0.04, 14.0, 44.0)))
+		var vertical_margin := int(roundf(clampf(viewport_size.y * 0.025, 8.0, 30.0)))
+		for side in ["margin_left", "margin_right"]:
+			margin.add_theme_constant_override(side, horizontal_margin)
+		for side in ["margin_top", "margin_bottom"]:
+			margin.add_theme_constant_override(side, vertical_margin)
+		var spacing := int(roundf(clampf(viewport_size.y * 0.018, 6.0, 12.0)))
+		box.add_theme_constant_override("separation", spacing)
+		upgrade_box.add_theme_constant_override("separation", spacing)
+		heading.add_theme_font_size_override(
+			"font_size",
+			int(roundf(clampf(minf(viewport_size.x * 0.052, viewport_size.y * 0.05), 22.0, 32.0)))
+		)
+		balance.add_theme_font_size_override(
+			"font_size",
+			int(roundf(clampf(viewport_size.y * 0.027, 14.0, 18.0)))
+		)
+		var upgrade_height := roundf(clampf(viewport_size.y * 0.105, 54.0, 74.0))
+		var upgrade_font_size := int(roundf(clampf(viewport_size.y * 0.024, 13.0, 16.0)))
+		for button in upgrade_buttons:
+			button.custom_minimum_size = Vector2(0.0, upgrade_height)
+			button.add_theme_font_size_override("font_size", upgrade_font_size)
+		close.custom_minimum_size = Vector2(0.0, roundf(clampf(viewport_size.y * 0.07, 40.0, 48.0)))
+	meta_popup.resized.connect(update_meta_layout)
+	update_meta_layout.call()
+	update_meta_layout.call_deferred()
 	close.grab_focus()
 
 
 func _buy_meta_upgrade(upgrade_id: String) -> void:
-	var config := ConfigFile.new()
-	config.load(SAVE_PATH)
+	var config := _load_save_config()
 	var essence := int(config.get_value("meta", "essence", 0))
 	for definition in GameDefs.meta_upgrades():
 		if str(definition.id) != upgrade_id:
@@ -171,7 +262,8 @@ func _buy_meta_upgrade(upgrade_id: String) -> void:
 			return
 		config.set_value("meta", "essence", essence - cost)
 		config.set_value("meta", upgrade_id, level + 1)
-		config.save(SAVE_PATH)
+		if not _save_config_safely(config):
+			return
 		_load_records()
 		_show_meta_progression()
 		return
@@ -225,8 +317,7 @@ func _show_profile() -> void:
 	content_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content_box.add_theme_constant_override("separation", 10)
 	profile_scroll.add_child(content_box)
-	var config := ConfigFile.new()
-	config.load(SAVE_PATH)
+	var config := _load_save_config()
 	var selected := str(config.get_value("profile", "character", "eclipse_hunter"))
 	var character_heading := Label.new()
 	character_heading.text = "CAÇADOR ATIVO · escolha seu estilo"
@@ -333,33 +424,33 @@ func _show_profile() -> void:
 
 
 func _select_character(character_id: String) -> void:
-	var config := ConfigFile.new()
-	config.load(SAVE_PATH)
+	var config := _load_save_config()
 	config.set_value("profile", "version", 2)
 	config.set_value("profile", "character", character_id)
-	config.save(SAVE_PATH)
+	if not _save_config_safely(config):
+		return
 	hero.modulate = GameDefs.character_data(character_id).color
 	_show_profile()
 
 
 func _cycle_setting(setting_id: String) -> void:
-	var config := ConfigFile.new()
-	config.load(SAVE_PATH)
+	var config := _load_save_config()
 	var current := float(config.get_value("settings", setting_id, GameDefs.default_settings()[setting_id]))
 	var next := snappedf(current + 0.25, 0.25)
 	if next > 1.0:
 		next = 0.0
 	config.set_value("settings", setting_id, next)
-	config.save(SAVE_PATH)
+	if not _save_config_safely(config):
+		return
 	_show_profile()
 
 
 func _toggle_fullscreen() -> void:
-	var config := ConfigFile.new()
-	config.load(SAVE_PATH)
+	var config := _load_save_config()
 	var fullscreen := not bool(config.get_value("settings", "fullscreen", false))
 	config.set_value("settings", "fullscreen", fullscreen)
-	config.save(SAVE_PATH)
+	if not _save_config_safely(config):
+		return
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen else DisplayServer.WINDOW_MODE_WINDOWED)
 	_show_profile()
 
@@ -383,9 +474,8 @@ func _show_popup(title: String, content: String) -> void:
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	popup.add_child(shade)
 	var panel := PanelContainer.new()
+	panel.name = "PopupPanel"
 	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.position = Vector2(-390, -250)
-	panel.size = Vector2(780, 500)
 	popup.add_child(panel)
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = Color("171126")
@@ -394,21 +484,20 @@ func _show_popup(title: String, content: String) -> void:
 	panel_style.set_corner_radius_all(14)
 	panel.add_theme_stylebox_override("panel", panel_style)
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 46)
-	margin.add_theme_constant_override("margin_right", 46)
-	margin.add_theme_constant_override("margin_top", 38)
-	margin.add_theme_constant_override("margin_bottom", 38)
+	margin.name = "Margin"
 	panel.add_child(margin)
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 24)
+	box.name = "VBox"
 	margin.add_child(box)
 	var heading := Label.new()
+	heading.name = "Title"
 	heading.text = title
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	heading.add_theme_font_size_override("font_size", 34)
+	heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	heading.add_theme_color_override("font_color", Color("ffd36b"))
 	box.add_child(heading)
 	var body_scroll := ScrollContainer.new()
+	body_scroll.name = "BodyScroll"
 	body_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	body_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	body_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -417,18 +506,55 @@ func _show_popup(title: String, content: String) -> void:
 	body_scroll.scroll_vertical_custom_step = 32.0
 	box.add_child(body_scroll)
 	var body := Label.new()
+	body.name = "Body"
 	body.text = content
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_theme_font_size_override("font_size", 19)
 	body.add_theme_color_override("font_color", Color("ddd4ec"))
 	body_scroll.add_child(body)
 	var close := Button.new()
+	close.name = "Close"
 	close.text = "FECHAR"
-	close.custom_minimum_size.y = 48
 	close.pressed.connect(func(): popup.queue_free())
 	box.add_child(close)
+	var content_popup := popup
+	var update_popup_layout := func() -> void:
+		if not is_instance_valid(content_popup) or not is_instance_valid(panel):
+			return
+		var viewport_size := content_popup.size
+		if viewport_size.x <= 1.0 or viewport_size.y <= 1.0:
+			return
+		var horizontal_inset := clampf(viewport_size.x * 0.035, 12.0, 38.0)
+		var vertical_inset := clampf(viewport_size.y * 0.035, 8.0, 26.0)
+		var panel_size := Vector2(
+			minf(780.0, maxf(1.0, viewport_size.x - horizontal_inset * 2.0)),
+			minf(500.0, maxf(1.0, viewport_size.y - vertical_inset * 2.0))
+		)
+		panel.size = panel_size
+		panel.position = (viewport_size - panel_size) * 0.5
+		var horizontal_margin := int(roundf(clampf(viewport_size.x * 0.045, 18.0, 46.0)))
+		var vertical_margin := int(roundf(clampf(viewport_size.y * 0.035, 10.0, 38.0)))
+		for side in ["margin_left", "margin_right"]:
+			margin.add_theme_constant_override(side, horizontal_margin)
+		for side in ["margin_top", "margin_bottom"]:
+			margin.add_theme_constant_override(side, vertical_margin)
+		box.add_theme_constant_override(
+			"separation",
+			int(roundf(clampf(viewport_size.y * 0.025, 8.0, 24.0)))
+		)
+		heading.add_theme_font_size_override(
+			"font_size",
+			int(roundf(clampf(minf(viewport_size.x * 0.055, viewport_size.y * 0.052), 22.0, 34.0)))
+		)
+		body.add_theme_font_size_override(
+			"font_size",
+			int(roundf(clampf(viewport_size.y * 0.029, 14.0, 19.0)))
+		)
+		close.custom_minimum_size = Vector2(0.0, roundf(clampf(viewport_size.y * 0.07, 40.0, 48.0)))
+	content_popup.resized.connect(update_popup_layout)
+	update_popup_layout.call()
+	update_popup_layout.call_deferred()
 	close.grab_focus()

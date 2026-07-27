@@ -3,6 +3,7 @@ extends RefCounted
 const GameDefs = preload("res://scripts/game_defs.gd")
 
 var player
+var build_complete := false
 
 
 func _init(owner_player) -> void:
@@ -21,18 +22,18 @@ func collect_xp(amount: int) -> void:
 func get_upgrade_options(count: int, excluded_ids: Array[String] = []) -> Array[Dictionary]:
 	var pool: Array[Dictionary] = []
 	var fallback_pool: Array[Dictionary] = []
+	var any_available := false
 	for definition in GameDefs.upgrades():
 		var upgrade_id := str(definition.id)
-		if player.banished_upgrades.has(upgrade_id):
+		if not upgrade_is_available(definition):
 			continue
-		if player.weapon_levels.has(upgrade_id) and int(player.weapon_levels[upgrade_id]) <= 0 and active_weapon_count() >= player.MAX_WEAPONS:
-			continue
-		if get_upgrade_level(definition.id) < int(definition.max):
-			var candidate := definition.duplicate()
-			if upgrade_id in excluded_ids:
-				fallback_pool.append(candidate)
-			else:
-				pool.append(candidate)
+		any_available = true
+		var candidate := definition.duplicate()
+		if upgrade_id in excluded_ids:
+			fallback_pool.append(candidate)
+		else:
+			pool.append(candidate)
+	build_complete = not any_available
 	if pool.size() < count:
 		fallback_pool.shuffle()
 		pool.append_array(fallback_pool.slice(0, count - pool.size()))
@@ -79,8 +80,38 @@ func active_weapon_count() -> int:
 	return count
 
 
+func is_build_complete() -> bool:
+	return build_complete
+
+
+func refresh_build_complete() -> bool:
+	build_complete = not has_available_upgrades()
+	return build_complete
+
+
+func has_available_upgrades() -> bool:
+	for definition in GameDefs.upgrades():
+		if upgrade_is_available(definition):
+			return true
+	return false
+
+
+func upgrade_is_available(definition: Dictionary) -> bool:
+	var upgrade_id := str(definition.id)
+	if player.banished_upgrades.has(upgrade_id):
+		return false
+	if (
+		player.weapon_levels.has(upgrade_id)
+		and int(player.weapon_levels[upgrade_id]) <= 0
+		and active_weapon_count() >= player.MAX_WEAPONS
+	):
+		return false
+	return get_upgrade_level(upgrade_id) < int(definition.max)
+
+
 func banish_upgrade(upgrade_id: String) -> void:
 	player.banished_upgrades[upgrade_id] = true
+	refresh_build_complete()
 
 
 func roll_rarity() -> String:
@@ -105,6 +136,7 @@ func apply_upgrade(upgrade_id: String, rarity := "COMUM") -> void:
 			return
 		player.weapon_levels[upgrade_id] = mini(upgrade_max(upgrade_id), int(player.weapon_levels[upgrade_id]) + bonus)
 		check_weapon_evolutions()
+		refresh_build_complete()
 		return
 	var previous_level := int(player.passive_levels.get(upgrade_id, 0))
 	var new_level := mini(upgrade_max(upgrade_id), previous_level + bonus)
@@ -133,6 +165,7 @@ func apply_upgrade(upgrade_id: String, rarity := "COMUM") -> void:
 		"critical":
 			player.crit_chance += 0.11 if rare_upgrade else 0.07 * applied_levels
 	check_weapon_evolutions()
+	refresh_build_complete()
 
 
 func upgrade_max(upgrade_id: String) -> int:

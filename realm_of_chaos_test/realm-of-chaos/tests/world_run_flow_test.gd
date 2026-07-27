@@ -235,9 +235,11 @@ func _run() -> void:
 	defeat_world.enemies_killed = 44
 	defeat_world.essence_earned = 13
 	defeat_world.damage_by_source = {"chaos_bolt": 250.0}
+	defeat_world.persistence.write_failed = true
 	defeat_world._end_run(false)
 	_check(defeat_world.game_ended and paused and defeat_world.hud.end_overlay.visible, "derrota não encerrou e pausou a partida")
 	_check(defeat_world.hud.end_title.text == "GAME OVER" and "03:04" in defeat_world.hud.end_summary.text, "tela de derrota mudou")
+	_check("NÃO FOI POSSÍVEL SALVAR O PROGRESSO" in defeat_world.hud.end_summary.text, "falha de escrita não apareceu no resumo final")
 	defeat_world._end_run(true)
 	_check(defeat_world.hud.end_title.text == "GAME OVER", "segunda finalização sobrescreveu o resultado")
 	paused = false
@@ -249,6 +251,7 @@ func _run() -> void:
 	victory_world._end_run(true)
 	_check(victory_world.game_ended and paused and victory_world.hud.end_title.text == "VITÓRIA!", "vitória não encerrou corretamente")
 	_check(victory_world.hud.end_restart_button.text == "PRÓXIMA FASE", "ação da vitória mudou")
+	_check("NÃO FOI POSSÍVEL SALVAR O PROGRESSO" not in victory_world.hud.end_summary.text, "resumo normal exibiu aviso de save indevido")
 	paused = false
 	victory_world.queue_free()
 	await process_frame

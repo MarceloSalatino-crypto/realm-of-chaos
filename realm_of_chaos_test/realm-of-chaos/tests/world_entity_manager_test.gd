@@ -26,6 +26,22 @@ func _clear_children(parent: Node) -> void:
 		child.queue_free()
 
 
+func _pickup_count(parent: Node, kind: String) -> int:
+	var count := 0
+	for pickup in parent.get_children():
+		if str(pickup.get("pickup_kind")) == kind:
+			count += 1
+	return count
+
+
+func _pickup_value(parent: Node, kind: String) -> int:
+	var total := 0
+	for pickup in parent.get_children():
+		if str(pickup.get("pickup_kind")) == kind:
+			total += int(pickup.get("value"))
+	return total
+
+
 func _run() -> void:
 	var world = WORLD_SCENE.instantiate()
 	root.add_child(world)
@@ -200,9 +216,35 @@ func _run() -> void:
 	_check(world.pickups.get_child_count() == world.MAX_PICKUPS, "pickup excedente nao foi fundido no teto")
 	_check(merged_pickup == merge_target and merge_target.value == 65, "fusao perdeu XP ou escolheu alvo incorreto")
 	_check(merge_target.attracted and world.pickup_merge_cursor == 118, "fusao nao atualizou atracao ou cursor")
-	var health_pickup = world._spawn_pickup(20, Vector2(2300.0, 2300.0), "heal")
-	_check(world.pickups.get_child_count() == world.MAX_PICKUPS + 1, "pickup de vida foi fundido como XP")
+	var xp_before_health := _pickup_value(world.pickups, "xp")
+	var health_pickup = world._spawn_pickup(24, Vector2(2300.0, 2300.0), "heal")
+	_check(world.pickups.get_child_count() == world.MAX_PICKUPS, "cura ultrapassou o teto global preenchido por XP")
+	_check(_pickup_count(world.pickups, "heal") == 1, "cura nao ocupou a vaga liberada pela consolidacao de XP")
+	_check(_pickup_value(world.pickups, "xp") == xp_before_health, "consolidacao para cura perdeu XP")
 	_check(health_pickup.pickup_kind == "heal" and health_pickup.has_node("VisibleOnScreenNotifier2D"), "pickup de vida perdeu tipo ou notifier")
+
+	_clear_children(world.pickups)
+	var oldest_common_heal = world._spawn_pickup(24, Vector2(2400.0, 2400.0), "heal")
+	var second_common_heal = world._spawn_pickup(24, Vector2(2410.0, 2400.0), "heal")
+	while world.pickups.get_child_count() < world.MAX_PICKUPS:
+		world._spawn_pickup(60, Vector2(2420.0, 2400.0), "heal")
+	var discarded_common_heal = world._spawn_pickup(20, Vector2(2430.0, 2400.0), "heal")
+	_check(discarded_common_heal == null, "cura nova substituiu uma cura mais valiosa")
+	_check(world.pickups.get_child_count() == world.MAX_PICKUPS, "cura descartada alterou o teto global")
+	var boss_heal = world._spawn_pickup(60, Vector2(2440.0, 2400.0), "heal")
+	_check(world.pickups.get_child_count() == world.MAX_PICKUPS, "cura de boss ultrapassou o teto global")
+	_check(boss_heal != null and boss_heal.get_parent() == world.pickups, "cura de boss nao substituiu cura comum")
+	_check(oldest_common_heal.get_parent() == null and oldest_common_heal.is_queued_for_deletion(), "cura menos valiosa e mais antiga nao foi substituida")
+	_check(second_common_heal.get_parent() == world.pickups, "desempate de antiguidade removeu a cura comum errada")
+
+	var third_common_heal = world.pickups.get_child(1)
+	third_common_heal.value = 24
+	var xp_from_full_heals = world._spawn_pickup(7, Vector2(2450.0, 2400.0), "xp")
+	_check(world.pickups.get_child_count() == world.MAX_PICKUPS, "XP ultrapassou o teto preenchido apenas por curas")
+	_check(xp_from_full_heals != null and xp_from_full_heals.pickup_kind == "xp" and xp_from_full_heals.value == 7, "XP foi descartado no teto de curas")
+	_check(second_common_heal.get_parent() == null and second_common_heal.is_queued_for_deletion(), "XP nao substituiu a cura menos valiosa e mais antiga")
+	_check(third_common_heal.get_parent() == world.pickups, "desempate de antiguidade do XP removeu a cura errada")
+	_check(_pickup_count(world.pickups, "xp") == 1 and _pickup_count(world.pickups, "heal") == world.MAX_PICKUPS - 1, "composicao do teto global ficou incorreta")
 
 	paused = false
 	world.queue_free()

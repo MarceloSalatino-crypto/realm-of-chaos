@@ -58,6 +58,8 @@ func _run() -> void:
 		&"_end_world_event"
 	]:
 		_check(world.has_method(method_name), "API publica ausente: %s" % method_name)
+	_check(world.director.has_method("has_live_active_boss"), "diretor perdeu consulta de boss ativo")
+	_check(world.director.has_method("has_pending_boss_spawn"), "diretor perdeu consulta da fila de boss")
 
 	var fingerprint := _pick_fingerprint(world)
 	print("DIRECTOR PICK FINGERPRINT: " + fingerprint)
@@ -73,7 +75,7 @@ func _run() -> void:
 	world._update_boss_schedule()
 	world._update_stage()
 	world.set_process(false)
-	_check(world.boss_index == 1, "agenda nao avancou o indice do primeiro chefe")
+	_check(world.boss_index == 0, "agenda avançou antes de o primeiro chefe ser criado")
 	_check(world.boss_spawn_log.is_empty(), "chefe foi criado no mesmo frame em vez de entrar na fila")
 	_check(world.director_spawn_queue.size() == 5, "boss e quatro elites nao foram escalonados")
 	_check(
@@ -84,7 +86,10 @@ func _run() -> void:
 	world._process_director_spawn_queue()
 	_check(world.director_spawn_queue.size() == 4, "primeiro frame consumiu mais de um trabalho")
 	_check(world.enemies.get_child_count() == enemies_before_staged + 1, "primeiro frame nao criou somente o chefe")
+	_check(world.boss_index == 1, "agenda não avançou após criar o primeiro chefe")
 	_check(world.boss_spawn_log == ["ossuary_colossus"], "chefe escalonado incorreto")
+	var first_boss = world.active_boss
+	var first_arena = world.active_boss_arena
 	for expected_remaining in [3, 2, 1, 0]:
 		var count_before: int = world.enemies.get_child_count()
 		world._process_director_spawn_queue()
@@ -92,12 +97,79 @@ func _run() -> void:
 		_check(world.enemies.get_child_count() == count_before + 1, "frame de escolta criou quantidade incorreta de elites")
 
 	world.time_survived = 600.0
-	world.boss_index = 1
 	var boss_count_before: int = world.boss_spawn_log.size()
+	for _repeat in range(3):
+		world._update_boss_schedule()
+	_check(world.director_spawn_queue.is_empty(), "boss ativo permitiu enfileirar o próximo")
+	_check(world.boss_index == 1 and world.boss_spawn_log.size() == boss_count_before, "boss ativo avançou o cronograma")
+	_check(world.active_boss == first_boss and world.active_boss_arena == first_arena, "boss ativo ou arena foram substituídos")
+
+	first_boss.set_physics_process(false)
+	first_boss.take_damage(first_boss.max_hp * 2.0, Vector2.ZERO, true)
+	await process_frame
+	_check(not world.director.has_live_active_boss(), "morte do primeiro boss continuou bloqueando o cronograma")
 	world._update_boss_schedule()
 	_check(world.director_spawn_queue.is_empty(), "modo sem processamento enfileirou chefe em vez de criar imediatamente")
-	_check(world.boss_index == 2 and world.boss_spawn_log.size() == boss_count_before + 1, "fallback imediato nao criou o segundo chefe")
+	_check(world.boss_index == 2 and world.boss_spawn_log.size() == boss_count_before + 1, "morte não liberou o segundo chefe atrasado")
 	_check(world.boss_spawn_log[-1] == "glacial_archon", "segundo chefe agendado incorreto")
+
+	var second_boss = world.active_boss
+	world.time_survived = 1200.0
+	for _repeat in range(3):
+		world._update_boss_schedule()
+	_check(world.boss_index == 2 and world.director_spawn_queue.is_empty(), "salto de horário ignorou o boss ainda vivo")
+	second_boss.set_physics_process(false)
+	second_boss.take_damage(second_boss.max_hp * 2.0, Vector2.ZERO, true)
+	await process_frame
+	world.set_process(true)
+	world._update_boss_schedule()
+	world._update_boss_schedule()
+	world._update_boss_schedule()
+	world.set_process(false)
+	_check(world.boss_index == 2, "boss_index avançou enquanto o terceiro boss estava apenas pendente")
+	_check(world.director_spawn_queue.size() == 1, "chamadas repetidas duplicaram bosses atrasados na fila")
+	_check(
+		_queue_signature(world.director_spawn_queue) == "boss:infernal_reaper:2",
+		"salto de vários horários não preservou somente o próximo boss absoluto"
+	)
+	world._process_director_spawn_queue()
+	_check(world.boss_index == 3 and world.boss_spawn_log[-1] == "infernal_reaper", "boss pendente não avançou após criação")
+	_check(world.director_spawn_queue.is_empty(), "fila manteve trabalho de boss depois da criação")
+	var third_boss = world.active_boss
+	world._update_boss_schedule()
+	_check(world.boss_index == 3 and world.director_spawn_queue.is_empty(), "quarto boss surgiu junto com o terceiro atrasado")
+
+	third_boss.dead = true
+	world._update_boss_schedule()
+	_check(world.boss_index == 4 and world.boss_spawn_log[-1] == "void_titan", "boss marcado como morto bloqueou o quarto horário")
+	var fourth_boss = world.active_boss
+	fourth_boss.set_physics_process(false)
+	fourth_boss.take_damage(fourth_boss.max_hp * 2.0, Vector2.ZERO, true)
+	await process_frame
+	var invalid_boss := Node.new()
+	world.add_child(invalid_boss)
+	world.active_boss = invalid_boss
+	invalid_boss.free()
+	world.time_survived = 1500.0
+	world._update_boss_schedule()
+	_check(world.boss_index == 5 and world.boss_spawn_log[-1] == "chaos_sovereign", "referência inválida bloqueou o boss final")
+	world.active_boss.set_physics_process(false)
+
+	var failed_world = WORLD_SCENE.instantiate()
+	root.add_child(failed_world)
+	await process_frame
+	failed_world.suppress_save = true
+	failed_world.audio.enabled = false
+	failed_world.set_process(false)
+	failed_world.time_survived = 300.0
+	failed_world.game_ended = true
+	failed_world._update_boss_schedule()
+	_check(failed_world.boss_index == 0 and failed_world.boss_spawn_log.is_empty(), "falha técnica consumiu o boss do cronograma")
+	failed_world.game_ended = false
+	failed_world._update_boss_schedule()
+	_check(failed_world.boss_index == 1 and failed_world.boss_spawn_log == ["ossuary_colossus"], "boss não foi tentado novamente após falha técnica")
+	failed_world.queue_free()
+	await process_frame
 
 	world.director_spawn_queue.clear()
 	world.last_stage = GameDefs.stage_name(300.0)

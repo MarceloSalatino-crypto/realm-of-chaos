@@ -339,6 +339,14 @@ func get_upgrade_options(count: int, excluded_ids: Array[String] = []) -> Array[
 	return progression.get_upgrade_options(count, excluded_ids)
 
 
+func is_build_complete() -> bool:
+	return progression.is_build_complete()
+
+
+func refresh_build_complete() -> bool:
+	return progression.refresh_build_complete()
+
+
 func _evolution_hint_for(upgrade_id: String) -> String:
 	return progression.evolution_hint_for(upgrade_id)
 

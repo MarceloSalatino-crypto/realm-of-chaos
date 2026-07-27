@@ -1,6 +1,7 @@
 extends SceneTree
 
 const GameDefs = preload("res://scripts/game_defs.gd")
+const SaveStoreScript = preload("res://scripts/save_store.gd")
 const WORLD_SCENE = preload("res://scenes/world.tscn")
 const SAVE_PATH := "user://realm_of_chaos.cfg"
 const TEST_SAVE_PATH := "user://world_persistence_test.cfg"
@@ -35,6 +36,7 @@ func _load_config(path: String) -> ConfigFile:
 
 
 func _seed_test_config() -> void:
+	_cleanup_test_save()
 	var config := ConfigFile.new()
 	config.set_value("record", "best_time", 900.0)
 	config.set_value("record", "best_kills", 400)
@@ -44,6 +46,31 @@ func _seed_test_config() -> void:
 	config.set_value("progress", "highest_cycle", 7)
 	config.set_value("achievements", "first_boss", true)
 	_check(config.save(TEST_SAVE_PATH) == OK, "nao foi possivel criar o save exclusivo de teste")
+
+
+func _remove_test_file(path: String) -> void:
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+
+func _cleanup_test_save() -> void:
+	for path in [
+		TEST_SAVE_PATH,
+		TEST_SAVE_PATH + ".bak",
+		TEST_SAVE_PATH + ".tmp",
+		TEST_SAVE_PATH + ".swap",
+		TEST_SAVE_PATH + ".bak.tmp",
+		TEST_SAVE_PATH + ".bak.swap",
+		TEST_SAVE_PATH + ".corrupt",
+		TEST_SAVE_PATH + ".bak.corrupt",
+	]:
+		_remove_test_file(path)
+	for index in range(1, 8):
+		_remove_test_file("%s.corrupt.%d" % [TEST_SAVE_PATH, index])
+		_remove_test_file("%s.bak.corrupt.%d" % [TEST_SAVE_PATH, index])
+	var temporary_absolute := ProjectSettings.globalize_path(TEST_SAVE_PATH + ".tmp")
+	if DirAccess.dir_exists_absolute(temporary_absolute):
+		DirAccess.remove_absolute(temporary_absolute)
 
 
 func _expected_settings(config: ConfigFile) -> Dictionary:
@@ -146,17 +173,31 @@ func _run() -> void:
 	world._save_record(true)
 	_check(_save_bytes() == bytes_before, "suppress_save alterou o arquivo de progresso")
 
-	_seed_test_config()
+	_cleanup_test_save()
 	world.persistence.save_path = TEST_SAVE_PATH
+	world.persistence.write_failed = false
 	world.suppress_save = false
+	world.bosses_defeated = 0
+	world.enemies_killed = 0
+	world.damage_taken = 0.0
+	world.shrines_activated = 0
+	world.player.evolved_weapons.clear()
+	_check(world._evaluate_achievements(false).is_empty(), "primeira partida sem conquista gerou desbloqueio indevido")
+	_check(not FileAccess.file_exists(TEST_SAVE_PATH), "avaliacao vazia criou save sem dados")
+	_check(not world.persistence.write_failed, "avaliacao vazia gerou aviso falso de escrita")
+
+	_seed_test_config()
 	world.bosses_defeated = 5
 	world.enemies_killed = 500
 	world.damage_taken = 100.0
 	world.shrines_activated = 4
+	_own_six_evolved_weapons(world.player)
 	var expected_persisted_titles := _expected_achievement_titles(_load_config(TEST_SAVE_PATH))
 	var persisted_titles: Array[String] = world._evaluate_achievements(true)
 	_check(persisted_titles == expected_persisted_titles, "conquistas nao foram retornadas na ordem esperada")
 	var test_config := _load_config(TEST_SAVE_PATH)
+	_check(test_config.has_section("_save_integrity"), "WorldPersistence nao aplicou checksum ao save legado")
+	_check(FileAccess.file_exists(TEST_SAVE_PATH + ".bak"), "WorldPersistence nao criou backup")
 	for definition in GameDefs.achievements():
 		_check(bool(test_config.get_value("achievements", str(definition.id), false)), "conquista nao foi persistida: %s" % definition.id)
 	_check(world._evaluate_achievements(true).is_empty(), "conquista persistida foi retornada novamente")
@@ -187,7 +228,7 @@ func _run() -> void:
 	_check(int(test_config.get_value("progress", "highest_cycle", 0)) == 7, "ciclo menor substituiu o maior ciclo")
 
 	test_config.set_value("achievements", "cartographer", false)
-	_check(test_config.save(TEST_SAVE_PATH) == OK, "nao foi possivel preparar suppress_save no arquivo de teste")
+	_check(SaveStoreScript.save_config(test_config, TEST_SAVE_PATH) == OK, "nao foi possivel preparar suppress_save no arquivo de teste")
 	world.suppress_save = true
 	world.time_survived = 5000.0
 	world.enemies_killed = 5000
@@ -203,8 +244,19 @@ func _run() -> void:
 	_check(int(test_config.get_value("meta", "essence", 0)) == 65, "suppress_save alterou essencia")
 	_check(int(test_config.get_value("progress", "active_cycle", 0)) == 5, "suppress_save alterou progresso")
 	_check(_save_bytes() == bytes_before, "teste isolado alterou o save real")
-	var test_save_absolute := ProjectSettings.globalize_path(TEST_SAVE_PATH)
-	_check(DirAccess.remove_absolute(test_save_absolute) == OK, "arquivo isolado de teste nao foi removido")
+
+	world.suppress_save = false
+	world.persistence.write_failed = false
+	var protected_main := FileAccess.get_file_as_bytes(TEST_SAVE_PATH)
+	var protected_backup := FileAccess.get_file_as_bytes(TEST_SAVE_PATH + ".bak")
+	var blocked_temporary := ProjectSettings.globalize_path(TEST_SAVE_PATH + ".tmp")
+	_check(DirAccess.make_dir_absolute(blocked_temporary) == OK, "nao foi possivel preparar falha de escrita do World")
+	world._save_record(false)
+	_check(world.persistence.write_failed, "WorldPersistence nao registrou a falha de escrita")
+	_check(FileAccess.get_file_as_bytes(TEST_SAVE_PATH) == protected_main, "falha do World alterou o principal")
+	_check(FileAccess.get_file_as_bytes(TEST_SAVE_PATH + ".bak") == protected_backup, "falha do World alterou o backup")
+	DirAccess.remove_absolute(blocked_temporary)
+	_cleanup_test_save()
 
 	paused = false
 	world.queue_free()

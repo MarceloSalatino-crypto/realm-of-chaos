@@ -279,6 +279,51 @@ func _run() -> void:
 	phase_boss.hp = 34.0
 	phase_boss._update_boss_phase()
 	_check(phase_boss.boss_phase == 3 and world.phase_changes == [2, 3], "entrada na terceira fase ou notificacao mudou")
+	var sequential_phase_speed: float = phase_boss.move_speed
+	var sequential_phase_damage: float = phase_boss.contact_damage
+	_check(is_equal_approx(sequential_phase_speed, phase_one_speed * 1.2769), "velocidade final da transicao sequencial mudou")
+	_check(is_equal_approx(sequential_phase_damage, phase_one_damage * 1.1664), "dano final da transicao sequencial mudou")
+
+	var skipped_phase_boss = _spawn_enemy("ossuary_colossus", world)
+	skipped_phase_boss.player = player
+	skipped_phase_boss.max_hp = 100.0
+	skipped_phase_boss.hp = 34.0
+	var skipped_base_speed: float = skipped_phase_boss.move_speed
+	var skipped_base_damage: float = skipped_phase_boss.contact_damage
+	world.phase_changes.clear()
+	skipped_phase_boss._update_boss_phase()
+	_check(skipped_phase_boss.boss_phase == 3, "salto direto nao chegou a terceira fase")
+	_check(is_equal_approx(skipped_phase_boss.move_speed, skipped_base_speed * 1.2769), "salto direto nao acumulou dois bonus de velocidade")
+	_check(is_equal_approx(skipped_phase_boss.contact_damage, skipped_base_damage * 1.1664), "salto direto nao acumulou dois bonus de dano")
+	_check(
+		is_equal_approx(skipped_phase_boss.move_speed / skipped_base_speed, sequential_phase_speed / phase_one_speed)
+		and is_equal_approx(skipped_phase_boss.contact_damage / skipped_base_damage, sequential_phase_damage / phase_one_damage),
+		"salto direto e transicao sequencial deixaram forcas diferentes"
+	)
+	_check(world.phase_changes == [3], "salto direto notificou fases intermediarias")
+	_check(is_equal_approx(skipped_phase_boss.special_cooldown, 0.35), "salto direto nao reiniciou o cooldown uma unica vez")
+
+	var skipped_speed_after_transition: float = skipped_phase_boss.move_speed
+	var skipped_damage_after_transition: float = skipped_phase_boss.contact_damage
+	skipped_phase_boss.special_cooldown = 1.25
+	skipped_phase_boss._update_boss_phase()
+	_check(
+		is_equal_approx(skipped_phase_boss.move_speed, skipped_speed_after_transition)
+		and is_equal_approx(skipped_phase_boss.contact_damage, skipped_damage_after_transition)
+		and is_equal_approx(skipped_phase_boss.special_cooldown, 1.25)
+		and world.phase_changes == [3],
+		"atualizacao repetida duplicou bonus, cooldown ou notificacao"
+	)
+	skipped_phase_boss.hp = 100.0
+	skipped_phase_boss._update_boss_phase()
+	_check(
+		skipped_phase_boss.boss_phase == 3
+		and is_equal_approx(skipped_phase_boss.move_speed, skipped_speed_after_transition)
+		and is_equal_approx(skipped_phase_boss.contact_damage, skipped_damage_after_transition)
+		and is_equal_approx(skipped_phase_boss.special_cooldown, 1.25)
+		and world.phase_changes == [3],
+		"cura regrediu a fase ou reaplicou efeitos da transicao"
+	)
 
 	var bomber = _spawn_enemy("bomber", world)
 	bomber.player = player

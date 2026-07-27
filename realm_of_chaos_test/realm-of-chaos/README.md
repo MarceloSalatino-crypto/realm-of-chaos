@@ -69,7 +69,11 @@ A suíte funcional está dividida por componente e por sistema. Para executar to
 
 ```powershell
 Get-ChildItem tests -Filter *_test.gd |
-  Where-Object Name -notin @("performance_test.gd", "visual_load_performance_test.gd") |
+  Where-Object Name -notin @(
+    "performance_test.gd",
+    "visual_load_performance_test.gd",
+    "max_build_drop_performance_test.gd"
+  ) |
   Sort-Object Name |
   ForEach-Object {
     & godot --headless --path . --fixed-fps 60 --script "res://tests/$($_.Name)"
@@ -77,14 +81,15 @@ Get-ChildItem tests -Filter *_test.gd |
   }
 ```
 
-Os dois benchmarks possuem critérios reais de aprovação:
+Os três benchmarks possuem critérios reais de aprovação:
 
 ```powershell
 godot --headless --path . --fixed-fps 60 --script res://tests/performance_test.gd
 godot --headless --path . --fixed-fps 60 --script res://tests/visual_load_performance_test.gd
+godot --headless --path . --fixed-fps 60 --script res://tests/max_build_drop_performance_test.gd
 ```
 
-Ambos falham se a média ultrapassar 14,0 ms ou o p95 ultrapassar 22,0 ms.
+Eles falham se a média ultrapassar 14,0 ms ou o p95 ultrapassar 22,0 ms.
 
 ### Teste manual rápido no editor
 
@@ -130,6 +135,7 @@ Os atalhos só funcionam em execução pelo editor e não são habilitados em um
 - `tests/`: caracterização dos componentes extraídos, integração de gameplay, áudio, orientação visual, UI e regressões.
 - `tests/performance_test.gd`: referência de IA e busca espacial com 300 inimigos.
 - `tests/visual_load_performance_test.gd`: carga visual combinada no pior cenário suportado.
+- `tests/max_build_drop_performance_test.gd`: custo de 520 mortes após a build ficar completa.
 
 ## Espaço para futuras expansões
 

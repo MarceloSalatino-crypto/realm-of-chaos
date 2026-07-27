@@ -100,22 +100,90 @@ func add_enemy_projectile(projectile: Node) -> void:
 
 
 func spawn_pickup(amount: int, position: Vector2, kind := "xp") -> Node:
-	if kind == "xp" and world.pickups.get_child_count() >= world.MAX_PICKUPS:
-		var pickup_count: int = world.pickups.get_child_count()
-		for offset in range(pickup_count):
-			var index: int = (world.pickup_merge_cursor + offset) % pickup_count
-			var existing = world.pickups.get_child(index)
-			if is_instance_valid(existing) and str(existing.get("pickup_kind")) == "xp":
-				existing.value += amount
-				existing.attracted = bool(existing.attracted) or existing.value >= 64
-				if existing.has_method("request_visual_refresh"):
-					existing.request_visual_refresh()
-				world.pickup_merge_cursor = (index + 1) % pickup_count
-				return existing
+	if world.pickups.get_child_count() >= world.MAX_PICKUPS:
+		if kind == "xp":
+			var merged_pickup := _merge_xp_into_existing(amount)
+			if is_instance_valid(merged_pickup):
+				return merged_pickup
+			_remove_pickup(_least_valuable_heal())
+		elif not _consolidate_two_xp_pickups():
+			var heal_to_replace := _least_valuable_heal()
+			if not is_instance_valid(heal_to_replace) or int(heal_to_replace.get("value")) > amount:
+				return null
+			_remove_pickup(heal_to_replace)
 	var pickup = GemScene.instantiate()
 	world.pickups.add_child(pickup)
 	pickup.setup(amount, position, kind)
 	return pickup
+
+
+func _merge_xp_into_existing(amount: int) -> Node:
+	var pickup_count: int = world.pickups.get_child_count()
+	for offset in range(pickup_count):
+		var index: int = (world.pickup_merge_cursor + offset) % pickup_count
+		var existing = world.pickups.get_child(index)
+		if is_instance_valid(existing) and str(existing.get("pickup_kind")) == "xp":
+			existing.value += amount
+			_refresh_merged_xp(existing)
+			world.pickup_merge_cursor = (index + 1) % pickup_count
+			return existing
+	return null
+
+
+func _consolidate_two_xp_pickups() -> bool:
+	var first_xp: Node = null
+	var second_xp: Node = null
+	for pickup in world.pickups.get_children():
+		if not is_instance_valid(pickup) or str(pickup.get("pickup_kind")) != "xp":
+			continue
+		if not is_instance_valid(first_xp):
+			first_xp = pickup
+		else:
+			second_xp = pickup
+			break
+	if not is_instance_valid(second_xp):
+		return false
+	second_xp.set("value", int(second_xp.get("value")) + int(first_xp.get("value")))
+	second_xp.set("attracted", bool(second_xp.get("attracted")) or bool(first_xp.get("attracted")))
+	_refresh_merged_xp(second_xp)
+	_remove_pickup(first_xp)
+	var pickup_count: int = world.pickups.get_child_count()
+	world.pickup_merge_cursor = (second_xp.get_index() + 1) % pickup_count if pickup_count > 0 else 0
+	return true
+
+
+func _least_valuable_heal() -> Node:
+	var selected: Node = null
+	var selected_value := 0
+	for pickup in world.pickups.get_children():
+		if not is_instance_valid(pickup) or str(pickup.get("pickup_kind")) != "heal":
+			continue
+		var pickup_value := int(pickup.get("value"))
+		if not is_instance_valid(selected) or pickup_value < selected_value:
+			selected = pickup
+			selected_value = pickup_value
+	return selected
+
+
+func _refresh_merged_xp(pickup: Node) -> void:
+	pickup.set("attracted", bool(pickup.get("attracted")) or int(pickup.get("value")) >= 64)
+	if pickup.has_method("request_visual_refresh"):
+		pickup.request_visual_refresh()
+
+
+func _remove_pickup(pickup: Node) -> void:
+	if not is_instance_valid(pickup) or pickup.get_parent() != world.pickups:
+		return
+	var removed_index := pickup.get_index()
+	world.pickups.remove_child(pickup)
+	pickup.queue_free()
+	var pickup_count: int = world.pickups.get_child_count()
+	if pickup_count <= 0:
+		world.pickup_merge_cursor = 0
+	elif removed_index < world.pickup_merge_cursor:
+		world.pickup_merge_cursor = (world.pickup_merge_cursor - 1) % pickup_count
+	else:
+		world.pickup_merge_cursor %= pickup_count
 
 
 func spawn_effect(position: Vector2, color: Color, radius: float, duration := 0.35, filled := false) -> void:

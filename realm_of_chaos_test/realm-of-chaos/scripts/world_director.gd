@@ -51,12 +51,27 @@ func pick_enemy_type() -> String:
 
 func update_boss_schedule() -> void:
 	var schedule := GameDefs.boss_schedule()
-	while world.boss_index < schedule.size() and world.time_survived >= float(schedule[world.boss_index].time):
-		if world.is_processing():
-			world.director_spawn_queue.append({"type": "boss", "entry": schedule[world.boss_index], "index": world.boss_index})
-		else:
-			spawn_scheduled_boss(schedule[world.boss_index], world.boss_index)
+	if has_live_active_boss() or has_pending_boss_spawn() or world.boss_index >= schedule.size():
+		return
+	var entry: Dictionary = schedule[world.boss_index]
+	if world.time_survived < float(entry.time):
+		return
+	if world.is_processing():
+		world.director_spawn_queue.append({"type": "boss", "entry": entry, "index": world.boss_index})
+		return
+	if spawn_scheduled_boss(entry, world.boss_index):
 		world.boss_index += 1
+
+
+func has_live_active_boss() -> bool:
+	return is_instance_valid(world.active_boss) and not bool(world.active_boss.dead)
+
+
+func has_pending_boss_spawn() -> bool:
+	for job in world.director_spawn_queue:
+		if str(job.get("type", "")) == "boss":
+			return true
+	return false
 
 
 func process_spawn_queue() -> void:
@@ -64,12 +79,18 @@ func process_spawn_queue() -> void:
 		return
 	var job: Dictionary = world.director_spawn_queue.pop_front()
 	if str(job.get("type", "")) == "boss":
-		spawn_scheduled_boss(job.entry, int(job.index))
+		var job_index := int(job.index)
+		if job_index != world.boss_index or has_live_active_boss():
+			return
+		if spawn_scheduled_boss(job.entry, job_index):
+			world.boss_index += 1
 	else:
 		world.spawn_enemy(str(job.kind), bool(job.get("elite", false)))
 
 
 func spawn_scheduled_boss(entry: Dictionary, index: int) -> Node:
+	if has_live_active_boss():
+		return null
 	var boss_power := 1.0 + float(world.run_cycle) * 0.32
 	world.active_boss = world.spawn_enemy(str(entry.kind), false, boss_power)
 	if not world.active_boss:
