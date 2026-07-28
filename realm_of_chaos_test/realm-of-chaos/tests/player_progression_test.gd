@@ -162,7 +162,8 @@ func _run() -> void:
 	var initial_options: Array[Dictionary] = player.get_upgrade_options(6)
 	_check(initial_options.size() == 6, "quantidade de opções solicitada mudou")
 	for option in initial_options:
-		_check(option.has_all(["id", "level", "current_level", "levels_gained", "rarity", "category", "evolution_hint"]), "opção perdeu campos públicos")
+		_check(option.has_all(["id", "level", "current_level", "levels_gained", "rarity", "category", "evolution_hint", "synergy_items"]), "opção perdeu campos públicos")
+		_check(option.synergy_items is Array, "opção não entregou sinergias estruturadas")
 		_check(str(option.rarity) in ["COMUM", "RARO", "LENDÁRIO"], "opção recebeu raridade inválida")
 		_check(int(option.levels_gained) >= 1 and int(option.levels_gained) <= 2, "ganho de níveis da opção mudou")
 	player.banish_upgrade("might")
@@ -190,6 +191,29 @@ func _run() -> void:
 	_check_close(player.damage_multiplier, 1.15, "fórmula comum de Poder Profano mudou")
 	player.apply_upgrade("soul_orbit", "LENDÁRIO")
 	_check(int(player.weapon_levels.soul_orbit) == 2, "upgrade lendário de arma não avançou dois níveis")
+
+	_reset_player(player)
+	var weapon_synergies: Array[Dictionary] = player.progression.synergy_items_for("chaos_bolt")
+	_check(
+		weapon_synergies.size() == 1
+		and str(weapon_synergies[0].id) == "critical"
+		and int(weapon_synergies[0].required_level) == 3,
+		"sinergia estruturada da Besta do Caos divergiu de evolution_data"
+	)
+	player.weapon_levels.soul_orbit = 1
+	player.weapon_levels.swarm_idol = 1
+	var regeneration_synergies: Array[Dictionary] = player.progression.synergy_items_for("regeneration")
+	_check(
+		regeneration_synergies.map(func(item): return str(item.id)) == ["soul_orbit", "swarm_idol"],
+		"Pacto Regenerativo não entregou os dois ícones esperados"
+	)
+	player.evolved_weapons.soul_orbit = true
+	regeneration_synergies = player.progression.synergy_items_for("regeneration")
+	_check(
+		regeneration_synergies.size() == 1
+		and str(regeneration_synergies[0].id) == "swarm_idol",
+		"arma evoluída continuou aparecendo como sinergia do passivo"
+	)
 
 	_reset_player(player)
 	_check("OLHAR FATAL NV.3" in player._evolution_hint_for("chaos_bolt"), "dica de evolução da arma mudou")

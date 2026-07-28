@@ -39,6 +39,18 @@ func _inside_viewport(control: Control, viewport_size: Vector2, label: String) -
 	)
 
 
+func _inside_parent(control: Control, parent: Control, label: String) -> void:
+	var rect := Rect2(control.position, control.size)
+	_check(
+		rect.position.x >= -0.6
+		and rect.position.y >= -0.6
+		and rect.end.x <= parent.size.x + 0.6
+		and rect.end.y <= parent.size.y + 0.6,
+		"%s saiu do controle pai: pos=%s size=%s pai=%s"
+		% [label, rect.position, rect.size, parent.size]
+	)
+
+
 func _settle(frame_count := 3) -> void:
 	for _frame in range(frame_count):
 		await process_frame
@@ -70,24 +82,33 @@ func _viewport_tag(viewport_size: Vector2i) -> String:
 func _upgrade_worst_case() -> Array[Dictionary]:
 	return [
 		{
-			"id": "chaos_bolt", "icon": "✦", "title": "BESTA DO CAOS ASCENDENTE",
-			"category": "EVOLUÇÃO DE ARMA", "level": 4, "max": 5, "levels_gained": 2,
-			"description": "Dispara uma rajada profana com mais projéteis, perfuração e dano contra a horda inteira.",
-			"evolution_hint": "EVOLUI COM PODER PROFANO NÍVEL 3 E ALTERA O PADRÃO DO DISPARO PRINCIPAL",
+			"id": "storm_relic", "icon": "ϟ", "title": "RELÍQUIA DA TEMPESTADE",
+			"category": "EVOLUÇÃO DE ARMA", "level": 4, "max": 6, "levels_gained": 2,
+			"description": "Encadeia relâmpagos entre vários alvos e amplia o alcance da tempestade.",
+			"short_description": "Relâmpagos encadeados entre alvos",
+			"evolution_hint": "EVOLUI COM RITUAL ACELERADO NÍVEL 3",
+			"synergy_items": [{"id": "haste", "required_level": 3}],
 			"rarity": "LENDÁRIO",
 		},
 		{
 			"id": "forbidden_grimoire", "icon": "◆", "title": "GRIMÓRIO PROIBIDO",
 			"category": "NOVA ARMA", "level": 1, "max": 5, "levels_gained": 1,
 			"description": "Invoca páginas amaldiçoadas que atravessam grupos e retornam carregadas de energia sombria.",
+			"short_description": "Selo explosivo sob grupos de inimigos",
 			"evolution_hint": "EVOLUI COM RITUAL ACELERADO NÍVEL 3",
+			"synergy_items": [{"id": "magnet", "required_level": 3}],
 			"rarity": "RARO",
 		},
 		{
-			"id": "ancestral_blood", "icon": "♥", "title": "SANGUE ANCESTRAL",
+			"id": "regeneration", "icon": "+", "title": "PACTO REGENERATIVO",
 			"category": "PASSIVO", "level": 3, "max": 5, "levels_gained": 2,
 			"description": "Amplia a vida máxima e fortalece todas as fontes de recuperação durante o ritual.",
-			"evolution_hint": "COMBINA COM FOICE DE SANGUE E OUTRAS ARMAS VAMPÍRICAS",
+			"short_description": "Regenera HP continuamente",
+			"evolution_hint": "COMBINA COM CETRO DAS ALMAS E ÍDOLO DO ENXAME",
+			"synergy_items": [
+				{"id": "soul_orbit", "required_level": 0},
+				{"id": "swarm_idol", "required_level": 0},
+			],
 			"rarity": "LENDÁRIO",
 		},
 	]
@@ -163,18 +184,88 @@ func _validate_menu_layouts(viewport_size: Vector2i) -> void:
 
 
 func _validate_upgrade(hud: CanvasLayer, viewport: SubViewport, viewport_size: Vector2i) -> void:
-	hud.show_level_up(99, _upgrade_worst_case(), 12, 8, 5)
+	hud.show_level_up(99, _upgrade_worst_case())
 	await _settle()
 	var panel := hud.upgrade_panel as PanelContainer
 	var scroll := hud.upgrade_scroll as ScrollContainer
 	var cards := hud.upgrade_cards as GridContainer
-	var expected_columns := 3 if viewport_size.x >= 1024 else (2 if viewport_size.x >= 800 else 1)
+	var expected_columns := 3 if viewport_size.x >= 1280 else (2 if viewport_size.x >= 800 else 1)
 	_inside_viewport(panel, viewport_size, "LevelUp/Panel")
 	_inside_viewport(scroll, viewport_size, "LevelUp/Scroll")
-	_inside_viewport(hud.choice_action_row, viewport_size, "LevelUp/Ações")
+	_check(
+		hud.get_node_or_null("UpgradeOverlay/Panel/Margin/VBox/ChoiceActions") == null,
+		"Level up ainda criou os controles removidos"
+	)
 	_check(cards.columns == expected_columns, "Level up usou %d colunas, esperado %d em %s" % [cards.columns, expected_columns, _viewport_tag(viewport_size)])
 	_check(cards.size.x <= scroll.size.x + 0.6, "Level up criou overflow horizontal em %s" % _viewport_tag(viewport_size))
 	_check(scroll.scroll_vertical == 0, "Level up não abriu na primeira carta em %s" % _viewport_tag(viewport_size))
+	for index in range(hud.upgrade_icon_rects.size()):
+		var icon_rect: TextureRect = hud.upgrade_icon_rects[index]
+		var summary_label: Label = hud.upgrade_summary_labels[index]
+		var effect_label: Label = hud.upgrade_effect_labels[index]
+		var rarity_badge: PanelContainer = hud.upgrade_rarity_badges[index]
+		var synergy_row: HBoxContainer = hud.upgrade_synergy_rows[index]
+		_inside_parent(
+			icon_rect, hud.upgrade_buttons[index],
+			"LevelUp/Ícone%d" % (index + 1)
+		)
+		_inside_parent(
+			summary_label, hud.upgrade_buttons[index],
+			"LevelUp/Resumo%d" % (index + 1)
+		)
+		_inside_parent(
+			effect_label, hud.upgrade_buttons[index],
+			"LevelUp/Efeito%d" % (index + 1)
+		)
+		_inside_parent(
+			rarity_badge, hud.upgrade_buttons[index],
+			"LevelUp/Raridade%d" % (index + 1)
+		)
+		_inside_parent(
+			synergy_row, hud.upgrade_buttons[index],
+			"LevelUp/Sinergia%d" % (index + 1)
+		)
+		_check(icon_rect.texture != null, "Level up não carregou o ícone da carta %d" % (index + 1))
+		if icon_rect.texture:
+			_check(
+				icon_rect.texture.get_size() == Vector2(256.0, 256.0),
+				"Level up carregou ícone fora de 256x256 na carta %d" % (index + 1)
+			)
+		_check(
+			not icon_rect.get_rect().intersects(rarity_badge.get_rect()),
+			"Ícone principal e selo de raridade se sobrepõem na carta %d em %s" % [
+				index + 1, _viewport_tag(viewport_size)
+			]
+		)
+		_check(
+			icon_rect.position.y + icon_rect.size.y <= summary_label.position.y + 0.6
+			and summary_label.position.y + summary_label.size.y <= effect_label.position.y + 0.6
+			and effect_label.position.y + effect_label.size.y <= synergy_row.position.y + 0.6,
+			"Conteúdo vertical se sobrepõe na carta %d em %s" % [
+				index + 1, _viewport_tag(viewport_size)
+			]
+		)
+		_check(
+			"\n" not in summary_label.text
+			and "\n" not in effect_label.text
+			and hud.upgrade_buttons[index].text.is_empty(),
+			"Carta %d manteve o bloco textual antigo em %s" % [
+				index + 1, _viewport_tag(viewport_size)
+			]
+		)
+		var expected_synergies := 2 if index == 2 else 1
+		_check(
+			synergy_row.get_child_count() == expected_synergies,
+			"Carta %d exibiu quantidade incorreta de sinergias em %s" % [
+				index + 1, _viewport_tag(viewport_size)
+			]
+		)
+		for holder in synergy_row.get_children():
+			_check(
+				holder.size.x >= 28.0 and holder.size.x <= 32.0
+				and holder.size.y >= 28.0 and holder.size.y <= 32.0,
+				"Ícone de sinergia saiu de 28-32 px em %s" % _viewport_tag(viewport_size)
+			)
 	if viewport_size.y <= 360:
 		_check(scroll.get_v_scroll_bar().visible, "Level up não ativou scroll vertical em 640x360")
 	print(

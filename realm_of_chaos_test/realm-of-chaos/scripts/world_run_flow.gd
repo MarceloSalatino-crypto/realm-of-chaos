@@ -235,10 +235,7 @@ func show_next_upgrade() -> void:
 
 func present_upgrade_options(options: Array[Dictionary]) -> void:
 	if not options.is_empty():
-		world.hud.show_level_up(
-			world.player.level, options, world.rerolls_left,
-			world.banishes_left, world.skips_left
-		)
+		world.hud.show_level_up(world.player.level, options)
 		return
 	world.player.heal(world.player.max_hp * 0.15)
 	world.essence_earned += 2
@@ -251,31 +248,6 @@ func on_upgrade_selected(upgrade_id: String, rarity: String) -> void:
 	if not world.upgrade_active or world.pending_upgrades <= 0:
 		return
 	world.player.apply_upgrade(upgrade_id, rarity)
-	advance_upgrade_queue()
-
-
-func on_reroll_requested() -> void:
-	if not world.upgrade_active or world.rerolls_left <= 0:
-		return
-	world.rerolls_left -= 1
-	var previous_ids: Array[String] = []
-	for option in world.hud.upgrade_options:
-		previous_ids.append(str(option.id))
-	present_upgrade_options(world.player.get_upgrade_options(3, previous_ids))
-
-
-func on_banish_requested(upgrade_id: String) -> void:
-	if not world.upgrade_active or world.banishes_left <= 0:
-		return
-	world.banishes_left -= 1
-	world.player.banish_upgrade(upgrade_id)
-	present_upgrade_options(world.player.get_upgrade_options(3))
-
-
-func on_skip_requested() -> void:
-	if not world.upgrade_active or world.skips_left <= 0:
-		return
-	world.skips_left -= 1
 	advance_upgrade_queue()
 
 

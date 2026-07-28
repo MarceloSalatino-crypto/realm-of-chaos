@@ -67,6 +67,7 @@ func _run() -> void:
 	_test_passive_rarities(player, hud)
 	_test_passive_level_cap(player, hud)
 	_test_weapon_equivalence(player)
+	_test_weapon_card_icons(player, hud)
 
 	paused = false
 	world.queue_free()
@@ -174,6 +175,22 @@ func _test_weapon_equivalence(player: Node) -> void:
 		)
 
 
+func _test_weapon_card_icons(player: Node, hud: CanvasLayer) -> void:
+	for weapon_id in player.WEAPON_IDS:
+		var option := _upgrade_definition(weapon_id).duplicate()
+		option["current_level"] = 0
+		option["level"] = 1
+		option["levels_gained"] = 1
+		option["rarity"] = "COMUM"
+		option["category"] = "NOVA ARMA"
+		option["evolution_hint"] = ""
+		option["synergy_items"] = []
+		var options: Array[Dictionary] = [option]
+		hud.show_level_up(2, options)
+		_check_upgrade_icon(hud, weapon_id)
+		hud.hide_level_up()
+
+
 func _prepare_weapon_state(player: Node, weapon_id: String, weapon_level: int, unlock_evolution: bool) -> void:
 	_reset_player_state(player)
 	player.weapon_levels[weapon_id] = weapon_level
@@ -193,26 +210,43 @@ func _validate_upgrade_card(
 	option["rarity"] = rarity
 	option["category"] = "PASSIVO"
 	option["evolution_hint"] = ""
+	option["synergy_items"] = []
 	var options: Array[Dictionary] = [option]
-	hud.show_level_up(2, options, 0, 0, 0)
-	var card_text := str(hud.upgrade_buttons[0].text)
+	hud.show_level_up(2, options)
+	_check_upgrade_icon(hud, passive_id)
+	var summary_text := str(hud.upgrade_summary_labels[0].text)
+	var effect_text := str(hud.upgrade_effect_labels[0].text)
+	var rarity_text := str(hud.upgrade_rarity_labels[0].text)
 	_check(
-		str(option.description) in card_text,
-		"%s %s não exibiu a descrição cadastrada" % [passive_id, rarity]
+		effect_text == str(option.short_description),
+		"%s %s não exibiu a descrição curta cadastrada" % [passive_id, rarity]
 	)
 	_check(
-		("NÍVEL %d/%d" % [resulting_level, int(option.max)]) in card_text,
+		("Nv %d/%d" % [resulting_level, int(option.max)]) in summary_text,
 		"%s %s exibiu nível incorreto na carta" % [passive_id, rarity]
 	)
 	_check(
-		("[%s]" % rarity) in card_text,
-		"%s %s não exibiu a raridade na carta" % [passive_id, rarity]
+		rarity_text == rarity and hud.upgrade_rarity_badges[0].visible,
+		"%s %s não exibiu o selo de raridade" % [passive_id, rarity]
 	)
 	_check(
-		("· +2" in card_text) == (levels_gained == 2),
-		"%s %s exibiu ganho de níveis inconsistente" % [passive_id, rarity]
+		"+2" not in summary_text and hud.upgrade_buttons[0].text.is_empty(),
+		"%s %s manteve informação repetida na carta compacta" % [passive_id, rarity]
 	)
 	hud.hide_level_up()
+
+
+func _check_upgrade_icon(hud: CanvasLayer, upgrade_id: String) -> void:
+	var icon_rect: TextureRect = hud.upgrade_icon_rects[0]
+	var expected_path := "res://assets/ui/upgrade_icons/%s.png" % upgrade_id
+	_check(icon_rect.texture != null, "%s não exibiu ícone" % upgrade_id)
+	if icon_rect.texture:
+		_check(
+			icon_rect.texture.resource_path == expected_path,
+			"%s exibiu %s em vez de %s" % [
+				upgrade_id, icon_rect.texture.resource_path, expected_path
+			]
+		)
 
 
 func _upgrade_definition(upgrade_id: String) -> Dictionary:

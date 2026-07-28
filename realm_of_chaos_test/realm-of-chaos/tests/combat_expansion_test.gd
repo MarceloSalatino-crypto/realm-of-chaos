@@ -85,13 +85,16 @@ func _run() -> void:
 
 	world._on_level_up_requested()
 	await process_frame
-	var first_option := str(world.hud.upgrade_options[0].id)
-	world._on_reroll_requested()
-	_check(world.rerolls_left == 2, "reroll não foi consumido")
-	world._on_banish_requested(first_option)
-	_check(world.banishes_left == 2 and world.player.banished_upgrades.has(first_option), "banimento não removeu a opção")
-	world._on_skip_requested()
-	_check(world.skips_left == 1 and not world.upgrade_active and not paused, "pular não retomou a partida")
+	_check(world.hud.upgrade_options.size() == 3, "level up não apresentou três cartas")
+	_check(
+		not world.has_method("_on_reroll_requested")
+		and not world.has_method("_on_banish_requested")
+		and not world.has_method("_on_skip_requested"),
+		"ações removidas ainda estão expostas no World"
+	)
+	var first_option: Dictionary = world.hud.upgrade_options[0]
+	world._on_upgrade_selected(str(first_option.id), str(first_option.rarity))
+	_check(not world.upgrade_active and not paused, "escolha da carta não retomou a partida")
 
 	var boss = world._spawn_scheduled_boss(GameDefs.boss_schedule()[0], 0)
 	_check(is_instance_valid(world.active_boss_arena) and world.active_boss_arena.active, "mini-chefe não criou arena própria")

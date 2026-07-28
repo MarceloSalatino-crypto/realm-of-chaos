@@ -1,11 +1,28 @@
 extends CanvasLayer
 
 const MinimapScript = preload("res://scripts/minimap.gd")
+const GameDefs = preload("res://scripts/game_defs.gd")
+const UPGRADE_ICON_TEXTURES := {
+	"chaos_bolt": preload("res://assets/ui/upgrade_icons/chaos_bolt.png"),
+	"shadow_blades": preload("res://assets/ui/upgrade_icons/shadow_blades.png"),
+	"soul_orbit": preload("res://assets/ui/upgrade_icons/soul_orbit.png"),
+	"chaos_nova": preload("res://assets/ui/upgrade_icons/chaos_nova.png"),
+	"blood_scythe": preload("res://assets/ui/upgrade_icons/blood_scythe.png"),
+	"forbidden_grimoire": preload("res://assets/ui/upgrade_icons/forbidden_grimoire.png"),
+	"rune_hammer": preload("res://assets/ui/upgrade_icons/rune_hammer.png"),
+	"storm_relic": preload("res://assets/ui/upgrade_icons/storm_relic.png"),
+	"swarm_idol": preload("res://assets/ui/upgrade_icons/swarm_idol.png"),
+	"might": preload("res://assets/ui/upgrade_icons/might.png"),
+	"haste": preload("res://assets/ui/upgrade_icons/haste.png"),
+	"vitality": preload("res://assets/ui/upgrade_icons/vitality.png"),
+	"swiftness": preload("res://assets/ui/upgrade_icons/swiftness.png"),
+	"magnet": preload("res://assets/ui/upgrade_icons/magnet.png"),
+	"armor": preload("res://assets/ui/upgrade_icons/armor.png"),
+	"regeneration": preload("res://assets/ui/upgrade_icons/regeneration.png"),
+	"critical": preload("res://assets/ui/upgrade_icons/critical.png"),
+}
 
 signal upgrade_selected(upgrade_id: String, rarity: String)
-signal reroll_requested
-signal banish_requested(upgrade_id: String)
-signal skip_requested
 signal relic_selected(relic_id: String)
 signal restart_requested
 signal menu_requested
@@ -28,16 +45,10 @@ var boss_intro_band: ColorRect
 var boss_intro_label: Label
 var minimap: Control
 var dash_label: Label
-var choice_action_row: GridContainer
-var reroll_button: Button
-var banish_button: Button
-var skip_button: Button
-var banish_mode := false
-var banish_count_display := 0
-var current_upgrade_level := 1
 var stage_banner_tween: Tween
 var boss_intro_tween: Tween
 var damage_flash_tween: Tween
+var upgrade_synergy_icon_size := 32.0
 
 @onready var health_bar: ProgressBar = $Top/HealthBar
 @onready var health_label: Label = $Top/HealthBar/Label
@@ -66,6 +77,36 @@ var damage_flash_tween: Tween
 	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card1,
 	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card2,
 	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card3
+]
+@onready var upgrade_icon_rects: Array[TextureRect] = [
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card1/Icon,
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card2/Icon,
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card3/Icon
+]
+@onready var upgrade_summary_labels: Array[Label] = [
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card1/Summary,
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card2/Summary,
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card3/Summary
+]
+@onready var upgrade_effect_labels: Array[Label] = [
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card1/Effect,
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card2/Effect,
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card3/Effect
+]
+@onready var upgrade_rarity_badges: Array[PanelContainer] = [
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card1/RarityBadge,
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card2/RarityBadge,
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card3/RarityBadge
+]
+@onready var upgrade_rarity_labels: Array[Label] = [
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card1/RarityBadge/Label,
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card2/RarityBadge/Label,
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card3/RarityBadge/Label
+]
+@onready var upgrade_synergy_rows: Array[HBoxContainer] = [
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card1/SynergyRow,
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card2/SynergyRow,
+	$UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card3/SynergyRow
 ]
 @onready var pause_overlay: Control = $PauseOverlay
 @onready var pause_panel: PanelContainer = $PauseOverlay/Panel
@@ -99,7 +140,6 @@ func _ready() -> void:
 	_build_relic_overlay()
 	_build_boss_intro()
 	_build_navigation_ui()
-	_build_choice_actions()
 	relic_overlay.resized.connect(_update_relic_layout)
 	end_overlay.resized.connect(_update_end_layout)
 	upgrade_overlay.resized.connect(_update_responsive_hud_layout)
@@ -136,27 +176,6 @@ func _build_navigation_ui() -> void:
 	dash_label.add_theme_constant_override("outline_size", 4)
 	dash_label.z_index = -2
 	add_child(dash_label)
-
-
-func _build_choice_actions() -> void:
-	choice_action_row = GridContainer.new()
-	choice_action_row.name = "ChoiceActions"
-	choice_action_row.columns = 3
-	choice_action_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	choice_action_row.add_theme_constant_override("h_separation", 12)
-	choice_action_row.add_theme_constant_override("v_separation", 8)
-	$UpgradeOverlay/Panel/Margin/VBox.add_child(choice_action_row)
-	reroll_button = Button.new()
-	banish_button = Button.new()
-	skip_button = Button.new()
-	for button in [reroll_button, banish_button, skip_button]:
-		button.custom_minimum_size = Vector2(0.0, 46.0)
-		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		choice_action_row.add_child(button)
-	reroll_button.pressed.connect(func(): reroll_requested.emit())
-	banish_button.pressed.connect(_toggle_banish_mode)
-	skip_button.pressed.connect(func(): skip_requested.emit())
 
 
 func bind_world(world: Node) -> void:
@@ -330,20 +349,54 @@ func _update_upgrade_layout(viewport_size: Vector2) -> void:
 	upgrade_vbox.add_theme_constant_override("separation", spacing)
 	upgrade_cards.add_theme_constant_override("h_separation", spacing)
 	upgrade_cards.add_theme_constant_override("v_separation", spacing)
-	choice_action_row.add_theme_constant_override("h_separation", spacing)
-	choice_action_row.add_theme_constant_override("v_separation", spacing)
 	var content_width := maxf(1.0, panel_size.x - horizontal_margin * 2.0)
-	var column_count := 3 if content_width >= 880.0 else (2 if content_width >= 640.0 else 1)
+	var column_count := 3 if content_width >= 1000.0 else (2 if content_width >= 640.0 else 1)
 	upgrade_cards.columns = column_count
-	choice_action_row.columns = 3 if content_width >= 480.0 else 1
-	var card_height := roundf(clampf(viewport_size.y * 0.54, 220.0, 390.0))
-	var card_font_size := int(roundf(clampf(viewport_size.y * 0.025, 14.0, 18.0)))
+	var card_height := roundf(clampf(viewport_size.y * 0.50, 250.0, 350.0))
+	var icon_size := roundf(clampf(viewport_size.y * 0.16, 68.0, 116.0))
+	var icon_top := roundf(clampf(viewport_size.y * 0.022, 8.0, 16.0))
+	var summary_font_size := int(roundf(clampf(viewport_size.y * 0.022, 13.0, 15.0)))
+	var effect_font_size := int(roundf(clampf(viewport_size.y * 0.020, 12.0, 13.0)))
+	var summary_top := icon_top + icon_size + roundf(clampf(viewport_size.y * 0.012, 6.0, 10.0))
+	var summary_height := roundf(clampf(viewport_size.y * 0.042, 26.0, 30.0))
+	var effect_top := summary_top + summary_height + roundf(clampf(viewport_size.y * 0.010, 5.0, 8.0))
+	var effect_height := roundf(clampf(viewport_size.y * 0.064, 38.0, 46.0))
+	var badge_width := roundf(clampf(viewport_size.y * 0.14, 76.0, 96.0))
+	var badge_height := roundf(clampf(viewport_size.y * 0.04, 22.0, 26.0))
+	upgrade_synergy_icon_size = roundf(clampf(viewport_size.y * 0.055, 28.0, 32.0))
 	var card_width := floorf(
 		maxf(1.0, content_width - 18.0 - spacing * float(column_count - 1)) / float(column_count)
 	)
-	for button in upgrade_buttons:
+	for index in range(upgrade_buttons.size()):
+		var button := upgrade_buttons[index]
 		button.custom_minimum_size = Vector2(card_width, card_height)
-		button.add_theme_font_size_override("font_size", card_font_size)
+		var icon_rect := upgrade_icon_rects[index]
+		icon_rect.offset_left = -icon_size * 0.5
+		icon_rect.offset_top = icon_top
+		icon_rect.offset_right = icon_size * 0.5
+		icon_rect.offset_bottom = icon_top + icon_size
+		var summary_label := upgrade_summary_labels[index]
+		summary_label.offset_top = summary_top
+		summary_label.offset_bottom = summary_top + summary_height
+		summary_label.add_theme_font_size_override("font_size", summary_font_size)
+		var effect_label := upgrade_effect_labels[index]
+		effect_label.offset_top = effect_top
+		effect_label.offset_bottom = effect_top + effect_height
+		effect_label.add_theme_font_size_override("font_size", effect_font_size)
+		var rarity_badge := upgrade_rarity_badges[index]
+		rarity_badge.offset_left = -badge_width - 10.0
+		rarity_badge.offset_top = 10.0
+		rarity_badge.offset_right = -10.0
+		rarity_badge.offset_bottom = 10.0 + badge_height
+		upgrade_rarity_labels[index].add_theme_font_size_override(
+			"font_size",
+			int(roundf(clampf(viewport_size.y * 0.019, 10.0, 11.0)))
+		)
+		var synergy_row := upgrade_synergy_rows[index]
+		synergy_row.offset_top = -upgrade_synergy_icon_size - 18.0
+		synergy_row.offset_bottom = -14.0
+		for holder in synergy_row.get_children():
+			_update_synergy_holder_size(holder as Control)
 	upgrade_title.add_theme_font_size_override(
 		"font_size",
 		int(roundf(clampf(minf(viewport_size.x * 0.035, viewport_size.y * 0.045), 20.0, 30.0)))
@@ -352,11 +405,6 @@ func _update_upgrade_layout(viewport_size: Vector2) -> void:
 		"font_size",
 		int(roundf(clampf(viewport_size.y * 0.023, 12.0, 15.0)))
 	)
-	var action_height := roundf(clampf(viewport_size.y * 0.065, 40.0, 46.0))
-	var action_font_size := int(roundf(clampf(viewport_size.y * 0.024, 13.0, 16.0)))
-	for button in [reroll_button, banish_button, skip_button]:
-		button.custom_minimum_size = Vector2(0.0, action_height)
-		button.add_theme_font_size_override("font_size", action_font_size)
 	# A largura final dos cartões altera o mínimo combinado do painel.
 	# Reaplique o alvo depois que todos os mínimos responsivos estiverem atualizados.
 	upgrade_panel.size = panel_size
@@ -491,42 +539,130 @@ func show_event(title: String, color: Color) -> void:
 	tween.tween_property(world_event_label, "modulate", Color.WHITE, 0.22)
 
 
-func show_level_up(new_level: int, options: Array[Dictionary], rerolls := 0, banishes := 0, skips := 0) -> void:
-	banish_mode = false
-	banish_count_display = banishes
-	current_upgrade_level = new_level
+func show_level_up(new_level: int, options: Array[Dictionary]) -> void:
 	upgrade_options = options
 	upgrade_title.text = "NÍVEL %d · ESCOLHA SEU PODER" % new_level
-	upgrade_hint.text = "Reroll troca as cartas · Banir remove uma opção desta partida · Pular guarda a build"
+	upgrade_hint.text = "Escolha uma das três cartas para continuar"
 	upgrade_overlay.show()
 	for index in range(upgrade_buttons.size()):
 		var button := upgrade_buttons[index]
+		var icon_rect := upgrade_icon_rects[index]
 		if index >= options.size():
 			button.hide()
+			icon_rect.texture = null
+			upgrade_summary_labels[index].text = ""
+			upgrade_effect_labels[index].text = ""
+			upgrade_rarity_badges[index].hide()
+			_populate_synergy_row(upgrade_synergy_rows[index], [])
 			continue
 		button.show()
 		var option := options[index]
-		var evolution_hint := str(option.get("evolution_hint", ""))
-		var evolution_block := "\n\n" + evolution_hint if not evolution_hint.is_empty() else ""
-		var gain_text := " · +%d" % int(option.get("levels_gained", 1)) if int(option.get("levels_gained", 1)) > 1 else ""
-		button.text = "%s\n\n%s\n%s · NÍVEL %d/%d%s\n\n%s%s\n\n[%s]" % [
-			option.icon, option.title, str(option.get("category", "PODER")), option.level, option.max,
-			gain_text, option.description, evolution_block, option.rarity
+		icon_rect.texture = UPGRADE_ICON_TEXTURES.get(str(option.id))
+		icon_rect.visible = icon_rect.texture != null
+		button.text = ""
+		var category := str(option.get("category", "PODER"))
+		var type_label := "Passivo" if category == "PASSIVO" else "Arma"
+		upgrade_summary_labels[index].text = "%s — %s · Nv %d/%d" % [
+			option.title, type_label, option.level, option.max,
 		]
+		upgrade_effect_labels[index].text = str(
+			option.get("short_description", option.get("description", ""))
+		)
 		var rarity_color := _rarity_color(str(option.rarity))
-		button.add_theme_color_override("font_color", rarity_color)
-		button.add_theme_color_override("font_hover_color", Color.WHITE)
-	reroll_button.text = "REROLL · %d" % rerolls
-	banish_button.text = "BANIR · %d" % banishes
-	skip_button.text = "PULAR · %d" % skips
-	reroll_button.disabled = rerolls <= 0
-	banish_button.disabled = banishes <= 0
-	skip_button.disabled = skips <= 0
+		upgrade_rarity_labels[index].text = str(option.rarity)
+		upgrade_rarity_labels[index].add_theme_color_override("font_color", rarity_color)
+		_style_rarity_badge(upgrade_rarity_badges[index], rarity_color)
+		upgrade_rarity_badges[index].show()
+		_populate_synergy_row(
+			upgrade_synergy_rows[index],
+			option.get("synergy_items", []) as Array
+		)
 	upgrade_scroll.scroll_vertical = 0
 	_update_responsive_hud_layout()
 	_update_responsive_hud_layout.call_deferred()
 	upgrade_buttons[0].grab_focus()
 	upgrade_scroll.set_deferred("scroll_vertical", 0)
+
+
+func _populate_synergy_row(row: HBoxContainer, synergy_items: Array) -> void:
+	for child in row.get_children():
+		row.remove_child(child)
+		child.queue_free()
+	for value in synergy_items:
+		var item: Dictionary = value
+		var synergy_id := str(item.get("id", ""))
+		var texture: Texture2D = UPGRADE_ICON_TEXTURES.get(synergy_id)
+		if synergy_id.is_empty() or texture == null:
+			continue
+		var required_level := int(item.get("required_level", 0))
+		var holder := Control.new()
+		holder.name = "Synergy_" + synergy_id
+		holder.mouse_filter = Control.MOUSE_FILTER_PASS
+		holder.focus_mode = Control.FOCUS_NONE
+		holder.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		holder.set_meta("upgrade_id", synergy_id)
+		holder.set_meta("required_level", required_level)
+		holder.tooltip_text = GameDefs.upgrade_title(synergy_id)
+		if required_level > 0:
+			holder.tooltip_text += " · Nv %d" % required_level
+		row.add_child(holder)
+		_update_synergy_holder_size(holder)
+
+		var icon := TextureRect.new()
+		icon.name = "Icon"
+		icon.texture = texture
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		holder.add_child(icon)
+		icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+		var required_label := Label.new()
+		required_label.name = "RequiredLevel"
+		required_label.text = "Nv %d" % required_level
+		required_label.visible = required_level > 0
+		required_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		required_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		required_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		required_label.add_theme_color_override("font_color", Color("f7d36b"))
+		required_label.add_theme_color_override("font_outline_color", Color(0.04, 0.02, 0.07, 1))
+		required_label.add_theme_constant_override("outline_size", 4)
+		required_label.add_theme_font_size_override("font_size", 10)
+		holder.add_child(required_label)
+		required_label.anchor_left = 1.0
+		required_label.anchor_top = 1.0
+		required_label.anchor_right = 1.0
+		required_label.anchor_bottom = 1.0
+		required_label.offset_left = -32.0
+		required_label.offset_top = -15.0
+		required_label.offset_right = 2.0
+		required_label.offset_bottom = 2.0
+	row.visible = row.get_child_count() > 0
+
+
+func _update_synergy_holder_size(holder: Control) -> void:
+	if holder == null:
+		return
+	holder.custom_minimum_size = Vector2(upgrade_synergy_icon_size, upgrade_synergy_icon_size)
+	holder.size = holder.custom_minimum_size
+	var required_label := holder.get_node_or_null("RequiredLevel") as Label
+	if required_label:
+		required_label.add_theme_font_size_override(
+			"font_size",
+			int(roundf(clampf(upgrade_synergy_icon_size * 0.34, 9.0, 11.0)))
+		)
+
+
+func _style_rarity_badge(badge: PanelContainer, rarity_color: Color) -> void:
+	var style := badge.get_theme_stylebox("panel").duplicate() as StyleBoxFlat
+	style.bg_color = Color(
+		rarity_color.r * 0.22,
+		rarity_color.g * 0.22,
+		rarity_color.b * 0.22,
+		0.96
+	)
+	style.border_color = Color(rarity_color.r, rarity_color.g, rarity_color.b, 0.92)
+	badge.add_theme_stylebox_override("panel", style)
 
 
 func hide_level_up() -> void:
@@ -569,22 +705,7 @@ func _on_upgrade_button_pressed(index: int) -> void:
 	if index >= upgrade_options.size():
 		return
 	var option := upgrade_options[index]
-	if banish_mode:
-		banish_mode = false
-		banish_requested.emit(str(option.id))
-		return
 	upgrade_selected.emit(option.id, option.rarity)
-
-
-func _toggle_banish_mode() -> void:
-	if banish_button.disabled:
-		return
-	banish_mode = not banish_mode
-	upgrade_title.text = "ESCOLHA UMA OPÇÃO PARA BANIR" if banish_mode else "NÍVEL %d · ESCOLHA SEU PODER" % current_upgrade_level
-	banish_button.text = "CANCELAR BANIMENTO" if banish_mode else "BANIR · %d" % banish_count_display
-	for index in range(upgrade_buttons.size()):
-		var color := Color("ff8f9a") if banish_mode else (_rarity_color(str(upgrade_options[index].rarity)) if index < upgrade_options.size() else Color("e7e1f5"))
-		upgrade_buttons[index].add_theme_color_override("font_color", color)
 
 
 func _rarity_color(rarity: String) -> Color:

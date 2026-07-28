@@ -33,9 +33,6 @@ var event_index := 0
 var game_ended := false
 var pending_upgrades := 0
 var upgrade_active := false
-var rerolls_left := 3
-var banishes_left := 3
-var skips_left := 2
 var active_boss: Node
 var active_boss_arena: Node
 var last_stage := ""
@@ -108,9 +105,6 @@ func _ready() -> void:
 	player.level_up_requested.connect(_on_level_up_requested)
 	player.died.connect(_on_player_died)
 	hud.upgrade_selected.connect(_on_upgrade_selected)
-	hud.reroll_requested.connect(_on_reroll_requested)
-	hud.banish_requested.connect(_on_banish_requested)
-	hud.skip_requested.connect(_on_skip_requested)
 	hud.relic_selected.connect(_on_relic_selected)
 	hud.restart_requested.connect(_restart_run)
 	hud.menu_requested.connect(_return_to_menu)
@@ -350,18 +344,6 @@ func _present_upgrade_options(options: Array[Dictionary]) -> void:
 
 func _on_upgrade_selected(upgrade_id: String, rarity: String) -> void:
 	run_flow.on_upgrade_selected(upgrade_id, rarity)
-
-
-func _on_reroll_requested() -> void:
-	run_flow.on_reroll_requested()
-
-
-func _on_banish_requested(upgrade_id: String) -> void:
-	run_flow.on_banish_requested(upgrade_id)
-
-
-func _on_skip_requested() -> void:
-	run_flow.on_skip_requested()
 
 
 func _advance_upgrade_queue() -> void:

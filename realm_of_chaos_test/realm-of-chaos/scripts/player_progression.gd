@@ -50,26 +50,49 @@ func get_upgrade_options(count: int, excluded_ids: Array[String] = []) -> Array[
 		definition["rarity"] = rarity
 		definition["category"] = "NOVA ARMA" if player.weapon_levels.has(upgrade_id) and current == 0 else ("ARMA" if player.weapon_levels.has(upgrade_id) else "PASSIVO")
 		definition["evolution_hint"] = evolution_hint_for(upgrade_id)
+		definition["synergy_items"] = synergy_items_for(upgrade_id)
 		options.append(definition)
 	return options
 
 
 func evolution_hint_for(upgrade_id: String) -> String:
+	var synergy_items := synergy_items_for(upgrade_id)
+	if player.weapon_levels.has(upgrade_id):
+		if synergy_items.is_empty():
+			return ""
+		var item: Dictionary = synergy_items[0]
+		return "EVOLUI COM %s NV.%d" % [
+			GameDefs.upgrade_title(str(item.id)).to_upper(),
+			int(item.required_level),
+		]
+	var synergies: Array[String] = []
+	for item in synergy_items:
+		synergies.append(GameDefs.upgrade_title(str(item.id)).capitalize())
+	if synergies.is_empty():
+		return ""
+	return "COMBINA COM %s" % ", ".join(synergies)
+
+
+func synergy_items_for(upgrade_id: String) -> Array[Dictionary]:
+	var synergy_items: Array[Dictionary] = []
 	if player.weapon_levels.has(upgrade_id):
 		var evolution := GameDefs.evolution_data(upgrade_id)
-		if evolution.is_empty():
-			return ""
-		return "EVOLUI COM %s NV.%d" % [GameDefs.upgrade_title(str(evolution.passive)).to_upper(), int(evolution.passive_level)]
-	var synergies: Array[String] = []
+		if not evolution.is_empty():
+			synergy_items.append({
+				"id": str(evolution.passive),
+				"required_level": int(evolution.passive_level),
+			})
+		return synergy_items
 	for weapon_id in player.WEAPON_IDS:
 		if int(player.weapon_levels.get(weapon_id, 0)) <= 0 or bool(player.evolved_weapons.get(weapon_id, false)):
 			continue
 		var evolution := GameDefs.evolution_data(weapon_id)
 		if str(evolution.get("passive", "")) == upgrade_id:
-			synergies.append(str(player.WEAPON_TITLES.get(weapon_id, weapon_id)).capitalize())
-	if synergies.is_empty():
-		return ""
-	return "COMBINA COM %s" % ", ".join(synergies)
+			synergy_items.append({
+				"id": weapon_id,
+				"required_level": 0,
+			})
+	return synergy_items
 
 
 func active_weapon_count() -> int:

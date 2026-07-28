@@ -96,7 +96,6 @@ func _run() -> void:
 		&"activate_landmark", &"record_damage", &"record_player_damage",
 		&"shake_camera", &"_on_level_up_requested", &"_show_next_upgrade",
 		&"_present_upgrade_options", &"_on_upgrade_selected",
-		&"_on_reroll_requested", &"_on_banish_requested", &"_on_skip_requested",
 		&"_advance_upgrade_queue", &"_on_player_died", &"_end_run",
 		&"_run_stats_text", &"_weapon_title", &"_restart_run",
 		&"_return_to_menu", &"_resume_run"
@@ -174,17 +173,20 @@ func _run() -> void:
 	await process_frame
 	_check(paused and world.upgrade_active and world.pending_upgrades == 1, "fila de level up não abriu")
 	_check(world.hud.upgrade_overlay.visible and world.hud.upgrade_options.size() == 3, "cartas de level up não foram apresentadas")
-	var rerolls_before: int = world.rerolls_left
-	world._on_reroll_requested()
-	_check(world.rerolls_left == rerolls_before - 1 and world.hud.upgrade_options.size() == 3, "reroll mudou de comportamento")
-	var banishes_before: int = world.banishes_left
-	var banished_id := str(world.hud.upgrade_options[0].id)
-	world._on_banish_requested(banished_id)
-	_check(world.banishes_left == banishes_before - 1 and world.player.banished_upgrades.has(banished_id), "banimento mudou de comportamento")
-	var skips_before: int = world.skips_left
-	world._on_skip_requested()
-	_check(world.skips_left == skips_before - 1 and not world.upgrade_active and world.pending_upgrades == 0, "skip não encerrou a fila")
-	_check(not paused and not world.hud.upgrade_overlay.visible, "fim da fila não retomou a partida")
+	_check(
+		not world.hud.has_signal("reroll_requested")
+		and not world.hud.has_signal("banish_requested")
+		and not world.hud.has_signal("skip_requested"),
+		"HUD ainda expõe sinais das ações removidas"
+	)
+	_check(
+		world.hud.get_node_or_null("UpgradeOverlay/Panel/Margin/VBox/ChoiceActions") == null,
+		"HUD ainda criou a linha de ações removida"
+	)
+	var selected_option: Dictionary = world.hud.upgrade_options[0]
+	world._on_upgrade_selected(str(selected_option.id), str(selected_option.rarity))
+	_check(not world.upgrade_active and world.pending_upgrades == 0, "escolha da carta não concluiu a fila")
+	_check(not paused and not world.hud.upgrade_overlay.visible, "seleção da carta não retomou a partida")
 	var might_before_stale_selection := int(world.player.passive_levels.might)
 	world._on_upgrade_selected("might", "COMUM")
 	_check(

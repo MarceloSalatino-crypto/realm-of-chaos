@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
 
@@ -84,6 +84,18 @@ corner_radius_top_left = 10
 corner_radius_top_right = 10
 corner_radius_bottom_right = 10
 corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="Rarity_badge"]
+bg_color = Color(0.20, 0.13, 0.28, 0.94)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.62, 0.50, 0.72, 0.95)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
 
 [sub_resource type="StyleBoxEmpty" id="Empty"]
 
@@ -386,6 +398,7 @@ theme_override_constants/h_separation = 18
 theme_override_constants/v_separation = 18
 
 [node name="Card1" type="Button" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards"]
+clip_contents = true
 custom_minimum_size = Vector2(0, 390)
 layout_mode = 2
 size_flags_horizontal = 3
@@ -395,10 +408,92 @@ theme_override_styles/normal = SubResource("Button_normal")
 theme_override_styles/hover = SubResource("Button_hover")
 theme_override_styles/pressed = SubResource("Button_pressed")
 theme_override_styles/focus = SubResource("Button_hover")
-text = "✦\n\nSETA DO CAOS\nNÍVEL 2\n\nMais dano e perfuração."
+
+[node name="Icon" type="TextureRect" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card1"]
+layout_mode = 1
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -58.0
+offset_top = 16.0
+offset_right = 58.0
+offset_bottom = 132.0
+grow_horizontal = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Summary" type="Label" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card1"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 12.0
+offset_top = 142.0
+offset_right = -12.0
+offset_bottom = 170.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.94, 0.91, 0.98, 1)
+theme_override_font_sizes/font_size = 16
+text = "Besta do Caos — Arma · Nv 2/8"
+horizontal_alignment = 1
+vertical_alignment = 1
 autowrap_mode = 2
+
+[node name="Effect" type="Label" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card1"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 14.0
+offset_top = 174.0
+offset_right = -14.0
+offset_bottom = 214.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.77, 0.71, 0.84, 1)
+theme_override_font_sizes/font_size = 15
+text = "Setas profanas: dano, projéteis e perfuração"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="RarityBadge" type="PanelContainer" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card1"]
+layout_mode = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -100.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = 34.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("Rarity_badge")
+
+[node name="Label" type="Label" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card1/RarityBadge"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.91, 0.88, 0.96, 1)
+theme_override_font_sizes/font_size = 11
+text = "COMUM"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="SynergyRow" type="HBoxContainer" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card1"]
+layout_mode = 1
+anchors_preset = 12
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 14.0
+offset_top = -50.0
+offset_right = -14.0
+offset_bottom = -14.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_constants/separation = 8
+alignment = 1
 
 [node name="Card2" type="Button" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards"]
+clip_contents = true
 custom_minimum_size = Vector2(0, 390)
 layout_mode = 2
 size_flags_horizontal = 3
@@ -408,10 +503,92 @@ theme_override_styles/normal = SubResource("Button_normal")
 theme_override_styles/hover = SubResource("Button_hover")
 theme_override_styles/pressed = SubResource("Button_pressed")
 theme_override_styles/focus = SubResource("Button_hover")
-text = "◆\n\nLÂMINAS SOMBRIAS\nNÍVEL 1\n\nRajada contra a horda."
+
+[node name="Icon" type="TextureRect" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card2"]
+layout_mode = 1
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -58.0
+offset_top = 16.0
+offset_right = 58.0
+offset_bottom = 132.0
+grow_horizontal = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Summary" type="Label" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card2"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 12.0
+offset_top = 142.0
+offset_right = -12.0
+offset_bottom = 170.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.94, 0.91, 0.98, 1)
+theme_override_font_sizes/font_size = 16
+text = "Lâminas Sombrias — Arma · Nv 1/6"
+horizontal_alignment = 1
+vertical_alignment = 1
 autowrap_mode = 2
 
+[node name="Effect" type="Label" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card2"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 14.0
+offset_top = 174.0
+offset_right = -14.0
+offset_bottom = 214.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.77, 0.71, 0.84, 1)
+theme_override_font_sizes/font_size = 15
+text = "Rajada em leque contra a horda"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="RarityBadge" type="PanelContainer" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card2"]
+layout_mode = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -100.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = 34.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("Rarity_badge")
+
+[node name="Label" type="Label" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card2/RarityBadge"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.91, 0.88, 0.96, 1)
+theme_override_font_sizes/font_size = 11
+text = "COMUM"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="SynergyRow" type="HBoxContainer" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card2"]
+layout_mode = 1
+anchors_preset = 12
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 14.0
+offset_top = -50.0
+offset_right = -14.0
+offset_bottom = -14.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_constants/separation = 8
+alignment = 1
+
 [node name="Card3" type="Button" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards"]
+clip_contents = true
 custom_minimum_size = Vector2(0, 390)
 layout_mode = 2
 size_flags_horizontal = 3
@@ -421,8 +598,89 @@ theme_override_styles/normal = SubResource("Button_normal")
 theme_override_styles/hover = SubResource("Button_hover")
 theme_override_styles/pressed = SubResource("Button_pressed")
 theme_override_styles/focus = SubResource("Button_hover")
-text = "♥\n\nSANGUE ANCESTRAL\nNÍVEL 1\n\nMais vida máxima."
+
+[node name="Icon" type="TextureRect" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card3"]
+layout_mode = 1
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -58.0
+offset_top = 16.0
+offset_right = 58.0
+offset_bottom = 132.0
+grow_horizontal = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Summary" type="Label" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card3"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 12.0
+offset_top = 142.0
+offset_right = -12.0
+offset_bottom = 170.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.94, 0.91, 0.98, 1)
+theme_override_font_sizes/font_size = 16
+text = "Sangue Ancestral — Passivo · Nv 1/5"
+horizontal_alignment = 1
+vertical_alignment = 1
 autowrap_mode = 2
+
+[node name="Effect" type="Label" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card3"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 14.0
+offset_top = 174.0
+offset_right = -14.0
+offset_bottom = 214.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.77, 0.71, 0.84, 1)
+theme_override_font_sizes/font_size = 15
+text = "+25 HP e cura imediata"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="RarityBadge" type="PanelContainer" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card3"]
+layout_mode = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -100.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = 34.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("Rarity_badge")
+
+[node name="Label" type="Label" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card3/RarityBadge"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.91, 0.88, 0.96, 1)
+theme_override_font_sizes/font_size = 11
+text = "COMUM"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="SynergyRow" type="HBoxContainer" parent="UpgradeOverlay/Panel/Margin/VBox/CardsScroll/Cards/Card3"]
+layout_mode = 1
+anchors_preset = 12
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 14.0
+offset_top = -50.0
+offset_right = -14.0
+offset_bottom = -14.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_constants/separation = 8
+alignment = 1
 
 [node name="PauseOverlay" type="Control" parent="."]
 visible = false
