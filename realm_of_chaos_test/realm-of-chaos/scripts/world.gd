@@ -113,7 +113,7 @@ func _ready() -> void:
 	_generate_environment()
 	_refresh_visual_bounds()
 	last_stage = GameDefs.stage_name(time_survived)
-	hud.show_stage_banner("%s · ARMA SORTEADA: %s" % [str(biome.name), player.equipped_weapon_title()])
+	hud.show_stage_banner("%s · ARMA INICIAL: %s" % [str(biome.name), player.equipped_weapon_title()])
 	_rebuild_spatial_grid()
 
 

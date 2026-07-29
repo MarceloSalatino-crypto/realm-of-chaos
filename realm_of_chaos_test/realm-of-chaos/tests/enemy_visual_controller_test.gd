@@ -1,5 +1,33 @@
 extends SceneTree
 
+const ENEMY_TYPES := [
+	"prowler", "assassin", "bat", "swarm", "mage", "necromancer",
+	"archer", "brute", "guardian", "ember", "bomber"
+]
+const EXPECTED_ANIMATIONS := {
+	"prowler": "prowler",
+	"assassin": "assassin",
+	"bat": "bat",
+	"swarm": "swarm",
+	"mage": "mage",
+	"necromancer": "necromancer",
+	"archer": "archer",
+	"brute": "brute",
+	"guardian": "guardian",
+	"ember": "ember",
+	"bomber": "bomber"
+}
+
+const BOSS_TYPES := [
+	"void_knight", "ossuary_colossus", "glacial_archon",
+	"infernal_reaper", "void_titan", "chaos_sovereign"
+]
+const EXPECTED_BOSS_ANIMATIONS := {
+	"void_knight": "void_knight", "ossuary_colossus": "ossuary_colossus",
+	"glacial_archon": "glacial_archon", "infernal_reaper": "infernal_reaper",
+	"void_titan": "void_titan", "chaos_sovereign": "chaos_sovereign"
+}
+
 class VisualBoundsWorld:
 	extends Node
 
@@ -45,6 +73,99 @@ func _run() -> void:
 	_check(not prowler.health_bar.visible and is_equal_approx(prowler.health_bar.max_value, prowler.max_hp), "barra do inimigo comum mudou")
 	_check(elite.health_bar.visible and elite.base_modulate.is_equal_approx(Color("d8b7ff")), "marcacao visual de elite mudou")
 	_check(boss.health_bar.visible and is_equal_approx(boss.health_bar.offset_left, -boss.hit_radius), "barra de chefe perdeu o dimensionamento")
+
+	var boss_texture_paths: Dictionary = {}
+	for kind in BOSS_TYPES:
+		var mapped_boss = _spawn_enemy(kind)
+		var expected_animation: String = EXPECTED_BOSS_ANIMATIONS[kind]
+		var expected_texture_path := "res://assets/generated/%s.png" % (
+			"enemy_anim_void_knight" if kind == "void_knight" else "boss_" + expected_animation
+		)
+		_check(mapped_boss.boss, "%s deixou de ser chefe" % kind)
+		_check(mapped_boss.definition_animation == expected_animation, "ID visual de chefe incorreto para %s" % kind)
+		_check(
+			mapped_boss.sprite.texture.resource_path == expected_texture_path,
+			"%s caiu em textura incorreta: %s" % [kind, mapped_boss.sprite.texture.resource_path]
+		)
+		_check(
+			mapped_boss.sprite.hframes == 4 and mapped_boss.sprite.vframes == 1,
+			"grade visual de %s deixou de ser 4x1" % kind
+		)
+		_check(not boss_texture_paths.has(expected_texture_path), "%s compartilhou folha de chefe" % kind)
+		boss_texture_paths[expected_texture_path] = kind
+		var aura_colors: Array[Color] = mapped_boss.visual_controller.boss_aura_colors()
+		var expected_fill: Color = mapped_boss.definition_color
+		expected_fill.a = 0.09
+		var expected_edge: Color = mapped_boss.definition_color.lightened(0.30)
+		expected_edge.a = 0.42
+		_check(aura_colors[0].is_equal_approx(expected_fill), "aura interna de %s nao herdou sua cor" % kind)
+		_check(aura_colors[1].is_equal_approx(expected_edge), "contorno da aura de %s nao herdou sua cor" % kind)
+	_check(boss_texture_paths.size() == 6, "as seis folhas de chefe nao ficaram unicas")
+
+	var unique_texture_paths: Dictionary = {}
+	for kind in ENEMY_TYPES:
+		var mapped_enemy = _spawn_enemy(kind)
+		var expected_animation: String = EXPECTED_ANIMATIONS[kind]
+		var expected_texture_path := "res://assets/generated/enemy_anim_%s.png" % expected_animation
+		_check(mapped_enemy.definition_animation == expected_animation, "ID visual incorreto para %s" % kind)
+		_check(
+			mapped_enemy.sprite.texture.resource_path == expected_texture_path,
+			"%s caiu em textura incorreta: %s" % [kind, mapped_enemy.sprite.texture.resource_path]
+		)
+		_check(
+			mapped_enemy.sprite.hframes == 4 and mapped_enemy.sprite.vframes == 1,
+			"grade visual de %s deixou de ser 4x1" % kind
+		)
+		_check(
+			not unique_texture_paths.has(expected_texture_path),
+			"%s compartilhou textura com %s" % [kind, unique_texture_paths.get(expected_texture_path, "outro tipo")]
+		)
+		unique_texture_paths[expected_texture_path] = kind
+	_check(unique_texture_paths.size() == 11, "os onze inimigos comuns nao terminaram com texturas unicas")
+
+	var smoothing := 1.0 - exp(-0.20 * 14.0)
+	var motion_profiles := [
+		{"kinds": ["bat", "swarm"], "age": PI * 0.5 / 5.2, "lift": 3.5, "rotation": 0.025},
+		{"kinds": ["mage", "necromancer", "archer"], "age": PI * 0.5 / 2.35, "lift": 4.0, "rotation": 0.0},
+		{
+			"kinds": ["ember", "bomber"],
+			"age": PI * 0.5 / 3.0,
+			"lift": 5.5,
+			"rotation": sin((PI * 0.5 / 3.0) * 2.1) * 0.035
+		}
+	]
+	for profile in motion_profiles:
+		for kind in profile.kinds:
+			var profile_enemy = _spawn_enemy(kind)
+			profile_enemy.movement_age = float(profile.age)
+			profile_enemy.sprite.position = Vector2.ZERO
+			profile_enemy.sprite.rotation = 0.0
+			profile_enemy.velocity = Vector2.ZERO
+			profile_enemy.hit_squash = 0.0
+			profile_enemy._animate_sprite(0.20, 0.0)
+			var expected_y: float = (-16.0 + float(profile.lift)) * smoothing
+			var expected_rotation: float = float(profile.rotation) * smoothing
+			_check(
+				is_equal_approx(profile_enemy.sprite.position.y, expected_y),
+				"flutuacao por comportamento mudou para %s" % kind
+			)
+			_check(
+				is_equal_approx(profile_enemy.sprite.rotation, expected_rotation),
+				"balanco por comportamento mudou para %s" % kind
+			)
+
+	for kind in ["prowler", "assassin", "brute", "guardian"]:
+		var grounded_enemy = _spawn_enemy(kind)
+		grounded_enemy.movement_age = 1.0
+		grounded_enemy.sprite.position = Vector2.ZERO
+		grounded_enemy.sprite.rotation = 0.0
+		grounded_enemy.velocity = Vector2.ZERO
+		grounded_enemy._animate_sprite(0.20, 0.0)
+		_check(
+			is_equal_approx(grounded_enemy.sprite.position.y, -16.0 * smoothing),
+			"%s ganhou flutuacao indevida" % kind
+		)
+		_check(is_zero_approx(grounded_enemy.sprite.rotation), "%s ganhou balanco indevido" % kind)
 
 	var bat = _spawn_enemy("bat")
 	bat.velocity = Vector2(-100.0, 0.0)
@@ -120,5 +241,5 @@ func _run() -> void:
 	bounds_world.queue_free()
 	await process_frame
 	if failures.is_empty():
-		print("ENEMY VISUAL CONTROLLER OK: configuracao, frames, LOD, desenho, dano e morte validados")
+		print("ENEMY VISUAL CONTROLLER OK: 11 comuns, 6 chefes, auras tematicas, frames, LOD, dano e morte validados")
 	quit(0 if failures.is_empty() else 1)

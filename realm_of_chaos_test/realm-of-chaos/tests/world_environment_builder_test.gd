@@ -82,6 +82,13 @@ func _validate_cycle(world: Node, cycle: int) -> void:
 	var biome: Dictionary = GameDefs.biome_data(cycle)
 	var expected_hazard := "ice" if str(biome.id) == "frozen" else ("void" if str(biome.id) == "cathedral" else "roots")
 	var expected_tint := Color("9ec7df") if str(biome.id) == "frozen" else (Color("9e82bb") if str(biome.id) == "cathedral" else Color("b3c7bd"))
+	var expected_boundary := (
+		Color(0.46, 0.78, 0.91, 0.26) if str(biome.id) == "frozen"
+		else (
+			Color(0.63, 0.25, 0.82, 0.26) if str(biome.id) == "cathedral"
+			else Color(0.26, 0.49, 0.39, 0.24)
+		)
+	)
 	_check(world.decorations.get_child_count() == 310, "ciclo %d nao criou 310 decoracoes" % cycle)
 	_check(world.obstacles.get_child_count() == 24, "ciclo %d nao criou 24 obstaculos" % cycle)
 	_check(world.hazards.get_child_count() == 18, "ciclo %d nao criou 18 perigos" % cycle)
@@ -91,6 +98,7 @@ func _validate_cycle(world: Node, cycle: int) -> void:
 	_check(str(world.map_overlay.biome_id) == str(biome.id), "overlay recebeu bioma incorreto no ciclo %d" % cycle)
 	_check(world.map_overlay.landmark_positions == world.landmark_positions, "overlay recebeu landmarks diferentes no ciclo %d" % cycle)
 	_check(int(world.map_overlay.layout_seed) == 44321 + cycle * 701, "seed do overlay incorreta no ciclo %d" % cycle)
+	_check(world.map_overlay.boundary_color().is_equal_approx(expected_boundary), "borda temática incorreta no ciclo %d" % cycle)
 
 	var kinds := ["altar", "obelisk", "tree", "portal"]
 	for index in range(4):

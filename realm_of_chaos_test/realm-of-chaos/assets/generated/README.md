@@ -6,11 +6,11 @@ Estes assets foram criados especificamente para **Realm of Chaos** com o gerador
 
 - `hero_eclipse_hunter.png`: arte principal do novo Caçador do Eclipse.
 - `hero_anim_chaos_bolt.png`: folha 4×2 com caminhada e disparo da Besta do Caos.
-- `hero_anim_shadow_blades.png`: folha 4×2 com caminhada e sequência de corte da Lâmina Sombria.
-- `hero_anim_soul_orbit.png`: folha 4×2 com caminhada e conjuração do Cetro das Almas.
-- `hero_anim_chaos_nova.png`: folha 4×2 com caminhada e conjuração do Cajado da Nova.
+- `hero_anim_shadow_blades.png`: folha 4×2 do Cavaleiro Rubro com caminhada e sequência de corte da Lâmina Sombria.
+- `hero_anim_soul_orbit.png`: folha 4×2 do Oráculo Glacial com caminhada e conjuração do Cetro das Almas.
+- `hero_anim_chaos_nova.png`: folha 4×2 do Autômato do Vazio com caminhada e conjuração do Cajado da Nova.
 
-Em cada folha da protagonista, a linha superior contém quatro poses de locomoção e a inferior quatro poses de ataque. A arma sorteada troca a folha inteira, portanto corpo, mãos e arma permanecem visualmente coerentes.
+Em cada folha, a linha superior contém quatro poses de locomoção e a inferior quatro poses de ataque. Cada caçador possui uma folha e uma arma inicial próprias, mantendo corpo, mãos e arma visualmente coerentes.
 
 ## Inimigos
 

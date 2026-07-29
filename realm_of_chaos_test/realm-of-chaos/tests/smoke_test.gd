@@ -30,8 +30,20 @@ func _run() -> void:
 	for weapon_id in world.player.WEAPON_IDS:
 		if int(world.player.weapon_levels[weapon_id]) > 0:
 			starting_weapon_count += 1
-	_check(starting_weapon_count == 1 and world.player.equipped_weapon_id in world.player.WEAPON_IDS, "arma inicial não foi sorteada corretamente")
-	_check(world.player.sprite.texture != null, "a aparência da arma sorteada não foi aplicada ao jogador")
+	var character_definition: Dictionary = GameDefs.character_data(world.player.character_id)
+	var expected_starting_weapon := str(character_definition.starting_weapon)
+	_check(
+		starting_weapon_count == 1
+		and world.player.equipped_weapon_id == expected_starting_weapon
+		and int(world.player.weapon_levels[expected_starting_weapon]) == 1,
+		"arma inicial não corresponde ao caçador"
+	)
+	_check(
+		world.player.sprite.texture != null
+		and world.player.sprite.texture.resource_path
+			== world.player.WEAPON_TEXTURES[expected_starting_weapon].resource_path,
+		"a aparência da arma vinculada não foi aplicada ao jogador"
+	)
 	_check(world.player.sprite.hframes == 4 and world.player.sprite.vframes == 2, "jogador não usa a folha de animação 4x2")
 	_check(is_equal_approx(world.RUN_DURATION, 1500.0), "partida não está configurada para 25 minutos")
 	_check(world.BOSS_TIMES.size() == 5 and is_equal_approx(world.BOSS_TIMES[-1], 1500.0), "agenda de chefes incompleta")

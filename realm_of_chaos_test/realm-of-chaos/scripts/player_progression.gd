@@ -261,11 +261,12 @@ func apply_landmark_blessing(kind: String, duration := 40.0) -> String:
 func apply_character(selected_id: String) -> void:
 	if player.character_applied:
 		return
-	player.character_applied = true
-	player.character_id = selected_id
 	var definition := GameDefs.character_data(selected_id)
+	player.character_applied = true
+	player.character_id = str(definition.id)
 	player.character_color = definition.color
 	player.character_skill_name = str(definition.get("skill", "HABILIDADE DO CAÇADOR"))
+	player._equip_starting_weapon(str(definition.get("starting_weapon", "chaos_bolt")))
 	player._apply_character_visual()
 	match player.character_id:
 		"glacial_oracle":

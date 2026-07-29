@@ -13,17 +13,17 @@ static func enemy_data(kind: String) -> Dictionary:
 		"ember":
 			return _enemy("Crânio de Brasa", 38.0, 105.0, 17.0, 5, 22.0, 0.19, "ff8a32", "ember", "ember")
 		"bomber":
-			return _enemy("Carniçal Instável", 54.0, 92.0, 28.0, 7, 23.0, 0.18, "ff744a", "ember", "bomber")
+			return _enemy("Carniçal Instável", 54.0, 92.0, 28.0, 7, 23.0, 0.18, "ff744a", "bomber", "bomber")
 		"necromancer":
-			return _enemy("Tecelão de Ossos", 96.0, 57.0, 15.0, 13, 24.0, 0.20, "9d72ff", "mage", "necromancer", true)
+			return _enemy("Tecelão de Ossos", 96.0, 57.0, 15.0, 13, 24.0, 0.20, "9d72ff", "necromancer", "necromancer", true)
 		"archer":
-			return _enemy("Atirador do Véu", 62.0, 82.0, 14.0, 8, 21.0, 0.19, "78d7ff", "mage", "archer", true)
+			return _enemy("Atirador do Véu", 62.0, 82.0, 14.0, 8, 21.0, 0.19, "78d7ff", "archer", "archer", true)
 		"assassin":
-			return _enemy("Assassino Espectral", 46.0, 142.0, 19.0, 9, 19.0, 0.18, "d86cff", "prowler", "assassin")
+			return _enemy("Assassino Espectral", 46.0, 142.0, 19.0, 9, 19.0, 0.18, "d86cff", "assassin", "assassin")
 		"swarm":
-			return _enemy("Farpas Aladas", 13.0, 192.0, 6.0, 1, 11.0, 0.115, "ff6278", "bat", "swarm_flight")
+			return _enemy("Farpas Aladas", 13.0, 192.0, 6.0, 1, 11.0, 0.115, "ff6278", "swarm", "swarm_flight")
 		"guardian":
-			return _enemy("Guardião Rúnico", 235.0, 43.0, 21.0, 16, 35.0, 0.24, "e0b779", "brute", "guardian")
+			return _enemy("Guardião Rúnico", 235.0, 43.0, 21.0, 16, 35.0, 0.24, "e0b779", "guardian", "guardian")
 		"ossuary_colossus":
 			return _boss("COLOSSO DO OSSUÁRIO", 2200.0, 45.0, 24.0, 120, 48.0, 0.19, "cfaa75", "ossuary_colossus", "ossuary")
 		"glacial_archon":
@@ -203,13 +203,17 @@ static func relics() -> Array[Dictionary]:
 static func characters() -> Array[Dictionary]:
 	return [
 		{"id": "eclipse_hunter", "title": "CAÇADOR DO ECLIPSE", "role": "Equilibrado", "skill": "RAJADA DO ECLIPSE",
-		 "description": "+8% de dano; a esquiva dispara uma rajada crítica.", "color": Color("ffffff")},
+		 "description": "+8% de dano; a esquiva dispara uma rajada crítica.", "color": Color("ffffff"),
+		 "starting_weapon": "chaos_bolt"},
 		{"id": "glacial_oracle", "title": "ORÁCULO GLACIAL", "role": "Controle", "skill": "PULSO GLACIAL",
-		 "description": "+3 de armadura; a esquiva congela a horda próxima.", "color": Color("a9e8ff")},
+		 "description": "+3 de armadura; a esquiva congela a horda próxima.", "color": Color("a9e8ff"),
+		 "starting_weapon": "soul_orbit"},
 		{"id": "crimson_knight", "title": "CAVALEIRO RUBRO", "role": "Resistência", "skill": "CONTRA-ATAQUE RUBRO",
-		 "description": "+35 de vida; a esquiva desfere um corte e concede guarda.", "color": Color("ff9b9b")},
+		 "description": "+35 de vida; a esquiva desfere um corte e concede guarda.", "color": Color("ff9b9b"),
+		 "starting_weapon": "shadow_blades"},
 		{"id": "void_automaton", "title": "AUTÔMATO DO VAZIO", "role": "Ofensivo", "skill": "SOBRECARGA ARCANA",
-		 "description": "+18% de dano; a esquiva encadeia descargas automáticas.", "color": Color("d7a9ff")}
+		 "description": "+18% de dano; a esquiva encadeia descargas automáticas.", "color": Color("d7a9ff"),
+		 "starting_weapon": "chaos_nova"}
 	]
 
 

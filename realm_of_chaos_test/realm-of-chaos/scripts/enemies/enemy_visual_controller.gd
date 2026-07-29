@@ -5,10 +5,16 @@ const LOCOMOTION_MAX_FPS := 14.0
 const OFFSCREEN_VISUAL_INTERVAL := 0.12
 const ENEMY_ANIMATIONS := {
 	"prowler": preload("res://assets/generated/enemy_anim_prowler.png"),
+	"assassin": preload("res://assets/generated/enemy_anim_assassin.png"),
 	"bat": preload("res://assets/generated/enemy_anim_bat.png"),
+	"swarm": preload("res://assets/generated/enemy_anim_swarm.png"),
 	"mage": preload("res://assets/generated/enemy_anim_mage.png"),
+	"necromancer": preload("res://assets/generated/enemy_anim_necromancer.png"),
+	"archer": preload("res://assets/generated/enemy_anim_archer.png"),
 	"brute": preload("res://assets/generated/enemy_anim_brute.png"),
+	"guardian": preload("res://assets/generated/enemy_anim_guardian.png"),
 	"ember": preload("res://assets/generated/enemy_anim_ember.png"),
+	"bomber": preload("res://assets/generated/enemy_anim_bomber.png"),
 	"void_knight": preload("res://assets/generated/enemy_anim_void_knight.png"),
 	"ossuary_colossus": preload("res://assets/generated/boss_ossuary_colossus.png"),
 	"glacial_archon": preload("res://assets/generated/boss_glacial_archon.png"),
@@ -97,16 +103,16 @@ func animate_sprite(delta: float, distance_moved := -1.0, allow_custom_redraw :=
 
 	var lift := 0.0
 	var target_rotation := 0.0
-	match enemy.definition_animation:
-		"bat":
+	match enemy.behavior:
+		"swarm_flight":
 			lift = sin(enemy.movement_age * 5.2) * 3.5
 			target_rotation = sin(enemy.movement_age * 5.2) * 0.025
-		"mage", "glacial_archon":
+		"ranged", "archer", "necromancer", "glacial":
 			lift = sin(enemy.movement_age * 2.35) * 4.0
-		"ember":
+		"ember", "bomber":
 			lift = sin(enemy.movement_age * 3.0) * 5.5
 			target_rotation = sin(enemy.movement_age * 2.1) * 0.035
-		"chaos_sovereign":
+		"sovereign":
 			lift = sin(enemy.movement_age * 1.9) * 2.0
 	var target_scale: Vector2 = Vector2.ONE * enemy.base_visual_scale
 	if enemy.hit_squash > 0.0:
@@ -150,6 +156,14 @@ func play_death_animation() -> void:
 	tween.chain().tween_callback(enemy.queue_free)
 
 
+func boss_aura_colors() -> Array[Color]:
+	var fill: Color = enemy.definition_color
+	fill.a = 0.09
+	var edge: Color = enemy.definition_color.lightened(0.30)
+	edge.a = 0.42
+	return [fill, edge]
+
+
 func draw() -> void:
 	if enemy.behavior in ["ember", "bomber"]:
 		var ember_alpha := 0.10 + (sin(enemy.movement_age * 3.2) + 1.0) * 0.035
@@ -165,5 +179,6 @@ func draw() -> void:
 		enemy.draw_arc(Vector2(0.0, 1.0), enemy.hit_radius * 1.35, 0.0, TAU, 30, Color(0.76, 0.45, 1.0, 0.30), 2.0)
 	if enemy.boss:
 		var aura_radius: float = enemy.hit_radius * (1.40 + sin(enemy.movement_age * 1.75) * 0.06)
-		enemy.draw_circle(Vector2(0.0, -5.0), aura_radius, Color(0.52, 0.12, 0.82, 0.09))
-		enemy.draw_arc(Vector2(0.0, -5.0), aura_radius, enemy.movement_age * 0.55, enemy.movement_age * 0.55 + PI * 1.45, 48, Color(0.78, 0.44, 1.0, 0.42), 3.0)
+		var aura_colors := boss_aura_colors()
+		enemy.draw_circle(Vector2(0.0, -5.0), aura_radius, aura_colors[0])
+		enemy.draw_arc(Vector2(0.0, -5.0), aura_radius, enemy.movement_age * 0.55, enemy.movement_age * 0.55 + PI * 1.45, 48, aura_colors[1], 3.0)

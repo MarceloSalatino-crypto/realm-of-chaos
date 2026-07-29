@@ -137,12 +137,20 @@ func _run() -> void:
 		_check(world.has_method(method_name), "API publica ausente: %s" % method_name)
 
 	var expected_cycle := int(config.get_value("progress", "active_cycle", 0))
-	var expected_character := str(config.get_value("profile", "character", "eclipse_hunter"))
+	var stored_character := str(config.get_value("profile", "character", "eclipse_hunter"))
+	var expected_character_definition: Dictionary = GameDefs.character_data(stored_character)
+	var expected_character := str(expected_character_definition.id)
+	var expected_starting_weapon := str(expected_character_definition.starting_weapon)
 	var expected_settings := _expected_settings(config)
 	var expected_player := _expected_player_state(config)
 	_check(world.run_cycle == expected_cycle, "ciclo ativo nao foi carregado")
 	_check(str(world.biome.id) == str(GameDefs.biome_data(expected_cycle).id), "bioma nao corresponde ao ciclo carregado")
 	_check(world.player.character_id == expected_character and world.player.character_applied, "personagem do perfil nao foi aplicado")
+	_check(
+		world.player.equipped_weapon_id == expected_starting_weapon
+		and int(world.player.weapon_levels[expected_starting_weapon]) == 1,
+		"arma inicial vinculada ao personagem nao foi carregada"
+	)
 	_check_close(world.player.damage_multiplier, float(expected_player.damage), "meta de poder ou bonus do personagem incorreto")
 	_check_close(world.player.max_hp, float(expected_player.max_hp), "meta de vitalidade ou bonus do personagem incorreto")
 	_check_close(world.player.hp, float(expected_player.max_hp), "vida nao acompanhou a vitalidade carregada")

@@ -238,10 +238,10 @@ func _run() -> void:
 	_check_close(player.crit_chance, 0.065, "meta bônus de fortuna mudou")
 
 	var character_expectations := {
-		"eclipse_hunter": [1.08, 125.0, 0.0, 1.0, 0.0],
-		"glacial_oracle": [1.0, 125.0, 3.0, 0.90, 0.0],
-		"crimson_knight": [1.0, 160.0, 0.0, 1.0, 0.004],
-		"void_automaton": [1.18, 110.0, 0.0, 1.0, 0.0]
+		"eclipse_hunter": [1.08, 125.0, 0.0, 1.0, 0.0, "chaos_bolt"],
+		"glacial_oracle": [1.0, 125.0, 3.0, 0.90, 0.0, "soul_orbit"],
+		"crimson_knight": [1.0, 160.0, 0.0, 1.0, 0.004, "shadow_blades"],
+		"void_automaton": [1.18, 110.0, 0.0, 1.0, 0.0, "chaos_nova"]
 	}
 	for character_id in character_expectations:
 		_reset_player(player)
@@ -257,9 +257,37 @@ func _run() -> void:
 		_check_close(player.cooldown_multiplier, float(expected[3]), "cooldown do personagem mudou: %s" % character_id)
 		_check_close(player.life_steal, float(expected[4]), "roubo de vida do personagem mudou: %s" % character_id)
 		_check_close(player.hp, player.max_hp, "personagem não iniciou com vida cheia: %s" % character_id)
+		var expected_weapon_id := str(expected[5])
+		var active_weapon_count := 0
+		for weapon_id in player.WEAPON_IDS:
+			if int(player.weapon_levels[weapon_id]) > 0:
+				active_weapon_count += 1
+		_check(
+			active_weapon_count == 1
+			and player.equipped_weapon_id == expected_weapon_id
+			and int(player.weapon_levels[expected_weapon_id]) == 1,
+			"arma inicial do personagem mudou: %s" % character_id
+		)
+		_check(
+			player.sprite.texture.resource_path == player.WEAPON_TEXTURES[expected_weapon_id].resource_path,
+			"folha da arma inicial do personagem mudou: %s" % character_id
+		)
 	var character_before_repeat: String = player.character_id
+	var weapon_before_repeat: String = player.equipped_weapon_id
 	player.apply_character("eclipse_hunter")
-	_check(player.character_id == character_before_repeat, "aplicação repetida substituiu o personagem")
+	_check(
+		player.character_id == character_before_repeat
+		and player.equipped_weapon_id == weapon_before_repeat,
+		"aplicação repetida substituiu personagem ou arma"
+	)
+	_reset_player(player)
+	player.apply_character("unknown_hunter")
+	_check(
+		player.character_id == "eclipse_hunter"
+		and player.equipped_weapon_id == "chaos_bolt"
+		and int(player.weapon_levels.chaos_bolt) == 1,
+		"caçador inválido não recuou para a combinação padrão"
+	)
 
 	_reset_player(player)
 	player.hp = 50.0

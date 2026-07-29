@@ -18,6 +18,18 @@ func _check(condition: bool, message: String) -> void:
 func _run() -> void:
 	_check(str(ProjectSettings.get_setting("application/run/main_scene", "")) == "res://scenes/main_menu.tscn", "menu principal não é a cena inicial do projeto")
 	_check(GameDefs.characters().size() == 4, "catálogo de caçadores incompleto")
+	var expected_starting_weapons := {
+		"eclipse_hunter": "chaos_bolt",
+		"glacial_oracle": "soul_orbit",
+		"crimson_knight": "shadow_blades",
+		"void_automaton": "chaos_nova"
+	}
+	for definition in GameDefs.characters():
+		var character_id := str(definition.id)
+		_check(
+			str(definition.starting_weapon) == str(expected_starting_weapons.get(character_id, "")),
+			"arma inicial temática incorreta: %s" % character_id
+		)
 	_check(GameDefs.relics().size() >= 10, "catálogo de relíquias incompleto")
 	_check(GameDefs.achievements().size() >= 6, "catálogo de conquistas incompleto")
 
@@ -45,6 +57,18 @@ func _run() -> void:
 	var environment: Dictionary = world.get_environment_effect(first_hazard.global_position)
 	_check(float(environment.speed) != 1.0 or float(environment.traction) != 1.0 or float(environment.damage) > 0.0, "perigo do bioma não altera a física")
 	_check(world.player.character_applied and not world.player.character_id.is_empty(), "caçador selecionado não foi aplicado")
+	var active_character: Dictionary = GameDefs.character_data(world.player.character_id)
+	var active_starting_weapon := str(active_character.starting_weapon)
+	var active_weapon_count := 0
+	for weapon_id in world.player.WEAPON_IDS:
+		if int(world.player.weapon_levels[weapon_id]) > 0:
+			active_weapon_count += 1
+	_check(
+		active_weapon_count == 1
+		and world.player.equipped_weapon_id == active_starting_weapon
+		and int(world.player.weapon_levels[active_starting_weapon]) == 1,
+		"caçador do perfil não recebeu sua arma inicial exclusiva"
+	)
 	_check(world.player.movement_acceleration > 0.0 and world.player.movement_deceleration > 0.0, "movimento não usa aceleração natural")
 	world.time_survived = 60.0
 	var early_types: Dictionary = {}

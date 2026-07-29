@@ -23,7 +23,7 @@ Uma evolução completa do protótipo original para um loop no estilo survivor: 
 - Onze inimigos jogáveis no diretor de hordas, incluindo bombardeiro, necromante, arqueiro, assassino, enxame e guardião de suporte.
 - Novo protagonista **Caçador do Eclipse**, com cabelo branco, meia-máscara de osso, sobretudo azul-noturno e cachecol carmesim.
 - Quatro caçadores selecionáveis, cada um com bônus e habilidade acionada pela esquiva: Rajada do Eclipse, Pulso Glacial, Contra-ataque Rubro ou Sobrecarga Arcana.
-- Arma inicial sorteada entre Besta do Caos, Lâmina Sombria, Cetro das Almas e Cajado da Nova; cada resultado troca a aparência completa da personagem.
+- Cada caçador possui uma arma inicial temática fixa: Caçador do Eclipse/Besta do Caos, Oráculo Glacial/Cetro das Almas, Cavaleiro Rubro/Lâmina Sombria e Autômato do Vazio/Cajado da Nova.
 - Animações quadro a quadro: caminhada em quatro poses e ataque em quatro poses específicas para cada arma, sem deformação artificial dos membros.
 - Folhas de animação inimigas com locomoção, preparação e golpe/conjuração próprios de cada arquétipo.
 - Mini-chefes exclusivos aos 5, 10, 15 e 20 minutos; o Soberano do Caos surge aos 25 minutos e precisa ser derrotado para concluir a fase.

@@ -14,6 +14,16 @@ func configure(new_biome_id: String, positions: Array[Vector2], seed_value: int)
 	queue_redraw()
 
 
+func boundary_color() -> Color:
+	match biome_id:
+		"frozen":
+			return Color(0.46, 0.78, 0.91, 0.26)
+		"cathedral":
+			return Color(0.63, 0.25, 0.82, 0.26)
+		_:
+			return Color(0.26, 0.49, 0.39, 0.24)
+
+
 func _draw() -> void:
 	var path_color := Color(0.17, 0.13, 0.16, 0.34)
 	var edge_color := Color(0.48, 0.29, 0.57, 0.17)
@@ -48,4 +58,4 @@ func _draw() -> void:
 		draw_circle(destination, 255.0, zone_color)
 		draw_arc(destination, 250.0, 0.0, TAU, 64, Color(edge_color, 0.56), 3.0)
 
-	draw_rect(Rect2(-5550.0, -5550.0, 11100.0, 11100.0), Color(0.62, 0.28, 0.78, 0.20), false, 12.0)
+	draw_rect(Rect2(-5550.0, -5550.0, 11100.0, 11100.0), boundary_color(), false, 12.0)

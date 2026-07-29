@@ -141,7 +141,6 @@ func _ready() -> void:
 	visual_controller = PlayerVisualControllerScript.new(self)
 	_ensure_gameplay_actions()
 	hp = max_hp
-	_roll_starting_weapon()
 
 
 func _ensure_gameplay_actions() -> void:
@@ -160,12 +159,10 @@ func _ensure_gameplay_actions() -> void:
 		InputMap.action_add_event("map_toggle", map_key)
 
 
-func _roll_starting_weapon() -> void:
-	for weapon_id in WEAPON_IDS:
-		weapon_levels[weapon_id] = 0
-	var rng := RandomNumberGenerator.new()
-	rng.randomize()
-	equipped_weapon_id = STARTING_WEAPON_IDS[rng.randi_range(0, STARTING_WEAPON_IDS.size() - 1)]
+func _equip_starting_weapon(weapon_id: String) -> void:
+	for candidate_weapon_id in WEAPON_IDS:
+		weapon_levels[candidate_weapon_id] = 0
+	equipped_weapon_id = weapon_id if weapon_id in STARTING_WEAPON_IDS else "chaos_bolt"
 	weapon_levels[equipped_weapon_id] = 1
 	_equip_weapon_visual(equipped_weapon_id)
 	bolt_timer = 0.12
