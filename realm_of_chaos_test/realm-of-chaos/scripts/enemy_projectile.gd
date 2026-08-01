@@ -70,9 +70,13 @@ func _physics_process(delta: float) -> void:
 
 
 func _draw() -> void:
+	if _uses_batch_renderer():
+		return
+	var outline := Color("240b18")
+	var shadow := projectile_color.darkened(0.48)
+	var highlight := projectile_color.lightened(0.42)
 	if uses_danger_style:
 		# Pontas irregulares e núcleo escuro formam uma leitura clara de ameaça.
-		draw_circle(Vector2.ZERO, radius * 2.05, Color(projectile_color, 0.18))
 		var outline_points := PackedVector2Array()
 		var blade_points := PackedVector2Array()
 		for index in range(16):
@@ -82,15 +86,54 @@ func _draw() -> void:
 			var blade_radius := radius * (1.08 if is_tip else 0.48)
 			outline_points.append(Vector2.RIGHT.rotated(angle) * outline_radius)
 			blade_points.append(Vector2.RIGHT.rotated(angle) * blade_radius)
-		draw_colored_polygon(outline_points, Color("290713"))
+		draw_colored_polygon(outline_points, outline)
 		draw_colored_polygon(blade_points, projectile_color)
 		draw_circle(Vector2.ZERO, radius * 0.36, Color("4a071b"))
-		draw_circle(Vector2(-radius * 0.10, -radius * 0.12), radius * 0.13, Color("ffb0bc"))
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(-radius * 0.06, -radius * 0.28),
+			Vector2(radius * 0.22, -radius * 0.02),
+			Vector2(-radius * 0.06, radius * 0.20),
+			Vector2(-radius * 0.28, -radius * 0.02),
+		]), highlight)
 		return
-	draw_circle(Vector2.ZERO, radius * 1.8, Color(projectile_color, 0.16))
-	var points := PackedVector2Array([
-		Vector2(0, -radius), Vector2(radius * 0.75, 0),
-		Vector2(0, radius), Vector2(-radius * 0.75, 0)
+	var outline_points := PackedVector2Array([
+		Vector2(0.0, -radius * 1.32), Vector2(radius * 0.96, 0.0),
+		Vector2(0.0, radius * 1.32), Vector2(-radius * 0.96, 0.0)
 	])
-	draw_colored_polygon(points, projectile_color)
-	draw_circle(Vector2.ZERO, radius * 0.28, Color.WHITE)
+	var fill_points := PackedVector2Array([
+		Vector2(0.0, -radius), Vector2(radius * 0.68, 0.0),
+		Vector2(0.0, radius), Vector2(-radius * 0.68, 0.0)
+	])
+	draw_colored_polygon(outline_points, outline)
+	draw_colored_polygon(fill_points, shadow)
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(0.0, -radius * 0.78),
+		Vector2(radius * 0.46, 0.0),
+		Vector2(0.0, radius * 0.18),
+		Vector2(-radius * 0.46, 0.0),
+	]), projectile_color)
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(0.0, -radius * 0.36),
+		Vector2(radius * 0.20, 0.0),
+		Vector2(0.0, radius * 0.20),
+		Vector2(-radius * 0.20, 0.0),
+	]), highlight)
+
+
+func _uses_batch_renderer() -> bool:
+	if not is_instance_valid(owner_world):
+		return false
+	var renderer: Node = owner_world.get("enemy_projectile_batch_renderer")
+	return is_instance_valid(renderer) and bool(renderer.get("rendering_enabled"))
+
+
+func projectile_batch_style() -> String:
+	return "danger" if uses_danger_style else "generic"
+
+
+func projectile_batch_radius() -> float:
+	return radius
+
+
+func projectile_batch_color() -> Color:
+	return projectile_color

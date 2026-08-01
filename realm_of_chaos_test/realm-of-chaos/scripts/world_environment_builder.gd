@@ -31,6 +31,14 @@ func apply_biome() -> void:
 	world.ground.modulate = world.biome.ground_modulate
 
 
+func _biome_tint() -> Color:
+	if str(world.biome.id) == "frozen":
+		return Color("9ec7df")
+	if str(world.biome.id) == "cathedral":
+		return Color("9e82bb")
+	return Color("b3c7bd")
+
+
 func generate_environment() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 864210 + world.run_cycle * 913
@@ -44,7 +52,7 @@ func generate_environment() -> void:
 	var textures: Array[Texture2D] = []
 	for path in texture_paths:
 		textures.append(load(path))
-	var biome_tint := Color("9ec7df") if str(world.biome.id) == "frozen" else (Color("9e82bb") if str(world.biome.id) == "cathedral" else Color("b3c7bd"))
+	var biome_tint := _biome_tint()
 	for _index in range(310):
 		var sprite := Sprite2D.new()
 		sprite.texture = textures[rng.randi_range(0, textures.size() - 1)]
@@ -120,7 +128,7 @@ func generate_obstacles(rng: RandomNumberGenerator) -> void:
 		obstacle_sprite.texture = obstacle_textures[index % obstacle_textures.size()]
 		var obstacle_scale := rng.randf_range(0.82, 1.18)
 		obstacle_sprite.scale = Vector2.ONE * obstacle_scale
-		obstacle_sprite.modulate = Color(0.76, 0.82, 0.86, 0.90)
+		obstacle_sprite.modulate = Color(_biome_tint(), 0.90)
 		body.add_child(obstacle_sprite)
 		var collision := CollisionShape2D.new()
 		var circle := CircleShape2D.new()

@@ -55,6 +55,7 @@ func add_player_projectile(projectile: Node) -> void:
 		world.projectiles.remove_child(oldest)
 		oldest.queue_free()
 	world.projectiles.add_child(projectile)
+	world.player_projectile_batch_renderer.register_projectile(projectile)
 
 
 func spawn_enemy_projectile(
@@ -73,6 +74,7 @@ func spawn_enemy_projectile(
 		world.enemy_projectiles.add_child(projectile)
 	projectile.global_position = position
 	projectile.setup(direction, amount, projectile_speed, color, size, danger_style, world, world.player)
+	world.enemy_projectile_batch_renderer.register_projectile(projectile)
 	return projectile
 
 
@@ -97,6 +99,7 @@ func add_enemy_projectile(projectile: Node) -> void:
 	world.enemy_projectiles.add_child(projectile)
 	if projectile.has_method("bind_runtime"):
 		projectile.bind_runtime(world, world.player)
+	world.enemy_projectile_batch_renderer.register_projectile(projectile)
 
 
 func spawn_pickup(amount: int, position: Vector2, kind := "xp") -> Node:
@@ -114,6 +117,7 @@ func spawn_pickup(amount: int, position: Vector2, kind := "xp") -> Node:
 	var pickup = GemScene.instantiate()
 	world.pickups.add_child(pickup)
 	pickup.setup(amount, position, kind)
+	world.pickup_batch_renderer.register_pickup(pickup)
 	return pickup
 
 
@@ -174,6 +178,7 @@ func _refresh_merged_xp(pickup: Node) -> void:
 func _remove_pickup(pickup: Node) -> void:
 	if not is_instance_valid(pickup) or pickup.get_parent() != world.pickups:
 		return
+	world.pickup_batch_renderer.set_pickup_visible(pickup, false)
 	var removed_index := pickup.get_index()
 	world.pickups.remove_child(pickup)
 	pickup.queue_free()
@@ -192,6 +197,7 @@ func spawn_effect(position: Vector2, color: Color, radius: float, duration := 0.
 	var effect = EffectScript.new()
 	world.effects.add_child(effect)
 	effect.setup(position, color, radius, duration, filled, effect_visual_quality(radius, duration))
+	world.effect_batch_renderer.register_effect(effect)
 
 
 func effect_visual_quality(radius: float, duration: float) -> int:

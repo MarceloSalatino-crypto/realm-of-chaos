@@ -42,9 +42,12 @@ func _draw() -> void:
 	var jagged_steps := 5 if visual_quality == 2 else (4 if visual_quality == 1 else 3)
 	for index in range(points.size() - 1):
 		var jagged := _build_jagged_segment(points[index], points[index + 1], index, jagged_steps)
-		draw_polyline(jagged, Color(color, alpha * 0.22), 9.0, true)
-		draw_polyline(jagged, Color(color, alpha), 3.0, true)
-		draw_polyline(jagged, Color(0.92, 1.0, 1.0, alpha), 1.0, true)
+		draw_polyline(jagged, Color(0.05, 0.07, 0.11, alpha * 0.92), 7.0, true)
+		draw_polyline(jagged, Color(color, alpha), 3.8, true)
+		draw_polyline(jagged, Color(color.lightened(0.52), alpha * 0.90), 1.2, true)
+	for point in points:
+		draw_circle(point, 4.6, Color(0.05, 0.07, 0.11, alpha * 0.92))
+		draw_circle(point, 2.4, Color(color, alpha))
 
 
 func _build_jagged_segment(start: Vector2, finish: Vector2, segment_index: int, jagged_steps: int) -> PackedVector2Array:

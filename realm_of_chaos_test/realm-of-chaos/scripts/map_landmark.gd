@@ -2,6 +2,7 @@ class_name MapLandmark
 extends StaticBody2D
 
 const LANDMARK_TEXTURE = preload("res://assets/generated/map_landmarks_v1.png")
+const REDRAW_INTERVAL := 1.0 / 20.0
 
 const TITLES := {
 	"altar": "ALTAR RUBRO",
@@ -22,8 +23,11 @@ var landmark_kind := "altar"
 var frame_index := 0
 var activated := false
 var animation_time := 0.0
+var visual_on_screen := false
+var redraw_timer := 0.0
 var sprite: Sprite2D
 var prompt: Label
+var screen_notifier: VisibleOnScreenNotifier2D
 
 
 func configure(owner_world: Node, kind: String, landmark_position: Vector2, atlas_frame: int) -> void:
@@ -59,19 +63,31 @@ func _ready() -> void:
 	prompt.add_theme_color_override("font_outline_color", Color(0.02, 0.01, 0.04, 0.95))
 	prompt.add_theme_constant_override("outline_size", 5)
 	add_child(prompt)
+	screen_notifier = VisibleOnScreenNotifier2D.new()
+	screen_notifier.name = "VisibleOnScreenNotifier2D"
+	screen_notifier.rect = Rect2(Vector2(-108.0, -145.0), Vector2(216.0, 250.0))
+	screen_notifier.show_rect = false
+	add_child(screen_notifier)
+	screen_notifier.screen_entered.connect(_on_screen_entered)
+	screen_notifier.screen_exited.connect(_on_screen_exited)
+	redraw_timer = REDRAW_INTERVAL * (0.25 + _visual_phase() * 0.75)
 	queue_redraw()
 
 
 func _process(delta: float) -> void:
 	animation_time += delta
-	if is_instance_valid(sprite):
+	if visual_on_screen and is_instance_valid(sprite):
 		sprite.position.y = -58.0 + sin(animation_time * 1.8 + frame_index) * 2.0
 	if not activated and is_instance_valid(world) and is_instance_valid(world.player):
 		var distance := global_position.distance_to(world.player.global_position)
 		prompt.visible = distance < 430.0
 		if distance <= 112.0:
 			world.activate_landmark(self)
-	queue_redraw()
+	if visual_on_screen:
+		redraw_timer -= delta
+		if redraw_timer <= 0.0:
+			redraw_timer += REDRAW_INTERVAL
+			queue_redraw()
 
 
 func mark_activated() -> void:
@@ -80,15 +96,57 @@ func mark_activated() -> void:
 	prompt.modulate.a = 0.72
 	if is_instance_valid(sprite):
 		sprite.modulate = Color(0.72, 0.72, 0.78, 0.86)
+	queue_redraw()
 
 
 func minimap_color() -> Color:
 	return Color(0.42, 0.42, 0.50, 0.62) if activated else COLORS[landmark_kind]
 
 
+func _visual_phase() -> float:
+	return float(get_instance_id() % 997) / 997.0
+
+
+func _on_screen_entered() -> void:
+	visual_on_screen = true
+	if is_instance_valid(sprite):
+		sprite.position.y = -58.0 + sin(animation_time * 1.8 + frame_index) * 2.0
+	queue_redraw()
+	redraw_timer = REDRAW_INTERVAL * (0.25 + _visual_phase() * 0.75)
+
+
+func _on_screen_exited() -> void:
+	visual_on_screen = false
+
+
+func _ring_points(radius: float, point_count: int, phase: float) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	for index in range(point_count):
+		var angle := phase + TAU * float(index) / float(point_count)
+		var point_radius := radius * (0.94 if index % 2 == 0 else 1.0)
+		points.append(Vector2.RIGHT.rotated(angle) * point_radius)
+	return points
+
+
 func _draw() -> void:
 	var color: Color = COLORS[landmark_kind]
 	var pulse := (sin(animation_time * 2.1 + frame_index) + 1.0) * 0.5
-	var alpha := 0.06 if activated else 0.10 + pulse * 0.035
-	draw_circle(Vector2.ZERO, 76.0 + pulse * 6.0, Color(color, alpha))
-	draw_arc(Vector2.ZERO, 84.0 + pulse * 5.0, animation_time * 0.25, animation_time * 0.25 + PI * 1.55, 48, Color(color, 0.18 if activated else 0.48), 2.5)
+	var radius := 84.0 + pulse * 5.0
+	var points := _ring_points(radius, 12, animation_time * 0.08)
+	var closed_points := points + PackedVector2Array([points[0]])
+	var fill := Color(color, 0.035 if activated else 0.065 + pulse * 0.018)
+	var edge := Color(color, 0.20 if activated else 0.58)
+	draw_colored_polygon(points, fill)
+	draw_polyline(closed_points, Color(0.025, 0.012, 0.038, 0.86), 5.0)
+	draw_polyline(closed_points, edge, 2.0)
+	for index in range(4):
+		var angle := animation_time * 0.18 + TAU * float(index) / 4.0
+		var position := Vector2.RIGHT.rotated(angle) * (radius - 3.0)
+		var radial := position.normalized()
+		var tangent := radial.rotated(PI * 0.5)
+		draw_colored_polygon(PackedVector2Array([
+			position + radial * 6.0,
+			position + tangent * 4.0,
+			position - radial * 6.0,
+			position - tangent * 4.0,
+		]), Color(0.025, 0.012, 0.038, 0.90) if activated else edge)

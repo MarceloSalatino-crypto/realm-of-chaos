@@ -117,6 +117,7 @@ func _validate_cycle(world: Node, cycle: int) -> void:
 		_check(obstacle.get_child_count() == 2 and obstacle.get_child(1) is CollisionShape2D, "estrutura de obstaculo mudou")
 		var sprite: Sprite2D = obstacle.get_child(0)
 		var collision: CollisionShape2D = obstacle.get_child(1)
+		_check(sprite.modulate.is_equal_approx(Color(expected_tint, 0.90)), "tint tematico do obstaculo incorreto no ciclo %d" % cycle)
 		_check(collision.shape is CircleShape2D and is_equal_approx(collision.shape.radius, 18.0 * sprite.scale.x), "raio de colisao do obstaculo mudou")
 		_check(is_equal_approx(collision.position.y, 7.0), "offset da colisao do obstaculo mudou")
 

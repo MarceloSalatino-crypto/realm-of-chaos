@@ -131,20 +131,68 @@ func draw() -> void:
 		var evolved := bool(player.evolved_weapons.soul_orbit)
 		var radius: float = 122.0 + orbit_level * 8.0 if evolved else 72.0 + orbit_level * 8.0
 		var blade_count: int = 6 + int(orbit_level / 2.0) if evolved else 2 + int(orbit_level / 2.0)
-		player.draw_arc(Vector2.ZERO, radius, 0.0, TAU, 64, Color(1.0, 0.72, 0.28, 0.24) if evolved else Color(0.63, 0.30, 1.0, 0.18), 3.0 if evolved else 2.0)
+		var ring_color := Color(0.95, 0.67, 0.22, 0.78) if evolved else Color(0.57, 0.24, 0.86, 0.70)
+		var ring_outline := Color(0.07, 0.035, 0.10, 0.86)
+		var ring_segment: float = TAU / 16.0
+		for segment in range(16):
+			var start: float = segment * ring_segment + player.orbit_angle * 0.08
+			var finish: float = start + ring_segment * 0.58
+			player.draw_arc(Vector2.ZERO, radius, start, finish, 4, ring_outline, 5.0 if evolved else 4.0)
+			player.draw_arc(Vector2.ZERO, radius, start, finish, 4, ring_color, 2.2 if evolved else 1.7)
 		for index in range(blade_count):
 			var position: Vector2 = Vector2.RIGHT.rotated(player.orbit_angle + TAU * index / blade_count) * radius
-			player.draw_circle(position, 14.0, Color(0.53, 0.20, 0.95, 0.18))
-			player.draw_colored_polygon(PackedVector2Array([
-				position + Vector2(-3, -12), position + Vector2(5, 0),
-				position + Vector2(-3, 12), position + Vector2(-8, 0)
-			]), Color("ffd36b") if evolved else Color("d9b3ff"))
+			var radial := position.normalized()
+			var tangent := radial.rotated(PI * 0.5)
+			var blade_outline := PackedVector2Array([
+				position - tangent * 14.0 - radial * 5.0,
+				position + tangent * 7.0 - radial * 7.0,
+				position + tangent * 14.0,
+				position + tangent * 7.0 + radial * 7.0,
+				position - tangent * 14.0 + radial * 5.0,
+				position - tangent * 8.0,
+			])
+			var blade_fill := PackedVector2Array([
+				position - tangent * 10.5 - radial * 2.8,
+				position + tangent * 5.5 - radial * 4.1,
+				position + tangent * 10.5,
+				position + tangent * 5.5 + radial * 4.1,
+				position - tangent * 10.5 + radial * 2.8,
+				position - tangent * 6.5,
+			])
+			var blade_color := Color("efb83f") if evolved else Color("b96cff")
+			player.draw_colored_polygon(blade_outline, Color("1b1022"))
+			player.draw_colored_polygon(blade_fill, blade_color.darkened(0.18))
+			player.draw_line(
+				position - tangent * 5.0 - radial * 1.4,
+				position + tangent * 6.5 - radial * 2.0,
+				blade_color.lightened(0.40), 1.4
+			)
 	if player.attack_flash > 0.0:
-		var muzzle: Vector2 = player.attack_direction * 39.0 + Vector2(0.0, -9.0)
-		var glow := Color(0.78, 0.38, 1.0, player.attack_flash * 0.34)
-		player.draw_circle(muzzle, 19.0 * player.attack_flash, glow)
+		var direction: Vector2 = player.attack_direction.normalized()
+		var side := direction.rotated(PI * 0.5)
+		var muzzle: Vector2 = direction * 39.0 + Vector2(0.0, -9.0)
+		var flash_size: float = 19.0 * player.attack_flash
+		var flash_outline := PackedVector2Array([
+			muzzle + direction * (flash_size + 3.0),
+			muzzle + side * (flash_size * 0.48 + 2.0),
+			muzzle - direction * (flash_size * 0.60 + 2.0),
+			muzzle - side * (flash_size * 0.48 + 2.0),
+		])
+		var flash_fill := PackedVector2Array([
+			muzzle + direction * flash_size,
+			muzzle + side * flash_size * 0.34,
+			muzzle - direction * flash_size * 0.44,
+			muzzle - side * flash_size * 0.34,
+		])
+		player.draw_colored_polygon(flash_outline, Color(0.07, 0.03, 0.10, player.attack_flash * 0.94))
+		player.draw_colored_polygon(flash_fill, Color(0.69, 0.30, 0.90, player.attack_flash))
 		player.draw_line(
-			muzzle - player.attack_direction * 9.0,
-			muzzle + player.attack_direction * 16.0,
-			Color(0.94, 0.76, 1.0, player.attack_flash), 3.0
+			muzzle - direction * 10.0,
+			muzzle + direction * 17.0,
+			Color(0.07, 0.03, 0.10, player.attack_flash * 0.94), 6.0
+		)
+		player.draw_line(
+			muzzle - direction * 8.0,
+			muzzle + direction * 15.0,
+			Color(0.94, 0.76, 1.0, player.attack_flash), 2.5
 		)

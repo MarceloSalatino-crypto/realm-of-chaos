@@ -8,6 +8,9 @@ const WorldPersistenceScript = preload("res://scripts/world_persistence.gd")
 const WorldDirectorScript = preload("res://scripts/world_director.gd")
 const WorldEntityManagerScript = preload("res://scripts/world_entity_manager.gd")
 const WorldRunFlowScript = preload("res://scripts/world_run_flow.gd")
+const ProjectileBatchRendererScript = preload("res://scripts/projectile_batch_renderer.gd")
+const PickupBatchRendererScript = preload("res://scripts/pickup_batch_renderer.gd")
+const EffectBatchRendererScript = preload("res://scripts/effect_batch_renderer.gd")
 
 const RUN_DURATION := 25.0 * 60.0
 const BOSS_TIMES := [300.0, 600.0, 900.0, 1200.0, 1500.0]
@@ -70,6 +73,10 @@ var accessibility_settings: Dictionary = {}
 var pickup_merge_cursor := 0
 var visual_view_half_size := Vector2(640.0, 360.0)
 var director_spawn_queue: Array[Dictionary] = []
+var player_projectile_batch_renderer: Node2D
+var enemy_projectile_batch_renderer: Node2D
+var pickup_batch_renderer: Node2D
+var effect_batch_renderer: Node2D
 
 @onready var player = $Player
 @onready var ground: Sprite2D = $Ground
@@ -87,6 +94,9 @@ var director_spawn_queue: Array[Dictionary] = []
 func _ready() -> void:
 	randomize()
 	get_tree().paused = false
+	_setup_projectile_batch_renderers()
+	_setup_pickup_batch_renderer()
+	_setup_effect_batch_renderer()
 	rewards = Node2D.new()
 	rewards.name = "Rewards"
 	add_child(rewards)
@@ -115,6 +125,31 @@ func _ready() -> void:
 	last_stage = GameDefs.stage_name(time_survived)
 	hud.show_stage_banner("%s · ARMA INICIAL: %s" % [str(biome.name), player.equipped_weapon_title()])
 	_rebuild_spatial_grid()
+
+
+func _setup_projectile_batch_renderers() -> void:
+	player_projectile_batch_renderer = ProjectileBatchRendererScript.new()
+	add_child(player_projectile_batch_renderer)
+	player_projectile_batch_renderer.setup(projectiles, ProjectileBatchRendererScript.PLAYER)
+	move_child(player_projectile_batch_renderer, projectiles.get_index() + 1)
+	enemy_projectile_batch_renderer = ProjectileBatchRendererScript.new()
+	add_child(enemy_projectile_batch_renderer)
+	enemy_projectile_batch_renderer.setup(enemy_projectiles, ProjectileBatchRendererScript.ENEMY)
+	move_child(enemy_projectile_batch_renderer, enemy_projectiles.get_index() + 1)
+
+
+func _setup_pickup_batch_renderer() -> void:
+	pickup_batch_renderer = PickupBatchRendererScript.new()
+	add_child(pickup_batch_renderer)
+	pickup_batch_renderer.setup(pickups)
+	move_child(pickup_batch_renderer, pickups.get_index() + 1)
+
+
+func _setup_effect_batch_renderer() -> void:
+	effect_batch_renderer = EffectBatchRendererScript.new()
+	add_child(effect_batch_renderer)
+	effect_batch_renderer.setup(effects)
+	move_child(effect_batch_renderer, effects.get_index())
 
 
 func _process(delta: float) -> void:
