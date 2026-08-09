@@ -181,6 +181,18 @@ func spawn_enemy(kind: String, force_elite := false, power_override := -1.0) -> 
 	return entity_manager.spawn_enemy(kind, force_elite, power_override)
 
 
+func enemy_population_cap() -> int:
+	return entity_manager.enemy_population_cap()
+
+
+func remaining_enemy_capacity() -> int:
+	return entity_manager.remaining_enemy_capacity()
+
+
+func has_enemy_capacity() -> bool:
+	return entity_manager.has_enemy_capacity()
+
+
 func get_spawn_position(minimum := 610.0, maximum := 760.0) -> Vector2:
 	return entity_manager.get_spawn_position(minimum, maximum)
 

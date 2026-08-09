@@ -43,9 +43,6 @@ func begin_special(special_id: String, duration: float) -> void:
 	enemy.attack_pulse = 1.0
 	enemy.velocity *= 0.2
 	enemy.queue_redraw()
-	if enemy.world:
-		var radius: float = special_radius()
-		enemy.world.spawn_effect(enemy.global_position, enemy.definition_color, radius, duration, false)
 
 
 func execute_special(direction: Vector2) -> void:

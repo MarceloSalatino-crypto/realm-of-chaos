@@ -124,7 +124,7 @@ func animate_sprite(delta: float, distance_moved := -1.0, allow_custom_redraw :=
 	var altitude := absf(lift)
 	enemy.shadow.scale = enemy.shadow.scale.lerp(Vector2(1.0 + altitude * 0.012, 1.0 - altitude * 0.018), 1.0 - exp(-delta * 9.0))
 	enemy.shadow.color.a = lerpf(enemy.shadow.color.a, 0.48 - altitude * 0.016, smoothing)
-	if allow_custom_redraw and (enemy.elite or enemy.boss or enemy.behavior in ["ember", "bomber", "guardian"] or enemy.telegraph_time > 0.0):
+	if allow_custom_redraw and (enemy.boss or enemy.behavior in ["ember", "bomber"] or enemy.telegraph_time > 0.0):
 		enemy.queue_redraw()
 
 
@@ -173,29 +173,6 @@ func _ring_points(center: Vector2, radius: float, point_count: int, phase := 0.0
 	return points
 
 
-func _segmented_arc_lines(center: Vector2, radius: float, rotation: float, segments: int, coverage: float, point_count: int) -> PackedVector2Array:
-	var lines := PackedVector2Array()
-	var segment_angle := TAU / float(segments)
-	for segment_index in range(segments):
-		var start := rotation + segment_angle * float(segment_index)
-		var finish := start + segment_angle * coverage
-		var previous := center + Vector2.RIGHT.rotated(start) * radius
-		for point_index in range(1, point_count):
-			var progress := float(point_index) / float(point_count - 1)
-			var current := center + Vector2.RIGHT.rotated(lerpf(start, finish, progress)) * radius
-			lines.append(previous)
-			lines.append(current)
-			previous = current
-	return lines
-
-
-func _draw_segmented_ring(center: Vector2, radius: float, rotation: float, color: Color, width: float, segments: int, coverage := 0.62) -> void:
-	var dark := Color(0.035, 0.018, 0.055, minf(color.a + 0.38, 0.88))
-	var lines := _segmented_arc_lines(center, radius, rotation, segments, coverage, 5)
-	enemy.draw_multiline(lines, dark, width + 3.0)
-	enemy.draw_multiline(lines, color, width)
-
-
 func _use_reduced_detail() -> bool:
 	if not is_instance_valid(enemy.world):
 		return false
@@ -219,13 +196,12 @@ func draw() -> void:
 		var ember_radius: float = enemy.hit_radius * 1.30
 		var ember_points := _ring_points(ember_center, ember_radius, 12, enemy.movement_age * 0.08, ember_radius * 0.10)
 		enemy.draw_colored_polygon(ember_points, Color(0.82, 0.08, 0.055, ember_alpha * 0.62))
-		enemy.draw_polyline(ember_points + PackedVector2Array([ember_points[0]]), Color(0.10, 0.025, 0.02, 0.78), 5.0)
-		enemy.draw_polyline(ember_points + PackedVector2Array([ember_points[0]]), Color(1.0, 0.29, 0.12, ember_alpha + 0.12), 2.0)
-	if enemy.behavior == "guardian":
-		_draw_segmented_ring(Vector2.ZERO, 190.0, enemy.movement_age * 0.10, Color(0.88, 0.70, 0.36, 0.36), 2.0, 8 if reduced_detail else 12, 0.66)
 	if enemy.telegraph_time > 0.0:
 		var progress := 1.0 - clampf(enemy.telegraph_time / maxf(enemy.telegraph_duration, 0.01), 0.0, 1.0)
 		var radius: float = enemy._special_radius()
+		if enemy.pending_special == "ward":
+			var ward_points := _ring_points(Vector2.ZERO, radius, 16, enemy.movement_age * 0.08, radius * 0.045)
+			enemy.draw_colored_polygon(ward_points, Color(0.88, 0.70, 0.36, 0.045 + progress * 0.055))
 		enemy.draw_circle(Vector2.ZERO, radius, Color(0.55, 0.035, 0.05, 0.025 + progress * 0.025))
 		enemy.draw_arc(Vector2.ZERO, radius, 0.0, TAU, 64, Color(0.08, 0.018, 0.025, 0.90), 7.0)
 		enemy.draw_arc(Vector2.ZERO, radius, -PI * 0.5, -PI * 0.5 + TAU * progress, 64, Color(1.0, 0.25, 0.20, 0.92), 4.0)
@@ -236,8 +212,6 @@ func draw() -> void:
 			var marker_end := Vector2.RIGHT.rotated(marker_angle) * (radius + 2.0)
 			enemy.draw_line(marker_start, marker_end, Color(0.08, 0.018, 0.025, 0.88), 5.0)
 			enemy.draw_line(marker_start, marker_end, Color(1.0, 0.40, 0.28, 0.72), 2.0)
-	if enemy.elite and not enemy.boss:
-		_draw_segmented_ring(Vector2(0.0, 1.0), enemy.hit_radius * 1.35, -enemy.movement_age * 0.18, Color(0.76, 0.45, 1.0, 0.46), 2.0, 6 if reduced_detail else 8, 0.58)
 	if enemy.boss:
 		var aura_radius: float = enemy.hit_radius * (1.40 + sin(enemy.movement_age * 1.75) * 0.06)
 		var aura_colors := boss_aura_colors()
@@ -245,5 +219,3 @@ func draw() -> void:
 		var aura_point_count := 12 if reduced_detail else 16
 		var aura_points := _ring_points(aura_center, aura_radius, aura_point_count, PI / float(aura_point_count), aura_radius * 0.055)
 		enemy.draw_colored_polygon(aura_points, aura_colors[0])
-		enemy.draw_polyline(aura_points + PackedVector2Array([aura_points[0]]), Color(0.035, 0.018, 0.055, 0.78), 5.0)
-		_draw_segmented_ring(aura_center, aura_radius, enemy.movement_age * 0.55, aura_colors[1], 2.5, 6 if reduced_detail else 10, 0.62)

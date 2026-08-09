@@ -150,9 +150,4 @@ func _draw() -> void:
 	var reduced_detail := _use_reduced_detail()
 	draw_circle(Vector2.ZERO, radius, Color(arena_color, 0.010 + phase * 0.004))
 	_draw_segmented_boundary(pulse, reduced_detail)
-	var inner_radius := radius - 18.0
-	var inner_start := -animation_time * 0.12
-	var inner_finish := inner_start + PI * 1.58
-	draw_arc(Vector2.ZERO, inner_radius, inner_start, inner_finish, 96, Color(0.025, 0.012, 0.038, 0.82), 5.0)
-	draw_arc(Vector2.ZERO, inner_radius, inner_start, inner_finish, 96, Color(arena_color, 0.34), 2.0)
 	_draw_boundary_markers(pulse, reduced_detail)

@@ -121,10 +121,7 @@ func _draw() -> void:
 	var pulse := (sin(animation_time * 2.6) + 1.0) * 0.5
 	var radius := 47.0 + pulse * 4.0
 	var points := _ring_points(radius, 10, animation_time * 0.18)
-	var closed_points := points + PackedVector2Array([points[0]])
 	draw_colored_polygon(points, Color(0.40, 0.10, 0.60, 0.055))
-	draw_polyline(closed_points, Color(0.025, 0.012, 0.038, 0.90), 5.0)
-	draw_polyline(closed_points, Color(0.88, 0.62, 1.0, 0.55), 2.0)
 	for index in range(4):
 		var angle := -animation_time * 0.28 + TAU * float(index) / 4.0
 		var radial := Vector2.RIGHT.rotated(angle)

@@ -1,5 +1,6 @@
 extends SceneTree
 
+const EnemyScene = preload("res://scenes/enemies/enemy.tscn")
 const ENEMY_TYPES := ["prowler", "bat", "mage", "brute", "ember", "bomber", "necromancer", "archer", "assassin", "swarm", "guardian"]
 const WARMUP_FRAMES := 30
 const MEASURED_FRAMES := 180
@@ -27,6 +28,15 @@ func _measure_frames(frame_count: int) -> Dictionary:
 	}
 
 
+func _spawn_benchmark_enemy(world: Node, kind: String, power: float) -> Node:
+	# Synthetic load intentionally exceeds the production cap to preserve the
+	# historical 300-unit AI/spatial-query reference.
+	var enemy = EnemyScene.instantiate()
+	enemy.setup(kind, power, false, world)
+	world.enemies.add_child(enemy)
+	return enemy
+
+
 func _run() -> void:
 	var world = load("res://scenes/world.tscn").instantiate()
 	root.add_child(world)
@@ -36,7 +46,7 @@ func _run() -> void:
 	world.set_process(false)
 	world.player.disabled = true
 	for index in range(300):
-		var enemy = world.spawn_enemy(ENEMY_TYPES[index % ENEMY_TYPES.size()], false, 3.0)
+		var enemy = _spawn_benchmark_enemy(world, ENEMY_TYPES[index % ENEMY_TYPES.size()], 3.0)
 		var ring := 420.0 + float(index % 8) * 62.0
 		enemy.global_position = Vector2.RIGHT.rotated(TAU * index / 300.0) * ring
 	world._rebuild_spatial_grid()

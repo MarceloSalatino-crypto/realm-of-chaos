@@ -1,6 +1,7 @@
 extends SceneTree
 
 const EffectScript = preload("res://scripts/effect.gd")
+const QUALITY_COLORS := [Color("79ddff"), Color("be72ff"), Color("ff5f68")]
 
 var failures: Array[String] = []
 
@@ -18,7 +19,7 @@ func _check(condition: bool, message: String) -> void:
 func _spawn_effect(world: Node, quality: int, filled: bool) -> Node:
 	var effect = EffectScript.new()
 	world.effects.add_child(effect)
-	effect.setup(Vector2(quality * 80.0, 40.0 if filled else -40.0), Color("b86cff"), 64.0, 3.0, filled, quality)
+	effect.setup(Vector2(quality * 80.0, 40.0 if filled else -40.0), QUALITY_COLORS[quality], 64.0, 3.0, filled, quality)
 	return effect
 
 
@@ -50,6 +51,13 @@ func _run() -> void:
 	if renderer.rendering_enabled:
 		_check(not renderer._vertices.is_empty(), "efeitos não foram consolidados no lote")
 		_check(renderer._indices.size() % 3 == 0, "lote não contém triângulos completos")
+	if renderer.rendering_enabled:
+		var quality_zero_visible := false
+		for vertex_color in renderer._colors:
+			if vertex_color.g > 0.72 and vertex_color.b > 0.90 and vertex_color.r < 0.62:
+				quality_zero_visible = true
+				break
+		_check(quality_zero_visible, "qualidade visual minima desapareceu no lote misto")
 	var removed = world.effects.get_child(0)
 	removed.queue_free()
 	await process_frame

@@ -158,7 +158,6 @@ func _draw() -> void:
 			draw_polyline(_closed(outer_points), Color(0.63, 0.18, 0.86, 0.48), 2.0)
 			draw_colored_polygon(inner_points, Color(0.38, 0.035, 0.58, 0.11))
 			draw_polyline(_closed(inner_points), Color(0.025, 0.012, 0.04, 0.78), 4.0)
-			_draw_segmented_ring(radius * (0.82 + pulse * 0.05), animation_time * 0.4, Color(0.77, 0.26, 1.0, 0.62), 2.5, 5 if reduced_detail else 8, 0.62)
 			var shard_count := 3 if reduced_detail else 5
 			for index in range(shard_count):
 				var angle := -animation_time * 0.23 + TAU * index / float(shard_count)

@@ -160,7 +160,7 @@ func _run() -> void:
 		_check(caster.pending_special == str(entry.id), "selecao incorreta para " + str(entry.behavior))
 		_check(is_equal_approx(caster.telegraph_time, float(entry.duration)) and is_equal_approx(caster.telegraph_duration, float(entry.duration)), "duracao incorreta para " + str(entry.behavior))
 		_check(caster.velocity.is_equal_approx(Vector2(20.0, 0.0)) and is_equal_approx(caster.attack_pulse, 1.0), "preparacao incorreta para " + str(entry.behavior))
-		_check(world.effects.size() == 1 and is_equal_approx(float(world.effects[0].duration), float(entry.duration)), "efeito de telegrafia incorreto para " + str(entry.behavior))
+		_check(world.effects.is_empty(), "anel generico duplicado ainda foi criado para " + str(entry.behavior))
 
 	world.effects.clear()
 	caster.behavior = "bomber"

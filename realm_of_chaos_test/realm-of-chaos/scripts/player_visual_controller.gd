@@ -131,14 +131,6 @@ func draw() -> void:
 		var evolved := bool(player.evolved_weapons.soul_orbit)
 		var radius: float = 122.0 + orbit_level * 8.0 if evolved else 72.0 + orbit_level * 8.0
 		var blade_count: int = 6 + int(orbit_level / 2.0) if evolved else 2 + int(orbit_level / 2.0)
-		var ring_color := Color(0.95, 0.67, 0.22, 0.78) if evolved else Color(0.57, 0.24, 0.86, 0.70)
-		var ring_outline := Color(0.07, 0.035, 0.10, 0.86)
-		var ring_segment: float = TAU / 16.0
-		for segment in range(16):
-			var start: float = segment * ring_segment + player.orbit_angle * 0.08
-			var finish: float = start + ring_segment * 0.58
-			player.draw_arc(Vector2.ZERO, radius, start, finish, 4, ring_outline, 5.0 if evolved else 4.0)
-			player.draw_arc(Vector2.ZERO, radius, start, finish, 4, ring_color, 2.2 if evolved else 1.7)
 		for index in range(blade_count):
 			var position: Vector2 = Vector2.RIGHT.rotated(player.orbit_angle + TAU * index / blade_count) * radius
 			var radial := position.normalized()

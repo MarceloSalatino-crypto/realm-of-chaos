@@ -77,15 +77,20 @@ func has_pending_boss_spawn() -> bool:
 func process_spawn_queue() -> void:
 	if world.director_spawn_queue.is_empty():
 		return
-	var job: Dictionary = world.director_spawn_queue.pop_front()
+	var job: Dictionary = world.director_spawn_queue.front()
 	if str(job.get("type", "")) == "boss":
 		var job_index := int(job.index)
-		if job_index != world.boss_index or has_live_active_boss():
+		if job_index != world.boss_index:
+			world.director_spawn_queue.pop_front()
+			return
+		if has_live_active_boss():
 			return
 		if spawn_scheduled_boss(job.entry, job_index):
+			world.director_spawn_queue.pop_front()
 			world.boss_index += 1
 	else:
-		world.spawn_enemy(str(job.kind), bool(job.get("elite", false)))
+		if world.spawn_enemy(str(job.kind), bool(job.get("elite", false))):
+			world.director_spawn_queue.pop_front()
 
 
 func spawn_scheduled_boss(entry: Dictionary, index: int) -> Node:

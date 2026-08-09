@@ -61,14 +61,6 @@ func _draw() -> void:
 		_draw_segmented_ring(radius, color, 10, 3.2, age * 0.52)
 	else:
 		_draw_angular_ring(radius, color, 10 if visual_quality == 1 else 8, 3.2, age * 0.52)
-	if visual_quality == 2:
-		var inner_color := color
-		inner_color.a *= 0.58
-		_draw_segmented_ring(radius * 0.72, inner_color, 7, 1.8, -age * 0.38 + 0.21)
-	elif visual_quality == 1:
-		var inner_color := color
-		inner_color.a *= 0.58
-		_draw_angular_ring(radius * 0.72, inner_color, 8, 1.8, -age * 0.38 + 0.21)
 
 
 func _draw_segmented_ring(

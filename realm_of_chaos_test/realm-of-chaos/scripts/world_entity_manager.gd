@@ -16,8 +16,24 @@ func _init(owner_world) -> void:
 	world = owner_world
 
 
+func enemy_population_cap() -> int:
+	return int(GameDefs.difficulty_data(world.time_survived).cap)
+
+
+func remaining_enemy_capacity() -> int:
+	if not is_instance_valid(world.enemies):
+		return 0
+	return maxi(0, enemy_population_cap() - world.enemies.get_child_count())
+
+
+func has_enemy_capacity() -> bool:
+	return remaining_enemy_capacity() > 0
+
+
 func spawn_enemy(kind: String, force_elite := false, power_override := -1.0) -> Node:
 	if world.game_ended or not is_instance_valid(world.player):
+		return null
+	if not has_enemy_capacity():
 		return null
 	var enemy = EnemyScene.instantiate()
 	var phase := GameDefs.difficulty_data(world.time_survived)

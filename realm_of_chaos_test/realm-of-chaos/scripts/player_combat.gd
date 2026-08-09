@@ -297,7 +297,6 @@ func swing_blood_scythe(weapon_level: int) -> void:
 	var world: Node = player.get_tree().get_first_node_in_group("world")
 	if world:
 		world.spawn_weapon_flash(player.global_position + direction * 50.0, 0, direction.angle() - 0.68, 0.42 if evolved else 0.30, 0.34, Color("ff6878"))
-		world.spawn_effect(player.global_position, Color("ff405d"), radius, 0.24, false)
 	player.attack_recoil = 1.0
 
 

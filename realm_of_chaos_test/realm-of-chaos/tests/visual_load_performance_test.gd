@@ -6,12 +6,13 @@ const EffectScript = preload("res://scripts/effect.gd")
 const ArenaHazardScript = preload("res://scripts/arena_hazard.gd")
 
 const ENEMY_TYPES := ["prowler", "bat", "mage", "brute", "ember", "bomber", "necromancer", "archer", "assassin", "swarm", "guardian"]
-const REGULAR_ENEMY_COUNT := 300
+const TOTAL_ENEMY_COUNT := 90
 const ELITE_COUNT := 4
+const REGULAR_ENEMY_COUNT := TOTAL_ENEMY_COUNT - ELITE_COUNT - 1
 const PICKUP_COUNT := 520
 const PLAYER_PROJECTILE_COUNT := 180
 const ENEMY_PROJECTILE_COUNT := 96
-const EFFECT_COUNT := 84
+const EFFECT_COUNT := 120
 const WARMUP_FRAMES := 30
 const BURST_WARMUP_FRAMES := 8
 const MEASURED_FRAMES := 60
@@ -177,6 +178,7 @@ func _run() -> void:
 	world.audio.enabled = false
 	world.set_process(false)
 	world.player.disabled = true
+	world.time_survived = world.RUN_DURATION
 
 	_spawn_horde(world)
 	_spawn_pickups_and_validate_tiers(world)
@@ -185,8 +187,8 @@ func _run() -> void:
 	_check(world.pickups.get_child_count() == PICKUP_COUNT, "teto de 520 pickups não foi preservado")
 	_check(get_nodes_in_group("arena_hazards").size() == 18, "mundo não manteve os 18 perigos")
 	_check(
-		world.enemies.get_child_count() == REGULAR_ENEMY_COUNT + ELITE_COUNT + 1,
-		"cenário não contém 300 inimigos, quatro elites e um mini-boss"
+		world.enemies.get_child_count() == TOTAL_ENEMY_COUNT,
+		"cenário não contém 90 inimigos totais, incluindo quatro elites e um mini-boss"
 	)
 
 	for _frame in range(WARMUP_FRAMES):
@@ -197,7 +199,7 @@ func _run() -> void:
 		await process_frame
 	_check(world.projectiles.get_child_count() >= PLAYER_PROJECTILE_COUNT, "burst não manteve 180 projéteis do jogador")
 	_check(world.enemy_projectiles.get_child_count() >= ENEMY_PROJECTILE_COUNT, "burst não manteve 96 projéteis inimigos")
-	_check(world.effects.get_child_count() >= EFFECT_COUNT, "burst não manteve 84 efeitos")
+	_check(world.effects.get_child_count() >= EFFECT_COUNT, "burst não manteve 120 efeitos")
 
 	var metrics := await _measure_frames(MEASURED_FRAMES)
 	var average_ms := float(metrics.average_ms)
@@ -209,7 +211,7 @@ func _run() -> void:
 		% [average_ms, p95_ms, MAX_AVERAGE_MS, MAX_P95_MS]
 	)
 	print(
-		"VISUAL LOAD: 305 inimigos, 520 pickups, 18 perigos, 180/96 projéteis e 84 efeitos; média %.2f ms, p95 %.2f ms"
+		"VISUAL LOAD: 90 inimigos totais, 520 pickups, 18 perigos, 180/96 projéteis e 120 efeitos; média %.2f ms, p95 %.2f ms"
 		% [average_ms, p95_ms]
 	)
 

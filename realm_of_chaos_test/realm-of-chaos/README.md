@@ -54,7 +54,7 @@ Uma evolução completa do protótipo original para um loop no estilo survivor: 
 - Entrada cinematográfica de chefes e sinalização do perigo do terreno no HUD.
 - Opções persistentes de música, efeitos sonoros, tremor de câmera, intensidade de flashes e tela cheia.
 - Índice espacial de inimigos, pooling de projéteis inimigos, LOD visual, limites de projéteis/efeitos e fusão de cristais excedentes.
-- Benchmarks separados para 300 inimigos e para carga visual combinada de inimigos, pickups, perigos, chefes, projéteis e efeitos.
+- Benchmarks separados para a referência sintética de IA com 300 inimigos e para a carga combinada no teto real de 90 inimigos, com pickups, perigos, chefe, projéteis e efeitos.
 - Suporte a teclado e controle.
 
 ## Testes automatizados
@@ -134,7 +134,7 @@ Os atalhos só funcionam em execução pelo editor e não são habilitados em um
 - `assets/generated/`: herói, bestiário e chão originais integrados ao jogo.
 - `tests/`: caracterização dos componentes extraídos, integração de gameplay, áudio, orientação visual, UI e regressões.
 - `tests/performance_test.gd`: referência de IA e busca espacial com 300 inimigos.
-- `tests/visual_load_performance_test.gd`: carga visual combinada no pior cenário suportado.
+- `tests/visual_load_performance_test.gd`: carga combinada no teto global de 90 inimigos, com 520 pickups, 18 perigos, 276 projéteis e 120 efeitos.
 - `tests/max_build_drop_performance_test.gd`: custo de 520 mortes após a build ficar completa.
 
 ## Espaço para futuras expansões

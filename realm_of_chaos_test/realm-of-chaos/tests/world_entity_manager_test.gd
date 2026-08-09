@@ -51,7 +51,8 @@ func _run() -> void:
 	world.set_process(false)
 
 	for method_name in [
-		&"spawn_enemy", &"get_spawn_position", &"add_player_projectile",
+		&"spawn_enemy", &"enemy_population_cap", &"remaining_enemy_capacity",
+		&"has_enemy_capacity", &"get_spawn_position", &"add_player_projectile",
 		&"spawn_enemy_projectile", &"recycle_enemy_projectile", &"add_enemy_projectile",
 		&"_spawn_pickup", &"spawn_effect", &"_effect_visual_quality",
 		&"spawn_weapon_flash", &"spawn_lightning", &"spawn_damage_number"

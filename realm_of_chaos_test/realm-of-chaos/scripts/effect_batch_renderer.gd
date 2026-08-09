@@ -150,12 +150,12 @@ func _rebuild_mesh() -> void:
 				var fill_color := color.darkened(0.55)
 				fill_color.a = color.a * 0.22
 				_append_cached_quality_zero_fill(
-					_vertices, _colors, _indices, effect_transform,
-					radius * 0.94, effect_age * 0.34, fill_color
+					effect_transform, radius * 0.94,
+					effect_age * 0.34, fill_color
 				)
 			_append_cached_quality_zero_ring_pair(
-				_vertices, _colors, _indices, effect_transform,
-				radius, 3.2, effect_age * 0.52, color
+				effect_transform, radius, 3.2,
+				effect_age * 0.52, color
 			)
 			continue
 		if entry.filled:
@@ -175,20 +175,6 @@ func _rebuild_mesh() -> void:
 			_append_angular_ring_pair(
 				_vertices, _colors, _indices, effect_transform,
 				radius, 10 if quality == 1 else 8, 3.2, effect_age * 0.52, color
-			)
-		if quality == 2:
-			var inner_color := color
-			inner_color.a *= 0.58
-			_append_segmented_ring_pair(
-				_vertices, _colors, _indices, effect_transform,
-				radius * 0.72, 7, 1.8, -effect_age * 0.38 + 0.21, inner_color
-			)
-		elif quality == 1:
-			var inner_color := color
-			inner_color.a *= 0.58
-			_append_angular_ring_pair(
-				_vertices, _colors, _indices, effect_transform,
-				radius * 0.72, 8, 1.8, -effect_age * 0.38 + 0.21, inner_color
 			)
 
 
@@ -295,43 +281,40 @@ func _prepare_quality_zero_geometry() -> void:
 
 
 func _append_cached_quality_zero_ring_pair(
-	vertices: PackedVector2Array, colors: PackedColorArray, indices: PackedInt32Array,
 	transform: Transform2D, radius: float, width: float, angle_offset: float, color: Color
 ) -> void:
 	var outline := Color(0.055, 0.025, 0.075, color.a * 0.94)
 	var rotated_transform := transform * Transform2D(angle_offset, Vector2.ZERO)
-	_append_cached_quality_zero_ring(vertices, colors, indices, rotated_transform, radius, width + 3.2, outline)
-	_append_cached_quality_zero_ring(vertices, colors, indices, rotated_transform, radius, width, color)
+	_append_cached_quality_zero_ring(rotated_transform, radius, width + 3.2, outline)
+	_append_cached_quality_zero_ring(rotated_transform, radius, width, color)
 
 
 func _append_cached_quality_zero_ring(
-	vertices: PackedVector2Array, colors: PackedColorArray, indices: PackedInt32Array,
 	transform: Transform2D, radius: float, width: float, color: Color
 ) -> void:
-	var base := vertices.size()
+	var base := _vertices.size()
 	var half_width := width * 0.5
 	for index in range(_quality_zero_ring_centers.size()):
 		var center := _quality_zero_ring_centers[index] * radius
 		var edge := _quality_zero_ring_edges[index] * half_width
-		vertices.append(transform * (center + edge))
-		vertices.append(transform * (center - edge))
-		colors.append(color)
-		colors.append(color)
+		_vertices.append(transform * (center + edge))
+		_vertices.append(transform * (center - edge))
+		_colors.append(color)
+		_colors.append(color)
 	for local_index in _quality_zero_ring_indices:
-		indices.append(base + local_index)
+		_indices.append(base + local_index)
 
 
 func _append_cached_quality_zero_fill(
-	vertices: PackedVector2Array, colors: PackedColorArray, indices: PackedInt32Array,
 	transform: Transform2D, radius: float, angle_offset: float, color: Color
 ) -> void:
 	var rotated_transform := transform * Transform2D(angle_offset, Vector2.ZERO)
-	var base := vertices.size()
+	var base := _vertices.size()
 	for point in _quality_zero_fill_points:
-		vertices.append(rotated_transform * (point * radius))
-		colors.append(color)
+		_vertices.append(rotated_transform * (point * radius))
+		_colors.append(color)
 	for local_index in _quality_zero_fill_indices:
-		indices.append(base + local_index)
+		_indices.append(base + local_index)
 
 
 func _append_segmented_ring_pair(

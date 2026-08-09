@@ -25,16 +25,10 @@ func boundary_color() -> Color:
 
 
 func _draw() -> void:
-	var path_color := Color(0.17, 0.13, 0.16, 0.34)
-	var edge_color := Color(0.48, 0.29, 0.57, 0.17)
 	var zone_color := Color(0.23, 0.12, 0.30, 0.13)
 	if biome_id == "frozen":
-		path_color = Color(0.20, 0.31, 0.38, 0.34)
-		edge_color = Color(0.46, 0.78, 0.91, 0.18)
 		zone_color = Color(0.22, 0.48, 0.60, 0.12)
 	elif biome_id == "cathedral":
-		path_color = Color(0.16, 0.09, 0.22, 0.42)
-		edge_color = Color(0.63, 0.25, 0.82, 0.20)
 		zone_color = Color(0.39, 0.12, 0.52, 0.13)
 
 	var rng := RandomNumberGenerator.new()
@@ -45,17 +39,5 @@ func _draw() -> void:
 		var patch := zone_color
 		patch.a *= rng.randf_range(0.32, 0.82)
 		draw_circle(patch_position, patch_radius, patch)
-
-	draw_circle(Vector2.ZERO, 410.0, Color(path_color, 0.44))
-	draw_arc(Vector2.ZERO, 415.0, 0.0, TAU, 96, Color(edge_color, 0.52), 5.0)
-	for index in range(landmark_positions.size()):
-		var destination := landmark_positions[index]
-		var perpendicular := destination.normalized().rotated(PI * 0.5)
-		var bend := perpendicular * (180.0 if index % 2 == 0 else -180.0)
-		var points := PackedVector2Array([Vector2.ZERO, destination * 0.48 + bend, destination])
-		draw_polyline(points, path_color, 155.0, false)
-		draw_polyline(points, edge_color, 4.0, true)
-		draw_circle(destination, 255.0, zone_color)
-		draw_arc(destination, 250.0, 0.0, TAU, 64, Color(edge_color, 0.56), 3.0)
 
 	draw_rect(Rect2(-5550.0, -5550.0, 11100.0, 11100.0), boundary_color(), false, 12.0)
