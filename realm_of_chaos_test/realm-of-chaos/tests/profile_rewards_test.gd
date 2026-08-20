@@ -1,7 +1,5 @@
 extends SceneTree
 
-const GameDefs = preload("res://scripts/game_defs.gd")
-
 var failures: Array[String] = []
 
 
@@ -34,12 +32,33 @@ func _run() -> void:
 	_check(GameDefs.achievements().size() >= 6, "catálogo de conquistas incompleto")
 
 	var menu = load("res://scenes/main_menu.tscn").instantiate()
+	menu.save_path = "user://profile_rewards_menu_test.cfg"
 	root.add_child(menu)
 	await process_frame
 	_check(is_instance_valid(menu.profile_button), "botão de perfil não foi criado")
+	_check(menu.profile_button.text == "PERFIL DO RITUAL", "menu não exibe o botão único de perfil")
+	_check(menu.get_node_or_null("Menu/Meta") == null, "atalho antigo de Legado ainda existe no menu")
+	_check(menu.get_node("Menu").get_child(1) == menu.profile_button, "Perfil do Ritual não está após Iniciar Ritual")
 	menu._show_profile()
 	await process_frame
-	_check(is_instance_valid(menu.popup) and menu.popup.get_child_count() >= 2, "painel de perfil não abriu")
+	await process_frame
+	_check(is_instance_valid(menu.popup) and menu.popup.scene_file_path == "res://scenes/profile_hub.tscn", "painel unificado de perfil não abriu")
+	_check(str(menu.popup.current_tab) == "hunters", "fachada de perfil não abriu Caçadores")
+	_check(menu.popup.tab_buttons.size() == 4, "Perfil do Ritual não criou as quatro abas")
+	_check(menu.popup.character_grid.get_child_count() == 4, "aba Caçadores não exibe quatro cartões")
+	for character_id in expected_starting_weapons:
+		_check(menu.popup.find_child("Character_%s" % character_id, true, false) != null, "cartão ausente: %s" % character_id)
+	menu.popup.show_tab("achievements")
+	await process_frame
+	_check(menu.popup.achievement_grid.get_child_count() == GameDefs.achievements().size(), "Conquistas não criou um cartão por conquista")
+	menu.popup.show_tab("options")
+	await process_frame
+	_check(menu.popup.options_grid.get_child_count() == 6, "Opções não reuniu os controles previstos")
+	menu._show_meta_progression()
+	await process_frame
+	await process_frame
+	_check(str(menu.popup.current_tab) == "legacy", "fachada antiga de Legado não abre a aba correta")
+	_check(menu.popup.legacy_list.get_child_count() == GameDefs.meta_upgrades().size(), "Legado não exibe todas as melhorias")
 	menu.queue_free()
 	await process_frame
 

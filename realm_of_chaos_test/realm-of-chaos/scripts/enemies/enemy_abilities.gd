@@ -181,18 +181,88 @@ func update_boss_phase() -> void:
 
 
 func cast_projectile(direction: Vector2) -> void:
-	enemy.cast_pulse = 1.0
-	enemy.cast_cooldown = 2.7 if enemy.behavior in ["ranged", "necromancer"] else 1.65
+	if not enemy.pending_projectile_attack.is_empty() or enemy.projectile_release_time > 0.0:
+		return
+	var cooldown := 2.7 if enemy.behavior in ["ranged", "necromancer"] else 1.65
 	var count := 3 if enemy.behavior == "archer" else 1
-	for index in range(count):
-		var offset := float(index) - float(count - 1) * 0.5
-		spawn_enemy_projectile(direction.rotated(offset * 0.13), enemy.contact_damage * 0.70, 245.0, 8.0)
+	begin_projectile_attack(
+		"normal", direction, count, enemy.contact_damage * 0.70, 245.0, 8.0, 0.0
+	)
+	enemy.cast_cooldown = cooldown
+
+
+func begin_projectile_attack(
+	attack_id: String,
+	direction: Vector2,
+	count: int,
+	amount: float,
+	projectile_speed: float,
+	size: float,
+	radial_phase: float
+) -> void:
+	var normalized_direction := direction.normalized()
+	if normalized_direction.is_zero_approx():
+		normalized_direction = Vector2.RIGHT
+	enemy.pending_projectile_attack = attack_id
+	enemy.projectile_prepare_time = enemy.PROJECTILE_PREPARE_DURATION
+	enemy.projectile_attack_direction = normalized_direction
+	enemy.projectile_attack_count = count
+	enemy.projectile_attack_damage = amount
+	enemy.projectile_attack_speed = projectile_speed
+	enemy.projectile_attack_size = size
+	enemy.projectile_radial_phase = radial_phase
+	enemy.attack_facing_direction = normalized_direction
+	enemy.cast_pulse = 1.0
+	enemy.queue_redraw()
+
+
+func update_projectile_attack(delta: float) -> void:
+	enemy.projectile_release_time = maxf(0.0, enemy.projectile_release_time - delta)
+	if enemy.pending_projectile_attack.is_empty():
+		return
+	enemy.projectile_prepare_time = maxf(0.0, enemy.projectile_prepare_time - delta)
+	if enemy.projectile_prepare_time > 0.0:
+		return
+	var attack_id: String = enemy.pending_projectile_attack
+	enemy.pending_projectile_attack = ""
+	if attack_id == "radial":
+		for index in range(enemy.projectile_attack_count):
+			var radial_direction := Vector2.RIGHT.rotated(
+				TAU * float(index) / float(enemy.projectile_attack_count) + enemy.projectile_radial_phase
+			)
+			spawn_enemy_projectile(
+				radial_direction,
+				enemy.projectile_attack_damage,
+				enemy.projectile_attack_speed,
+				enemy.projectile_attack_size
+			)
+	else:
+		for index in range(enemy.projectile_attack_count):
+			var offset := float(index) - float(enemy.projectile_attack_count - 1) * 0.5
+			spawn_enemy_projectile(
+				enemy.projectile_attack_direction.rotated(offset * 0.13),
+				enemy.projectile_attack_damage,
+				enemy.projectile_attack_speed,
+				enemy.projectile_attack_size
+			)
+	enemy.projectile_release_time = enemy.PROJECTILE_RELEASE_DURATION
+	enemy.cast_pulse = 0.46
+	enemy.queue_redraw()
 
 
 func spawn_radial_projectiles(count: int, projectile_speed: float, damage_scale: float) -> void:
-	enemy.cast_pulse = 1.0
-	for index in range(count):
-		spawn_enemy_projectile(Vector2.RIGHT.rotated(TAU * index / count + enemy.movement_age * 0.08), enemy.contact_damage * damage_scale, projectile_speed, 9.0 if not enemy.final_boss else 12.0)
+	if not enemy.pending_projectile_attack.is_empty() or enemy.projectile_release_time > 0.0:
+		return
+	var facing_direction: Vector2 = enemy.player.global_position - enemy.global_position if is_instance_valid(enemy.player) else Vector2.RIGHT
+	begin_projectile_attack(
+		"radial",
+		facing_direction,
+		count,
+		enemy.contact_damage * damage_scale,
+		projectile_speed,
+		9.0 if not enemy.final_boss else 12.0,
+		enemy.movement_age * 0.08
+	)
 
 
 func spawn_enemy_projectile(direction: Vector2, amount: float, projectile_speed: float, size: float) -> void:

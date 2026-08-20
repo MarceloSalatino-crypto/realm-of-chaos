@@ -1,6 +1,5 @@
 extends SceneTree
 
-const GameDefs = preload("res://scripts/game_defs.gd")
 const EXPECTED_FINGERPRINTS := {
 	0:
 		"L:1187.443,-972.001|L:-1745.951,-972.446|L:1528.383,1771.532|L:-2181.463,1517.789"
@@ -105,6 +104,9 @@ func _validate_cycle(world: Node, cycle: int) -> void:
 		var landmark = world.landmarks.get_child(index)
 		_check(str(landmark.landmark_kind) == kinds[index], "ordem dos landmarks mudou no ciclo %d" % cycle)
 		_check(landmark.global_position.is_equal_approx(world.landmark_positions[index]), "posicao do landmark %d mudou no ciclo %d" % [index, cycle])
+		_check(landmark.sprite.scale.is_equal_approx(Vector2.ONE * 0.36), "escala visual do landmark %d mudou no ciclo %d" % [index, cycle])
+		var landmark_collision: CollisionShape2D = landmark.get_child(1)
+		_check(landmark_collision.shape is CircleShape2D and is_equal_approx(landmark_collision.shape.radius, 43.0), "raio de colisao do landmark %d mudou no ciclo %d" % [index, cycle])
 
 	for decoration in world.decorations.get_children():
 		_check(decoration.z_index == -4, "z-index de decoracao mudou")

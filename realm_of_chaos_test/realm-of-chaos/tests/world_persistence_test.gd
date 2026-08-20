@@ -1,6 +1,5 @@
 extends SceneTree
 
-const GameDefs = preload("res://scripts/game_defs.gd")
 const SaveStoreScript = preload("res://scripts/save_store.gd")
 const WORLD_SCENE = preload("res://scenes/world.tscn")
 const SAVE_PATH := "user://realm_of_chaos.cfg"

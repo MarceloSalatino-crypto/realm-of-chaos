@@ -1,6 +1,5 @@
 extends RefCounted
 
-const GameDefs = preload("res://scripts/game_defs.gd")
 const BossArenaScript = preload("res://scripts/boss_arena.gd")
 
 var world

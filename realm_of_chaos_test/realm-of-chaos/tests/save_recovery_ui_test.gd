@@ -76,6 +76,14 @@ func _run() -> void:
 	_check(menu.save_load_status == SaveStoreScript.STATUS_OK, "menu nao aceitou save legado")
 	menu._select_character("crimson_knight")
 	await process_frame
+	var hero_frame := menu.hero.texture as AtlasTexture
+	_check(
+		is_instance_valid(hero_frame)
+		and is_instance_valid(hero_frame.atlas)
+		and hero_frame.atlas.resource_path.ends_with("hero_anim_shadow_blades.png"),
+		"menu não trocou para a folha real do Caçador Rubro"
+	)
+	_check(menu.hero.modulate.is_equal_approx(Color.WHITE), "menu ainda tinge o caçador selecionado")
 	_check(SaveStoreScript.is_valid_file(TEST_SAVE_PATH), "menu nao gravou checksum")
 	_check(SaveStoreScript.is_valid_file(TEST_SAVE_PATH + ".bak"), "menu nao criou backup")
 	var saved_profile := ConfigFile.new()

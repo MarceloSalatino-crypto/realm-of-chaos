@@ -1,6 +1,5 @@
 extends SceneTree
 
-const GameDefs = preload("res://scripts/game_defs.gd")
 const BulletScene = preload("res://scenes/bullet.tscn")
 const EffectScript = preload("res://scripts/effect.gd")
 const ArenaHazardScript = preload("res://scripts/arena_hazard.gd")

@@ -1,6 +1,5 @@
 extends SceneTree
 
-const GameDefs = preload("res://scripts/game_defs.gd")
 const WORLD_SCENE = preload("res://scenes/world.tscn")
 const EXPECTED_PICK_FINGERPRINT := "0.0:prowler,prowler,prowler,prowler|17.9:prowler,prowler,prowler,prowler|18.0:bat,bat,bat,bat|51.9:bat,bat,prowler,prowler|52.0:prowler,bat,mage,prowler|114.9:archer,prowler,prowler,mage|115.0:archer,archer,prowler,bat|204.9:brute,mage,bat,prowler|205.0:bat,mage,prowler,bat|300.0:bat,archer,mage,swarm|600.0:mage,swarm,swarm,swarm|900.0:brute,swarm,swarm,mage"
 

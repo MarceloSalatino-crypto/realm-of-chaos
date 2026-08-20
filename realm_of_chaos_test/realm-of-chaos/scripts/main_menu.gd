@@ -1,7 +1,8 @@
 extends Control
 
-const GameDefs = preload("res://scripts/game_defs.gd")
 const SaveStoreScript = preload("res://scripts/save_store.gd")
+const ProfileHubScript = preload("res://scripts/profile_hub.gd")
+const PROFILE_HUB_SCENE = preload("res://scenes/profile_hub.tscn")
 const SAVE_PATH := "user://realm_of_chaos.cfg"
 
 var animation_time := 0.0
@@ -21,22 +22,16 @@ var last_save_error := OK
 
 func _ready() -> void:
 	get_tree().paused = false
-	hero_base_y = hero.position.y
+	profile_button = $Menu/Profile
 	play_button.pressed.connect(_on_play)
-	$Menu/Instructions.pressed.connect(_show_instructions)
-	$Menu/Meta.pressed.connect(_show_meta_progression)
-	$Menu/Credits.pressed.connect(_show_credits)
-	profile_button = $Menu/Credits.duplicate()
-	profile_button.name = "Profile"
-	profile_button.text = "CAÇADORES, OPÇÕES E CONQUISTAS"
-	$Menu.add_child(profile_button)
-	$Menu.move_child(profile_button, $Menu/Credits.get_index())
 	profile_button.pressed.connect(_show_profile)
+	$Menu/Instructions.pressed.connect(_show_instructions)
+	$Menu/Credits.pressed.connect(_show_credits)
+	$Menu.move_child(profile_button, 1)
 	$Menu.add_theme_constant_override("separation", 6)
-	play_button.custom_minimum_size.y = 60.0
-	for button in [$Menu/Instructions, $Menu/Meta, profile_button, $Menu/Credits]:
-		button.custom_minimum_size.y = 43.0
 	_load_records()
+	resized.connect(_update_main_layout)
+	_update_main_layout()
 	if OS.has_feature("editor"):
 		var editor_hint := Label.new()
 		editor_hint.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
@@ -54,6 +49,68 @@ func _process(delta: float) -> void:
 	hero.position.y = hero_base_y + sin(animation_time * 1.5) * 7.0
 	hero.rotation = sin(animation_time * 0.8) * 0.006
 	$Runes.modulate.a = 0.46 + (sin(animation_time * 0.62) + 1.0) * 0.12
+
+
+func _update_main_layout() -> void:
+	if size.x <= 1.0 or size.y <= 1.0:
+		return
+	var compact := size.x <= 800.0
+	var short_view := not compact and size.y <= 576.0
+	var eyebrow := $Eyebrow as Label
+	var title := $Title as Label
+	var subtitle := $Subtitle as Label
+	var menu_box := $Menu as VBoxContainer
+	var instructions := $Menu/Instructions as Button
+	var credits := $Menu/Credits as Button
+	if compact:
+		eyebrow.hide()
+		subtitle.hide()
+		title.position = Vector2(24.0, 14.0)
+		title.size = Vector2(310.0, 88.0)
+		title.add_theme_font_size_override("font_size", 32)
+		menu_box.position = Vector2(24.0, 118.0)
+		menu_box.size = Vector2(270.0, 190.0)
+		menu_box.add_theme_constant_override("separation", 4)
+		play_button.custom_minimum_size.y = 42.0
+		profile_button.custom_minimum_size.y = 32.0
+		instructions.custom_minimum_size.y = 32.0
+		credits.custom_minimum_size.y = 32.0
+		records_label.add_theme_font_size_override("font_size", 9)
+		hero.anchor_left = 0.48
+		hero.anchor_top = 0.0
+		hero.anchor_right = 1.0
+		hero.anchor_bottom = 1.0
+		hero.offset_left = 0.0
+		hero.offset_top = 15.0
+		hero.offset_right = -5.0
+		hero.offset_bottom = 35.0
+	else:
+		eyebrow.show()
+		subtitle.show()
+		eyebrow.position = Vector2(70.0, 28.0 if short_view else 65.0)
+		eyebrow.size = Vector2(490.0, 30.0)
+		title.position = Vector2(64.0, 58.0 if short_view else 98.0)
+		title.size = Vector2(656.0, 132.0 if short_view else 152.0)
+		title.add_theme_font_size_override("font_size", 54 if short_view else 69)
+		subtitle.position = Vector2(70.0, 218.0 if short_view else 296.0)
+		subtitle.size = Vector2(540.0, 56.0)
+		menu_box.position = Vector2(70.0, 285.0 if short_view else 370.0)
+		menu_box.size = Vector2(438.0, 270.0 if short_view else 334.0)
+		menu_box.add_theme_constant_override("separation", 4 if short_view else 6)
+		play_button.custom_minimum_size.y = 50.0 if short_view else 60.0
+		profile_button.custom_minimum_size.y = 36.0 if short_view else 43.0
+		instructions.custom_minimum_size.y = 36.0 if short_view else 43.0
+		credits.custom_minimum_size.y = 36.0 if short_view else 43.0
+		records_label.add_theme_font_size_override("font_size", 11 if short_view else 13)
+		hero.anchor_left = 0.48
+		hero.anchor_top = 0.0
+		hero.anchor_right = 1.0
+		hero.anchor_bottom = 1.0
+		hero.offset_left = 25.0
+		hero.offset_top = 20.0 if short_view else 50.0
+		hero.offset_right = -25.0
+		hero.offset_bottom = 20.0 if short_view else 55.0
+	hero_base_y = hero.position.y
 
 
 func _on_play() -> void:
@@ -74,6 +131,8 @@ func _on_play() -> void:
 
 func _load_records() -> void:
 	var config := _load_save_config(true)
+	var selected_character := str(config.get_value("profile", "character", "eclipse_hunter"))
+	_update_hero_character(selected_character)
 	if save_load_status in [SaveStoreScript.STATUS_MISSING, SaveStoreScript.STATUS_FAILED]:
 		records_label.text = "SEU PRIMEIRO RITUAL AGUARDA"
 		return
@@ -82,8 +141,6 @@ func _load_records() -> void:
 	var victories := int(config.get_value("record", "victories", 0))
 	var essence := int(config.get_value("meta", "essence", 0))
 	var cycle := int(config.get_value("progress", "active_cycle", 0))
-	var selected_character := str(config.get_value("profile", "character", "eclipse_hunter"))
-	hero.modulate = GameDefs.character_data(selected_character).color
 	var fullscreen := bool(config.get_value("settings", "fullscreen", false))
 	if not OS.has_feature("headless"):
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen else DisplayServer.WINDOW_MODE_WINDOWED)
@@ -91,6 +148,12 @@ func _load_records() -> void:
 	records_label.text = "%s · %d ESSÊNCIAS\nRECORDE %02d:%02d · %d BANIDOS · %d VITÓRIAS" % [
 		str(GameDefs.biome_data(cycle).name), essence, int(best_time) / 60, int(best_time) % 60, best_kills, victories
 	]
+
+
+func _update_hero_character(character_id: String) -> void:
+	hero.texture = ProfileHubScript.character_frame(character_id)
+	hero.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	hero.modulate = Color.WHITE
 
 
 func _load_save_config(notify := true) -> ConfigFile:
@@ -131,123 +194,26 @@ func _show_instructions() -> void:
 	)
 
 
+# Fachada preservada para chamadas e testes anteriores.
 func _show_meta_progression() -> void:
+	_show_profile_hub(ProfileHubScript.TAB_LEGACY)
+
+
+func _show_profile() -> void:
+	_show_profile_hub(ProfileHubScript.TAB_HUNTERS)
+
+
+func _show_profile_hub(initial_tab: String) -> void:
 	if is_instance_valid(popup):
 		popup.queue_free()
-	popup = Control.new()
-	popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	popup.process_mode = Node.PROCESS_MODE_ALWAYS
+	popup = PROFILE_HUB_SCENE.instantiate()
 	add_child(popup)
-	var shade := ColorRect.new()
-	shade.color = Color(0.015, 0.01, 0.035, 0.94)
-	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	popup.add_child(shade)
-	var panel := PanelContainer.new()
-	panel.name = "MetaPanel"
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	popup.add_child(panel)
-	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = Color("171126")
-	panel_style.border_color = Color("7e52bb")
-	panel_style.set_border_width_all(2)
-	panel_style.set_corner_radius_all(14)
-	panel.add_theme_stylebox_override("panel", panel_style)
-	var margin := MarginContainer.new()
-	margin.name = "Margin"
-	panel.add_child(margin)
-	var box := VBoxContainer.new()
-	box.name = "VBox"
-	margin.add_child(box)
-	var config := _load_save_config()
-	var essence := int(config.get_value("meta", "essence", 0))
-	var heading := Label.new()
-	heading.name = "Title"
-	heading.text = "LEGADO DO CAÇADOR"
-	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	heading.add_theme_color_override("font_color", Color("ffd36b"))
-	box.add_child(heading)
-	var balance := Label.new()
-	balance.name = "Balance"
-	balance.text = "ESSÊNCIA DISPONÍVEL  %d" % essence
-	balance.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	balance.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	balance.add_theme_color_override("font_color", Color("c89aff"))
-	box.add_child(balance)
-	var meta_scroll := ScrollContainer.new()
-	meta_scroll.name = "UpgradeScroll"
-	meta_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	meta_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	meta_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	meta_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	meta_scroll.focus_mode = Control.FOCUS_ALL
-	meta_scroll.follow_focus = true
-	meta_scroll.scroll_vertical_custom_step = 34.0
-	box.add_child(meta_scroll)
-	var upgrade_box := VBoxContainer.new()
-	upgrade_box.name = "Upgrades"
-	upgrade_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	meta_scroll.add_child(upgrade_box)
-	var upgrade_buttons: Array[Button] = []
-	for definition in GameDefs.meta_upgrades():
-		var level := int(config.get_value("meta", str(definition.id), 0))
-		var cost := GameDefs.meta_cost(definition, level)
-		var button := Button.new()
-		button.name = "Upgrade_%s" % str(definition.id)
-		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		button.text = "%s  ·  NÍVEL %d/%d\n%s  ·  CUSTO %d" % [definition.title, level, definition.max, definition.description, cost]
-		button.disabled = level >= int(definition.max) or essence < cost
-		button.pressed.connect(_buy_meta_upgrade.bind(str(definition.id)))
-		upgrade_box.add_child(button)
-		upgrade_buttons.append(button)
-	var close := Button.new()
-	close.name = "Close"
-	close.text = "VOLTAR"
-	close.pressed.connect(func(): popup.queue_free())
-	box.add_child(close)
-	var meta_popup := popup
-	var update_meta_layout := func() -> void:
-		if not is_instance_valid(meta_popup) or not is_instance_valid(panel):
-			return
-		var viewport_size := meta_popup.size
-		if viewport_size.x <= 1.0 or viewport_size.y <= 1.0:
-			return
-		var horizontal_inset := clampf(viewport_size.x * 0.035, 12.0, 40.0)
-		var vertical_inset := clampf(viewport_size.y * 0.035, 8.0, 28.0)
-		var panel_size := Vector2(
-			minf(880.0, maxf(1.0, viewport_size.x - horizontal_inset * 2.0)),
-			minf(610.0, maxf(1.0, viewport_size.y - vertical_inset * 2.0))
-		)
-		panel.size = panel_size
-		panel.position = (viewport_size - panel_size) * 0.5
-		var horizontal_margin := int(roundf(clampf(viewport_size.x * 0.04, 14.0, 44.0)))
-		var vertical_margin := int(roundf(clampf(viewport_size.y * 0.025, 8.0, 30.0)))
-		for side in ["margin_left", "margin_right"]:
-			margin.add_theme_constant_override(side, horizontal_margin)
-		for side in ["margin_top", "margin_bottom"]:
-			margin.add_theme_constant_override(side, vertical_margin)
-		var spacing := int(roundf(clampf(viewport_size.y * 0.018, 6.0, 12.0)))
-		box.add_theme_constant_override("separation", spacing)
-		upgrade_box.add_theme_constant_override("separation", spacing)
-		heading.add_theme_font_size_override(
-			"font_size",
-			int(roundf(clampf(minf(viewport_size.x * 0.052, viewport_size.y * 0.05), 22.0, 32.0)))
-		)
-		balance.add_theme_font_size_override(
-			"font_size",
-			int(roundf(clampf(viewport_size.y * 0.027, 14.0, 18.0)))
-		)
-		var upgrade_height := roundf(clampf(viewport_size.y * 0.105, 54.0, 74.0))
-		var upgrade_font_size := int(roundf(clampf(viewport_size.y * 0.024, 13.0, 16.0)))
-		for button in upgrade_buttons:
-			button.custom_minimum_size = Vector2(0.0, upgrade_height)
-			button.add_theme_font_size_override("font_size", upgrade_font_size)
-		close.custom_minimum_size = Vector2(0.0, roundf(clampf(viewport_size.y * 0.07, 40.0, 48.0)))
-	meta_popup.resized.connect(update_meta_layout)
-	update_meta_layout.call()
-	update_meta_layout.call_deferred()
-	close.grab_focus()
+	popup.call("setup", self, initial_tab)
+
+
+func _refresh_profile_hub(preferred_tab := "") -> void:
+	if is_instance_valid(popup) and popup.has_method("refresh"):
+		popup.call("refresh", preferred_tab)
 
 
 func _buy_meta_upgrade(upgrade_id: String) -> void:
@@ -265,162 +231,8 @@ func _buy_meta_upgrade(upgrade_id: String) -> void:
 		if not _save_config_safely(config):
 			return
 		_load_records()
-		_show_meta_progression()
+		_refresh_profile_hub(ProfileHubScript.TAB_LEGACY)
 		return
-
-
-func _show_profile() -> void:
-	if is_instance_valid(popup):
-		popup.queue_free()
-	popup = Control.new()
-	popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	popup.process_mode = Node.PROCESS_MODE_ALWAYS
-	add_child(popup)
-	var shade := ColorRect.new()
-	shade.color = Color(0.012, 0.006, 0.03, 0.96)
-	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	popup.add_child(shade)
-	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	popup.add_child(panel)
-	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = Color("171126")
-	panel_style.border_color = Color("8f61c7")
-	panel_style.set_border_width_all(2)
-	panel_style.set_corner_radius_all(14)
-	panel.add_theme_stylebox_override("panel", panel_style)
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 26)
-	margin.add_theme_constant_override("margin_right", 26)
-	margin.add_theme_constant_override("margin_top", 20)
-	margin.add_theme_constant_override("margin_bottom", 20)
-	panel.add_child(margin)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 10)
-	margin.add_child(box)
-	var heading := Label.new()
-	heading.text = "PERFIL DO RITUAL"
-	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	heading.add_theme_font_size_override("font_size", 30)
-	heading.add_theme_color_override("font_color", Color("ffd36b"))
-	box.add_child(heading)
-	var profile_scroll := ScrollContainer.new()
-	profile_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	profile_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	profile_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	profile_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	profile_scroll.focus_mode = Control.FOCUS_ALL
-	profile_scroll.scroll_vertical_custom_step = 34.0
-	box.add_child(profile_scroll)
-	var content_box := VBoxContainer.new()
-	content_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	content_box.add_theme_constant_override("separation", 10)
-	profile_scroll.add_child(content_box)
-	var config := _load_save_config()
-	var selected := str(config.get_value("profile", "character", "eclipse_hunter"))
-	var character_heading := Label.new()
-	character_heading.text = "CAÇADOR ATIVO · escolha seu estilo"
-	character_heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	character_heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	character_heading.add_theme_font_size_override("font_size", 17)
-	character_heading.add_theme_color_override("font_color", Color("cba8ef"))
-	content_box.add_child(character_heading)
-	var character_grid := GridContainer.new()
-	character_grid.columns = 4
-	character_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	character_grid.add_theme_constant_override("h_separation", 8)
-	character_grid.add_theme_constant_override("v_separation", 8)
-	content_box.add_child(character_grid)
-	for definition in GameDefs.characters():
-		var button := Button.new()
-		button.custom_minimum_size = Vector2(0.0, 124.0)
-		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.text = "%s%s\n%s\n%s" % ["◆ " if selected == str(definition.id) else "", definition.title, definition.role, definition.description]
-		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		button.add_theme_font_size_override("font_size", 14)
-		button.add_theme_color_override("font_color", definition.color)
-		button.disabled = selected == str(definition.id)
-		button.pressed.connect(_select_character.bind(str(definition.id)))
-		character_grid.add_child(button)
-	var achievement_heading := Label.new()
-	achievement_heading.text = "CONQUISTAS"
-	achievement_heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	achievement_heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	achievement_heading.add_theme_font_size_override("font_size", 17)
-	achievement_heading.add_theme_color_override("font_color", Color("cba8ef"))
-	content_box.add_child(achievement_heading)
-	var achievement_text := Label.new()
-	var lines: Array[String] = []
-	for definition in GameDefs.achievements():
-		var unlocked := bool(config.get_value("achievements", str(definition.id), false))
-		lines.append("%s %s — %s" % ["✓" if unlocked else "○", definition.title, definition.description])
-	achievement_text.text = "\n".join(lines)
-	achievement_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	achievement_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	achievement_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	achievement_text.add_theme_font_size_override("font_size", 13)
-	achievement_text.add_theme_color_override("font_color", Color("ded5e9"))
-	content_box.add_child(achievement_text)
-	var settings_heading := Label.new()
-	settings_heading.text = "ACESSIBILIDADE E ÁUDIO"
-	settings_heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	settings_heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	settings_heading.add_theme_font_size_override("font_size", 17)
-	settings_heading.add_theme_color_override("font_color", Color("cba8ef"))
-	content_box.add_child(settings_heading)
-	var settings_grid := GridContainer.new()
-	settings_grid.columns = 5
-	settings_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	settings_grid.add_theme_constant_override("h_separation", 8)
-	settings_grid.add_theme_constant_override("v_separation", 8)
-	content_box.add_child(settings_grid)
-	for setting in [
-		{"id": "music", "title": "MÚSICA"}, {"id": "sfx", "title": "EFEITOS"},
-		{"id": "shake", "title": "TREMORES"}, {"id": "flash", "title": "FLASHES"}
-	]:
-		var setting_button := Button.new()
-		var default_value := float(GameDefs.default_settings()[setting.id])
-		var value := float(config.get_value("settings", setting.id, default_value))
-		setting_button.text = "%s\n%d%%" % [setting.title, roundi(value * 100.0)]
-		setting_button.custom_minimum_size = Vector2(0.0, 58.0)
-		setting_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		setting_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		setting_button.pressed.connect(_cycle_setting.bind(str(setting.id)))
-		settings_grid.add_child(setting_button)
-	var fullscreen_button := Button.new()
-	var fullscreen := bool(config.get_value("settings", "fullscreen", false))
-	fullscreen_button.text = "TELA\n%s" % ("CHEIA" if fullscreen else "JANELA")
-	fullscreen_button.custom_minimum_size = Vector2(0.0, 58.0)
-	fullscreen_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	fullscreen_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	fullscreen_button.pressed.connect(_toggle_fullscreen)
-	settings_grid.add_child(fullscreen_button)
-	var close := Button.new()
-	close.text = "VOLTAR"
-	close.custom_minimum_size.y = 42.0
-	close.pressed.connect(func(): popup.queue_free())
-	box.add_child(close)
-	var profile_popup := popup
-	var update_profile_layout := func() -> void:
-		if not is_instance_valid(profile_popup) or not is_instance_valid(panel):
-			return
-		var viewport_size := profile_popup.size
-		var horizontal_inset := clampf(viewport_size.x * 0.035, 12.0, 40.0)
-		var vertical_inset := clampf(viewport_size.y * 0.035, 12.0, 28.0)
-		var panel_size := Vector2(
-			minf(1120.0, maxf(1.0, viewport_size.x - horizontal_inset * 2.0)),
-			minf(680.0, maxf(1.0, viewport_size.y - vertical_inset * 2.0))
-		)
-		panel.size = panel_size
-		panel.position = (viewport_size - panel_size) * 0.5
-		var content_width := maxf(1.0, panel_size.x - 70.0)
-		character_grid.columns = 4 if content_width >= 900.0 else (2 if content_width >= 430.0 else 1)
-		settings_grid.columns = 5 if content_width >= 780.0 else (3 if content_width >= 460.0 else (2 if content_width >= 300.0 else 1))
-	profile_popup.resized.connect(update_profile_layout)
-	update_profile_layout.call()
-	update_profile_layout.call_deferred()
-	close.grab_focus()
 
 
 func _select_character(character_id: String) -> void:
@@ -429,20 +241,20 @@ func _select_character(character_id: String) -> void:
 	config.set_value("profile", "character", character_id)
 	if not _save_config_safely(config):
 		return
-	hero.modulate = GameDefs.character_data(character_id).color
-	_show_profile()
+	_update_hero_character(character_id)
+	_refresh_profile_hub(ProfileHubScript.TAB_HUNTERS)
 
 
 func _cycle_setting(setting_id: String) -> void:
 	var config := _load_save_config()
 	var current := float(config.get_value("settings", setting_id, GameDefs.default_settings()[setting_id]))
-	var next := snappedf(current + 0.25, 0.25)
-	if next > 1.0:
-		next = 0.0
-	config.set_value("settings", setting_id, next)
+	var next_value := snappedf(current + 0.25, 0.25)
+	if next_value > 1.0:
+		next_value = 0.0
+	config.set_value("settings", setting_id, next_value)
 	if not _save_config_safely(config):
 		return
-	_show_profile()
+	_refresh_profile_hub(ProfileHubScript.TAB_OPTIONS)
 
 
 func _toggle_fullscreen() -> void:
@@ -451,8 +263,9 @@ func _toggle_fullscreen() -> void:
 	config.set_value("settings", "fullscreen", fullscreen)
 	if not _save_config_safely(config):
 		return
-	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen else DisplayServer.WINDOW_MODE_WINDOWED)
-	_show_profile()
+	if not OS.has_feature("headless"):
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen else DisplayServer.WINDOW_MODE_WINDOWED)
+	_refresh_profile_hub(ProfileHubScript.TAB_OPTIONS)
 
 
 func _show_credits() -> void:
@@ -541,18 +354,11 @@ func _show_popup(title: String, content: String) -> void:
 			margin.add_theme_constant_override(side, horizontal_margin)
 		for side in ["margin_top", "margin_bottom"]:
 			margin.add_theme_constant_override(side, vertical_margin)
-		box.add_theme_constant_override(
-			"separation",
-			int(roundf(clampf(viewport_size.y * 0.025, 8.0, 24.0)))
-		)
+		box.add_theme_constant_override("separation", int(roundf(clampf(viewport_size.y * 0.025, 8.0, 24.0))))
 		heading.add_theme_font_size_override(
-			"font_size",
-			int(roundf(clampf(minf(viewport_size.x * 0.055, viewport_size.y * 0.052), 22.0, 34.0)))
+			"font_size", int(roundf(clampf(minf(viewport_size.x * 0.055, viewport_size.y * 0.052), 22.0, 34.0)))
 		)
-		body.add_theme_font_size_override(
-			"font_size",
-			int(roundf(clampf(viewport_size.y * 0.029, 14.0, 19.0)))
-		)
+		body.add_theme_font_size_override("font_size", int(roundf(clampf(viewport_size.y * 0.029, 14.0, 19.0))))
 		close.custom_minimum_size = Vector2(0.0, roundf(clampf(viewport_size.y * 0.07, 40.0, 48.0)))
 	content_popup.resized.connect(update_popup_layout)
 	update_popup_layout.call()

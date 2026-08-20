@@ -49,12 +49,29 @@ func register_projectile(projectile: Node2D) -> void:
 	var projectile_id := projectile.get_instance_id()
 	var entry: Dictionary = _entries_by_id.get(projectile_id, {})
 	if entry.is_empty():
-		entry = {"node": projectile, "id": projectile_id}
+		entry = {"id": projectile_id}
 		_entries.append(entry)
 		_entries_by_id[projectile_id] = entry
+		var exit_callback := _unregister_projectile_id.bind(projectile_id)
+		if not projectile.tree_exiting.is_connected(exit_callback):
+			projectile.tree_exiting.connect(exit_callback, CONNECT_ONE_SHOT)
 	entry.style = str(projectile.projectile_batch_style())
 	entry.radius = float(projectile.projectile_batch_radius())
 	entry.color = Color(projectile.projectile_batch_color())
+
+
+func unregister_projectile(projectile: Node) -> void:
+	if is_instance_valid(projectile):
+		_unregister_projectile_id(projectile.get_instance_id())
+
+
+func _unregister_projectile_id(projectile_id: int) -> void:
+	if not _entries_by_id.erase(projectile_id):
+		return
+	for index in range(_entries.size() - 1, -1, -1):
+		if int(_entries[index].id) == projectile_id:
+			_entries.remove_at(index)
+			return
 
 
 func _create_material() -> ShaderMaterial:
@@ -243,15 +260,14 @@ func _sync_batches() -> void:
 		grouped[style] = []
 	for index in range(_entries.size() - 1, -1, -1):
 		var entry: Dictionary = _entries[index]
-		var projectile: Node = entry.node
+		var projectile := instance_from_id(int(entry.id)) as Node2D
 		if not is_instance_valid(projectile):
 			_entries_by_id.erase(entry.id)
 			_entries.remove_at(index)
-	for entry in _entries:
-		var projectile: Node = entry.node
+			continue
 		if projectile.get_parent() != projectile_container:
 			continue
-		if not projectile is CanvasItem or not projectile.visible:
+		if not projectile.visible:
 			continue
 		var style := str(entry.style)
 		if grouped.has(style):
@@ -274,7 +290,7 @@ func _sync_style(style: String, projectiles: Array, inverse_transform: Transform
 	var buffer: PackedFloat32Array = batch.buffer
 	for index in range(count):
 		var entry: Dictionary = projectiles[index]
-		var projectile: Node2D = entry.node
+		var projectile := instance_from_id(int(entry.id)) as Node2D
 		var radius := float(entry.radius)
 		var relative_transform := inverse_transform * projectile.global_transform
 		relative_transform = relative_transform.scaled_local(Vector2(radius, radius))

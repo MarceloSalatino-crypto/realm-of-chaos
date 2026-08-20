@@ -281,24 +281,24 @@ func _prepare_quality_zero_geometry() -> void:
 
 
 func _append_cached_quality_zero_ring_pair(
-	transform: Transform2D, radius: float, width: float, angle_offset: float, color: Color
+	instance_transform: Transform2D, radius: float, width: float, angle_offset: float, color: Color
 ) -> void:
 	var outline := Color(0.055, 0.025, 0.075, color.a * 0.94)
-	var rotated_transform := transform * Transform2D(angle_offset, Vector2.ZERO)
+	var rotated_transform := instance_transform * Transform2D(angle_offset, Vector2.ZERO)
 	_append_cached_quality_zero_ring(rotated_transform, radius, width + 3.2, outline)
 	_append_cached_quality_zero_ring(rotated_transform, radius, width, color)
 
 
 func _append_cached_quality_zero_ring(
-	transform: Transform2D, radius: float, width: float, color: Color
+	instance_transform: Transform2D, radius: float, width: float, color: Color
 ) -> void:
 	var base := _vertices.size()
 	var half_width := width * 0.5
 	for index in range(_quality_zero_ring_centers.size()):
 		var center := _quality_zero_ring_centers[index] * radius
 		var edge := _quality_zero_ring_edges[index] * half_width
-		_vertices.append(transform * (center + edge))
-		_vertices.append(transform * (center - edge))
+		_vertices.append(instance_transform * (center + edge))
+		_vertices.append(instance_transform * (center - edge))
 		_colors.append(color)
 		_colors.append(color)
 	for local_index in _quality_zero_ring_indices:
@@ -306,9 +306,9 @@ func _append_cached_quality_zero_ring(
 
 
 func _append_cached_quality_zero_fill(
-	transform: Transform2D, radius: float, angle_offset: float, color: Color
+	instance_transform: Transform2D, radius: float, angle_offset: float, color: Color
 ) -> void:
-	var rotated_transform := transform * Transform2D(angle_offset, Vector2.ZERO)
+	var rotated_transform := instance_transform * Transform2D(angle_offset, Vector2.ZERO)
 	var base := _vertices.size()
 	for point in _quality_zero_fill_points:
 		_vertices.append(rotated_transform * (point * radius))
@@ -319,7 +319,7 @@ func _append_cached_quality_zero_fill(
 
 func _append_segmented_ring_pair(
 	vertices: PackedVector2Array, colors: PackedColorArray, indices: PackedInt32Array,
-	transform: Transform2D, radius: float, segment_count: int,
+	instance_transform: Transform2D, radius: float, segment_count: int,
 	width: float, angle_offset: float, color: Color
 ) -> void:
 	var segment_angle := TAU / float(segment_count)
@@ -331,25 +331,25 @@ func _append_segmented_ring_pair(
 		for point_index in range(5):
 			var ratio := float(point_index) / 4.0
 			path.append(Vector2.RIGHT.rotated(lerpf(start, finish, ratio)) * radius)
-		_append_polyline(vertices, colors, indices, path, outline, width + 3.2, transform)
-		_append_polyline(vertices, colors, indices, path, color, width, transform)
+		_append_polyline(vertices, colors, indices, path, outline, width + 3.2, instance_transform)
+		_append_polyline(vertices, colors, indices, path, color, width, instance_transform)
 
 
 func _append_angular_ring_pair(
 	vertices: PackedVector2Array, colors: PackedColorArray, indices: PackedInt32Array,
-	transform: Transform2D, radius: float, point_count: int,
+	instance_transform: Transform2D, radius: float, point_count: int,
 	width: float, angle_offset: float, color: Color
 ) -> void:
 	var path := _polygon_points(radius, point_count, angle_offset)
 	path.append(path[0])
 	var outline := Color(0.055, 0.025, 0.075, color.a * 0.94)
-	_append_polyline(vertices, colors, indices, path, outline, width + 3.2, transform)
-	_append_polyline(vertices, colors, indices, path, color, width, transform)
+	_append_polyline(vertices, colors, indices, path, outline, width + 3.2, instance_transform)
+	_append_polyline(vertices, colors, indices, path, color, width, instance_transform)
 
 
 func _append_polyline(
 	vertices: PackedVector2Array, colors: PackedColorArray, indices: PackedInt32Array,
-	path: PackedVector2Array, color: Color, width: float, transform: Transform2D
+	path: PackedVector2Array, color: Color, width: float, instance_transform: Transform2D
 ) -> void:
 	if path.size() < 2:
 		return
@@ -384,8 +384,8 @@ func _append_polyline(
 		else:
 			base_edge_offset = _polyline_edge_offset(segment_dir, previous_segment_dir)
 		var edge_offset := base_edge_offset * (width * 0.5)
-		strip.append(transform * (path[index] + edge_offset))
-		strip.append(transform * (path[index] - edge_offset))
+		strip.append(instance_transform * (path[index] + edge_offset))
+		strip.append(instance_transform * (path[index] - edge_offset))
 		previous_segment_dir = segment_dir
 	var base := vertices.size()
 	for point in strip:
@@ -420,12 +420,12 @@ func _polyline_edge_offset(segment_dir: Vector2, previous_segment_dir: Vector2) 
 
 func _append_polygon(
 	vertices: PackedVector2Array, colors: PackedColorArray, indices: PackedInt32Array,
-	polygon: PackedVector2Array, color: Color, transform: Transform2D
+	polygon: PackedVector2Array, color: Color, instance_transform: Transform2D
 ) -> void:
 	var polygon_indices := Geometry2D.triangulate_polygon(polygon)
 	var base := vertices.size()
 	for point in polygon:
-		vertices.append(transform * point)
+		vertices.append(instance_transform * point)
 		colors.append(color)
 	for index in polygon_indices:
 		indices.append(base + index)

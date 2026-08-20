@@ -3,6 +3,9 @@ extends StaticBody2D
 
 const LANDMARK_TEXTURE = preload("res://assets/generated/map_landmarks_v1.png")
 const REDRAW_INTERVAL := 1.0 / 20.0
+const VISUAL_SCALE := 0.36
+const VISUAL_BASE_Y := -82.0
+const VISUAL_NOTIFIER_RECT := Rect2(Vector2(-116.0, -220.0), Vector2(232.0, 330.0))
 
 const TITLES := {
 	"altar": "ALTAR RUBRO",
@@ -44,8 +47,8 @@ func _ready() -> void:
 	sprite.texture = LANDMARK_TEXTURE
 	sprite.hframes = 4
 	sprite.frame = frame_index
-	sprite.position.y = -58.0
-	sprite.scale = Vector2.ONE * 0.265
+	sprite.position.y = VISUAL_BASE_Y
+	sprite.scale = Vector2.ONE * VISUAL_SCALE
 	add_child(sprite)
 	var collision := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
@@ -65,7 +68,7 @@ func _ready() -> void:
 	add_child(prompt)
 	screen_notifier = VisibleOnScreenNotifier2D.new()
 	screen_notifier.name = "VisibleOnScreenNotifier2D"
-	screen_notifier.rect = Rect2(Vector2(-108.0, -145.0), Vector2(216.0, 250.0))
+	screen_notifier.rect = VISUAL_NOTIFIER_RECT
 	screen_notifier.show_rect = false
 	add_child(screen_notifier)
 	screen_notifier.screen_entered.connect(_on_screen_entered)
@@ -77,7 +80,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	animation_time += delta
 	if visual_on_screen and is_instance_valid(sprite):
-		sprite.position.y = -58.0 + sin(animation_time * 1.8 + frame_index) * 2.0
+		sprite.position.y = VISUAL_BASE_Y + sin(animation_time * 1.8 + frame_index) * 2.0
 	if not activated and is_instance_valid(world) and is_instance_valid(world.player):
 		var distance := global_position.distance_to(world.player.global_position)
 		prompt.visible = distance < 430.0
@@ -110,7 +113,7 @@ func _visual_phase() -> float:
 func _on_screen_entered() -> void:
 	visual_on_screen = true
 	if is_instance_valid(sprite):
-		sprite.position.y = -58.0 + sin(animation_time * 1.8 + frame_index) * 2.0
+		sprite.position.y = VISUAL_BASE_Y + sin(animation_time * 1.8 + frame_index) * 2.0
 	queue_redraw()
 	redraw_timer = REDRAW_INTERVAL * (0.25 + _visual_phase() * 0.75)
 
@@ -138,12 +141,12 @@ func _draw() -> void:
 	draw_colored_polygon(points, fill)
 	for index in range(4):
 		var angle := animation_time * 0.18 + TAU * float(index) / 4.0
-		var position := Vector2.RIGHT.rotated(angle) * (radius - 3.0)
-		var radial := position.normalized()
+		var marker_position := Vector2.RIGHT.rotated(angle) * (radius - 3.0)
+		var radial := marker_position.normalized()
 		var tangent := radial.rotated(PI * 0.5)
 		draw_colored_polygon(PackedVector2Array([
-			position + radial * 6.0,
-			position + tangent * 4.0,
-			position - radial * 6.0,
-			position - tangent * 4.0,
+			marker_position + radial * 6.0,
+			marker_position + tangent * 4.0,
+			marker_position - radial * 6.0,
+			marker_position - tangent * 4.0,
 		]), Color(0.025, 0.012, 0.038, 0.90) if activated else edge)

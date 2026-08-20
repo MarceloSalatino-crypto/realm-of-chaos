@@ -126,10 +126,10 @@ func _draw() -> void:
 		var angle := -animation_time * 0.28 + TAU * float(index) / 4.0
 		var radial := Vector2.RIGHT.rotated(angle)
 		var tangent := radial.rotated(PI * 0.5)
-		var position := Vector2(0.0, 18.0) + radial * (radius - 2.0)
+		var spark_position := Vector2(0.0, 18.0) + radial * (radius - 2.0)
 		draw_colored_polygon(PackedVector2Array([
-			position + radial * 5.5,
-			position + tangent * 3.5,
-			position - radial * 5.5,
-			position - tangent * 3.5,
+			spark_position + radial * 5.5,
+			spark_position + tangent * 3.5,
+			spark_position - radial * 5.5,
+			spark_position - tangent * 3.5,
 		]), Color("f0bd57") if opened else Color("c889ff"))

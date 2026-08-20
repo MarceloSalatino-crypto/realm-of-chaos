@@ -1,6 +1,5 @@
 extends SceneTree
 
-const GameDefs = preload("res://scripts/game_defs.gd")
 const HUD_SCENE = preload("res://scenes/hud.tscn")
 const VIEWPORT_SIZES: Array[Vector2i] = [
 	Vector2i(1280, 720),

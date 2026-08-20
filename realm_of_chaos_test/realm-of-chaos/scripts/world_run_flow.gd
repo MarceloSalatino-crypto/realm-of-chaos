@@ -1,6 +1,5 @@
 extends RefCounted
 
-const GameDefs = preload("res://scripts/game_defs.gd")
 const RewardChestScript = preload("res://scripts/reward_chest.gd")
 const COMPLETE_BUILD_CHEST_CHANCE := 0.30
 
@@ -19,12 +18,12 @@ func update_hud() -> void:
 	var stage_status := "%s · %s" % [world.last_stage, world.director.next_boss_status()]
 	world.hud.update_run(
 		world.player.hp, world.player.max_hp, world.player.experience, world.player.experience_needed,
-		world.player.level, world.enemies_killed, remaining, stage_status, world.player.weapon_summary(),
+		world.player.level, world.enemies_killed, remaining, stage_status,
 		world.essence_earned, status_title
 	)
 	world.hud.update_navigation(
-		world.player.dash_status(), world.player.character_skill_name,
-		world.player.blessing_title, world.player.blessing_time
+		world.player.dash_cooldown_progress(), world.player.character_id,
+		world.player.character_skill_name
 	)
 	if is_instance_valid(world.active_boss) and not world.active_boss.dead:
 		world.hud.update_boss(world.active_boss.hp, world.active_boss.max_hp)

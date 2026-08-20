@@ -91,16 +91,16 @@ func _draw_segmented_boundary(pulse: float, reduced_detail: bool) -> void:
 	draw_multiline(lines, color, 6.0)
 
 
-func _segmented_arc_lines(arc_radius: float, rotation: float, segments: int, coverage: float, point_count: int) -> PackedVector2Array:
+func _segmented_arc_lines(arc_radius: float, angle_offset: float, segments: int, coverage: float, point_count: int) -> PackedVector2Array:
 	var lines := PackedVector2Array()
 	var segment_angle := TAU / float(segments)
 	for segment_index in range(segments):
-		var start := rotation + segment_angle * float(segment_index)
-		var finish := start + segment_angle * coverage
+		var start := angle_offset + segment_angle * float(segment_index)
+		var end_angle := start + segment_angle * coverage
 		var previous := Vector2.RIGHT.rotated(start) * arc_radius
 		for point_index in range(1, point_count):
 			var progress := float(point_index) / float(point_count - 1)
-			var current := Vector2.RIGHT.rotated(lerpf(start, finish, progress)) * arc_radius
+			var current := Vector2.RIGHT.rotated(lerpf(start, end_angle, progress)) * arc_radius
 			lines.append(previous)
 			lines.append(current)
 			previous = current
@@ -116,18 +116,18 @@ func _marker_mesh(marker_count: int, outline: bool) -> ArrayMesh:
 		var angle := TAU * float(index) / float(marker_count)
 		var radial := Vector2.RIGHT.rotated(angle)
 		var tangent := radial.rotated(PI * 0.5)
-		var position := radial * (radius - 7.0)
+		var marker_position := radial * (radius - 7.0)
 		if outline:
 			vertices.append_array(PackedVector2Array([
-				position + radial * 15.0,
-				position - radial * 9.0 + tangent * 10.0,
-				position - radial * 9.0 - tangent * 10.0,
+				marker_position + radial * 15.0,
+				marker_position - radial * 9.0 + tangent * 10.0,
+				marker_position - radial * 9.0 - tangent * 10.0,
 			]))
 		else:
 			vertices.append_array(PackedVector2Array([
-				position + radial * 11.0,
-				position - radial * 6.0 + tangent * 6.0,
-				position - radial * 6.0 - tangent * 6.0,
+				marker_position + radial * 11.0,
+				marker_position - radial * 6.0 + tangent * 6.0,
+				marker_position - radial * 6.0 - tangent * 6.0,
 			]))
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -140,9 +140,9 @@ func _marker_mesh(marker_count: int, outline: bool) -> ArrayMesh:
 
 func _draw_boundary_markers(pulse: float, reduced_detail: bool) -> void:
 	var marker_count := 8 if reduced_detail else 12
-	var rotation := Transform2D(animation_time * 0.08, Vector2.ZERO)
-	draw_mesh(_marker_mesh(marker_count, true), null, rotation, Color(0.025, 0.012, 0.038, 0.92))
-	draw_mesh(_marker_mesh(marker_count, false), null, rotation, Color(arena_color, 0.50 + pulse * 0.24))
+	var marker_transform := Transform2D(animation_time * 0.08, Vector2.ZERO)
+	draw_mesh(_marker_mesh(marker_count, true), null, marker_transform, Color(0.025, 0.012, 0.038, 0.92))
+	draw_mesh(_marker_mesh(marker_count, false), null, marker_transform, Color(arena_color, 0.50 + pulse * 0.24))
 
 
 func _draw() -> void:

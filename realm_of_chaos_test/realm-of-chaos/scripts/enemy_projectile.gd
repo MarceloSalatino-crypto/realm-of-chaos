@@ -77,16 +77,16 @@ func _draw() -> void:
 	var highlight := projectile_color.lightened(0.42)
 	if uses_danger_style:
 		# Pontas irregulares e núcleo escuro formam uma leitura clara de ameaça.
-		var outline_points := PackedVector2Array()
+		var danger_outline_points := PackedVector2Array()
 		var blade_points := PackedVector2Array()
 		for index in range(16):
 			var angle := -PI * 0.5 + TAU * float(index) / 16.0
 			var is_tip := index % 2 == 0
 			var outline_radius := radius * (1.34 if is_tip else 0.62)
 			var blade_radius := radius * (1.08 if is_tip else 0.48)
-			outline_points.append(Vector2.RIGHT.rotated(angle) * outline_radius)
+			danger_outline_points.append(Vector2.RIGHT.rotated(angle) * outline_radius)
 			blade_points.append(Vector2.RIGHT.rotated(angle) * blade_radius)
-		draw_colored_polygon(outline_points, outline)
+		draw_colored_polygon(danger_outline_points, outline)
 		draw_colored_polygon(blade_points, projectile_color)
 		draw_circle(Vector2.ZERO, radius * 0.36, Color("4a071b"))
 		draw_colored_polygon(PackedVector2Array([

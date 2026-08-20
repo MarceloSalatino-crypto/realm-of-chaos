@@ -1,6 +1,12 @@
 extends CharacterBody2D
 
+#region Sinais, dependências e estado
+
+# Emitted through PlayerProgression.
+@warning_ignore("unused_signal")
 signal level_up_requested
+# Emitted through PlayerVisualController.
+@warning_ignore("unused_signal")
 signal died
 
 const PlayerProgressionScript = preload("res://scripts/player_progression.gd")
@@ -17,6 +23,7 @@ const WALK_MIN_SPEED := 6.0
 const WALK_MAX_FPS := 15.0
 const ATTACK_FACING_HOLD := 0.24
 const ATTACK_FACING_DEADZONE := 0.18
+const DASH_COOLDOWN_DURATION := 3.2
 const WEAPON_TEXTURES = PlayerVisualControllerScript.WEAPON_TEXTURES
 const WEAPON_TITLES := {
 	"chaos_bolt": "BESTA DO CAOS",
@@ -134,6 +141,10 @@ var visual_controller: PlayerVisualControllerScript
 @onready var shadow: Polygon2D = $Shadow
 @onready var collision_shape: CollisionShape2D = $CollisionShape2D
 
+#endregion
+
+#region Ciclo de vida e movimentação própria
+
 
 func _ready() -> void:
 	progression = PlayerProgressionScript.new(self)
@@ -226,6 +237,10 @@ func _physics_process(delta: float) -> void:
 		take_damage(hazard_damage * 0.5, Vector2.ZERO, true)
 	combat.update_weapons(delta)
 
+#endregion
+
+#region Fachada de combate — habilidade do caçador
+
 
 func _start_dash(input_direction: Vector2, world: Node) -> void:
 	combat.start_dash(input_direction, world)
@@ -233,6 +248,10 @@ func _start_dash(input_direction: Vector2, world: Node) -> void:
 
 func _activate_character_skill(world: Node) -> void:
 	combat.activate_character_skill(world)
+
+#endregion
+
+#region Estado temporário próprio
 
 
 func _update_temporary_blessing(delta: float) -> void:
@@ -248,6 +267,10 @@ func _update_temporary_blessing(delta: float) -> void:
 		temporary_crit_bonus = 0.0
 		temporary_armor = 0.0
 
+#endregion
+
+#region Fachada visual
+
 
 func _animate_character(delta: float, direction: Vector2, is_moving: bool, distance_moved := 0.0) -> void:
 	visual_controller.animate_character(delta, direction, is_moving, distance_moved)
@@ -255,6 +278,10 @@ func _animate_character(delta: float, direction: Vector2, is_moving: bool, dista
 
 func _set_primary_attack_facing(direction: Vector2, weapon_id: String) -> void:
 	visual_controller.set_primary_attack_facing(direction, weapon_id)
+
+#endregion
+
+#region Fachada de combate — armas, dano e cura
 
 
 func _update_weapons(delta: float) -> void:
@@ -327,6 +354,10 @@ func _play_death_animation() -> void:
 func heal(amount: float, show_effect := true) -> void:
 	combat.heal(amount, show_effect)
 
+#endregion
+
+#region Fachada de progressão — upgrades e bênçãos
+
 
 func collect_xp(amount: int) -> void:
 	progression.collect_xp(amount)
@@ -383,6 +414,10 @@ func apply_meta_bonuses(meta: Dictionary) -> void:
 func apply_landmark_blessing(kind: String, duration := 40.0) -> String:
 	return progression.apply_landmark_blessing(kind, duration)
 
+#endregion
+
+#region Consultas derivadas do Player
+
 
 func effective_damage_multiplier() -> float:
 	return damage_multiplier * temporary_damage_multiplier
@@ -402,6 +437,14 @@ func effective_pickup_radius() -> float:
 
 func dash_status() -> String:
 	return "PRONTA" if dash_cooldown <= 0.0 else "%.1fs" % dash_cooldown
+
+
+func dash_cooldown_progress() -> float:
+	return 1.0 - clampf(dash_cooldown / DASH_COOLDOWN_DURATION, 0.0, 1.0)
+
+#endregion
+
+#region Fachadas de personagem, relíquias e recompensas
 
 
 func apply_character(selected_id: String) -> void:
@@ -439,7 +482,13 @@ func grant_boss_reward(final_reward := false) -> void:
 func weapon_summary() -> String:
 	return progression.weapon_summary()
 
+#endregion
+
+#region Desenho delegado
+
 
 func _draw() -> void:
 	if visual_controller:
 		visual_controller.draw()
+
+#endregion

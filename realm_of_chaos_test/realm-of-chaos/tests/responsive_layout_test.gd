@@ -114,27 +114,49 @@ func _upgrade_worst_case() -> Array[Dictionary]:
 	]
 
 
-func _validate_meta(menu: Control, viewport: SubViewport, viewport_size: Vector2i) -> void:
+func _validate_profile_hub(menu: Control, viewport: SubViewport, viewport_size: Vector2i) -> void:
+	menu.call("_show_profile")
+	await _settle()
+	var hub: Control = menu.popup
+	var panel := hub.panel as PanelContainer
+	var content_panel := hub.content_panel as PanelContainer
+	_inside_viewport(panel, viewport_size, "Perfil/Panel")
+	_inside_viewport(content_panel, viewport_size, "Perfil/Content")
+	_check(hub.tab_buttons.size() == 4, "Perfil não criou quatro abas em %s" % _viewport_tag(viewport_size))
+	for tab_id in ["hunters", "legacy", "achievements", "options"]:
+		hub.show_tab(tab_id)
+		await _settle()
+		_inside_viewport(panel, viewport_size, "Perfil/%s/Panel" % tab_id)
+		_inside_viewport(content_panel, viewport_size, "Perfil/%s/Content" % tab_id)
+		match tab_id:
+			"hunters":
+				var expected_columns := 4 if viewport_size.x >= 1000 else 2
+				_check(hub.character_grid.columns == expected_columns, "Caçadores usou %d colunas, esperado %d em %s" % [hub.character_grid.columns, expected_columns, _viewport_tag(viewport_size)])
+				_check(hub.character_grid.get_child_count() == 4, "Caçadores não exibiu quatro cartões em %s" % _viewport_tag(viewport_size))
+				_check(hub.character_grid.size.x <= hub.primary_scroll.size.x + 0.6, "Caçadores criou overflow horizontal em %s" % _viewport_tag(viewport_size))
+			"legacy":
+				_check(hub.legacy_list.get_child_count() == GameDefs.meta_upgrades().size(), "Legado não exibiu todas as melhorias em %s" % _viewport_tag(viewport_size))
+				_check(hub.find_child("LegacyFocus", true, false) != null, "Legado perdeu a imagem contextual em %s" % _viewport_tag(viewport_size))
+			"achievements":
+				var expected_columns := 3 if viewport_size.x >= 1000 else 2
+				_check(hub.achievement_grid.columns == expected_columns, "Conquistas usou %d colunas, esperado %d em %s" % [hub.achievement_grid.columns, expected_columns, _viewport_tag(viewport_size)])
+				_check(hub.achievement_grid.get_child_count() == GameDefs.achievements().size(), "Conquistas não exibiu sete cartões em %s" % _viewport_tag(viewport_size))
+				_check(hub.achievement_grid.size.x <= hub.primary_scroll.size.x + 0.6, "Conquistas criou overflow horizontal em %s" % _viewport_tag(viewport_size))
+			"options":
+				_check(hub.options_grid.columns == 2, "Opções não usou duas colunas em %s" % _viewport_tag(viewport_size))
+				_check(hub.options_grid.get_child_count() == 6, "Opções não exibiu seis cartões em %s" % _viewport_tag(viewport_size))
+		print(
+			"LAYOUT %s PERFIL/%s panel=%dx%d content=%dx%d cols=%d"
+			% [
+				_viewport_tag(viewport_size), tab_id, roundi(panel.size.x), roundi(panel.size.y),
+				roundi(content_panel.size.x), roundi(content_panel.size.y),
+				int(hub.call("_content_columns")),
+			]
+		)
+		await _capture(viewport, "perfil_%s_%s" % [tab_id, _viewport_tag(viewport_size)])
 	menu.call("_show_meta_progression")
 	await _settle()
-	var panel := menu.popup.get_node("MetaPanel") as PanelContainer
-	var scroll := panel.get_node("Margin/VBox/UpgradeScroll") as ScrollContainer
-	var upgrades := scroll.get_node("Upgrades") as VBoxContainer
-	var close := panel.get_node("Margin/VBox/Close") as Button
-	_inside_viewport(panel, viewport_size, "Legado/Panel")
-	_inside_viewport(scroll, viewport_size, "Legado/Scroll")
-	_inside_viewport(close, viewport_size, "Legado/Voltar")
-	_check(upgrades.size.x <= scroll.size.x + 0.6, "Legado criou overflow horizontal em %s" % _viewport_tag(viewport_size))
-	if viewport_size.y <= 360:
-		_check(scroll.get_v_scroll_bar().visible, "Legado não ativou scroll vertical em 640x360")
-	print(
-		"LAYOUT %s LEGADO panel=%dx%d scroll=%dx%d content=%dx%d cols=-"
-		% [
-			_viewport_tag(viewport_size), roundi(panel.size.x), roundi(panel.size.y),
-			roundi(scroll.size.x), roundi(scroll.size.y), roundi(upgrades.size.x), roundi(upgrades.size.y),
-		]
-	)
-	await _capture(viewport, "legado_" + _viewport_tag(viewport_size))
+	_check(str(menu.popup.current_tab) == "legacy", "fachada de Legado abriu a aba errada em %s" % _viewport_tag(viewport_size))
 
 
 func _validate_content_popup(
@@ -172,10 +194,15 @@ func _validate_content_popup(
 func _validate_menu_layouts(viewport_size: Vector2i) -> void:
 	var viewport := _new_viewport(viewport_size)
 	var menu = MAIN_MENU_SCENE.instantiate()
+	menu.save_path = "user://responsive_layout_menu_test.cfg"
 	viewport.add_child(menu)
 	await _settle()
 	menu.set_process(false)
-	await _validate_meta(menu, viewport, viewport_size)
+	for button_path in ["Menu/Play", "Menu/Profile", "Menu/Instructions", "Menu/Credits"]:
+		_inside_viewport(menu.get_node(button_path), viewport_size, "Menu/%s" % button_path.get_file())
+	_check(menu.get_node_or_null("Menu/Meta") == null, "Menu principal ainda contém o atalho antigo de Legado")
+	await _capture(viewport, "menu_principal_" + _viewport_tag(viewport_size))
+	await _validate_profile_hub(menu, viewport, viewport_size)
 	await _validate_content_popup(menu, viewport, viewport_size, true)
 	await _validate_content_popup(menu, viewport, viewport_size, false)
 	root.remove_child(viewport)
@@ -274,7 +301,7 @@ func _validate_upgrade(hud: CanvasLayer, viewport: SubViewport, viewport_size: V
 			_viewport_tag(viewport_size), roundi(panel.size.x), roundi(panel.size.y),
 			roundi(scroll.size.x), roundi(scroll.size.y), roundi(cards.size.x), roundi(cards.size.y), cards.columns,
 			scroll.scroll_vertical,
-			scroll.get_viewport().gui_get_focus_owner().name if scroll.get_viewport().gui_get_focus_owner() else "none",
+			str(scroll.get_viewport().gui_get_focus_owner().name) if scroll.get_viewport().gui_get_focus_owner() else "none",
 		]
 	)
 	await _capture(viewport, "level_up_" + _viewport_tag(viewport_size))
@@ -283,17 +310,36 @@ func _validate_upgrade(hud: CanvasLayer, viewport: SubViewport, viewport_size: V
 func _validate_pause(hud: CanvasLayer, viewport: SubViewport, viewport_size: Vector2i) -> void:
 	hud.hide_level_up()
 	hud.pause_overlay.show()
+	hud.call("_refresh_pause_character_panel")
 	hud.call("_update_responsive_hud_layout")
 	await _settle()
+	var scroll := hud.pause_scroll as ScrollContainer
+	var content := hud.pause_content_grid as GridContainer
+	var weapons := hud.pause_weapons_grid as GridContainer
+	var passives := hud.pause_passives_grid as GridContainer
+	var expected_columns := 2 if hud.pause_panel.size.x >= 820.0 else 1
+	_check(hud.get_node_or_null("Weapons") == null, "HUD principal ainda contém o resumo inferior de armas")
 	_inside_viewport(hud.pause_panel, viewport_size, "Pausa/Panel")
 	_inside_viewport(hud.pause_title, viewport_size, "Pausa/Título")
+	_inside_viewport(scroll, viewport_size, "Pausa/Scroll")
+	_check(content.columns == expected_columns, "Pausa usou %d colunas, esperado %d em %s" % [content.columns, expected_columns, _viewport_tag(viewport_size)])
+	_check(weapons.columns == expected_columns, "Armas da pausa usaram %d colunas, esperado %d em %s" % [weapons.columns, expected_columns, _viewport_tag(viewport_size)])
+	_check(passives.columns == expected_columns, "Passivos da pausa usaram %d colunas, esperado %d em %s" % [passives.columns, expected_columns, _viewport_tag(viewport_size)])
+	_check(weapons.get_child_count() == 6, "Pausa não exibiu as 6 armas do pior caso em %s" % _viewport_tag(viewport_size))
+	_check(passives.get_child_count() == 8, "Pausa não exibiu os 8 passivos do pior caso em %s" % _viewport_tag(viewport_size))
+	_check(content.size.x <= scroll.size.x + 0.6, "Pausa criou overflow horizontal em %s" % _viewport_tag(viewport_size))
+	_check(not scroll.get_h_scroll_bar().visible, "Pausa ativou scroll horizontal em %s" % _viewport_tag(viewport_size))
+	if viewport_size.y <= 360:
+		_check(scroll.get_v_scroll_bar().visible, "Pausa não ativou scroll vertical em 640x360")
 	for button in hud.pause_buttons:
 		_inside_viewport(button, viewport_size, "Pausa/" + button.name)
 	print(
-		"LAYOUT %s PAUSA panel=%dx%d content=%dx%d cols=-"
+		"LAYOUT %s PAUSA panel=%dx%d scroll=%dx%d content=%dx%d cols=%d weapons=%d passives=%d vscroll=%s"
 		% [
 			_viewport_tag(viewport_size), roundi(hud.pause_panel.size.x), roundi(hud.pause_panel.size.y),
-			roundi(hud.pause_vbox.size.x), roundi(hud.pause_vbox.size.y),
+			roundi(scroll.size.x), roundi(scroll.size.y), roundi(content.size.x), roundi(content.size.y),
+			content.columns, weapons.get_child_count(), passives.get_child_count(),
+			str(scroll.get_v_scroll_bar().visible),
 		]
 	)
 	await _capture(viewport, "pausa_" + _viewport_tag(viewport_size))
@@ -344,6 +390,32 @@ func _validate_boss_banner(hud: CanvasLayer, viewport: SubViewport, viewport_siz
 	await _capture(viewport, "boss_" + _viewport_tag(viewport_size))
 
 
+func _validate_ability_indicator(hud: CanvasLayer, viewport: SubViewport, viewport_size: Vector2i) -> void:
+	hud.pause_overlay.hide()
+	hud.stage_banner.hide()
+	hud.boss_panel.hide()
+	if is_instance_valid(hud.boss_intro):
+		hud.boss_intro.hide()
+	hud.update_navigation(0.47, "glacial_oracle", "PULSO GLACIAL")
+	await _settle()
+	var indicator := hud.ability_indicator as Control
+	_check(hud.get_node_or_null("DashStatus") == null, "HUD ainda criou o texto antigo da habilidade")
+	_check(is_instance_valid(indicator), "HUD não criou a orbe de habilidade")
+	if is_instance_valid(indicator):
+		_inside_viewport(indicator, viewport_size, "Habilidade/Orbe")
+		_check(is_equal_approx(indicator.fill_progress, 0.47), "orbe não refletiu progresso parcial em %s" % _viewport_tag(viewport_size))
+		_check(indicator.icon_rect.texture != null, "orbe não carregou o ícone da habilidade em %s" % _viewport_tag(viewport_size))
+		_check(not indicator.is_ready_state, "orbe parcial apareceu pronta em %s" % _viewport_tag(viewport_size))
+	print(
+		"LAYOUT %s HABILIDADE indicator=%dx%d pos=%d,%d progress=%.2f"
+		% [
+			_viewport_tag(viewport_size), roundi(indicator.size.x), roundi(indicator.size.y),
+			roundi(indicator.position.x), roundi(indicator.position.y), indicator.fill_progress,
+		]
+	)
+	await _capture(viewport, "habilidade_" + _viewport_tag(viewport_size))
+
+
 func _validate_hud_layouts(viewport_size: Vector2i) -> void:
 	var viewport := _new_viewport(viewport_size)
 	var hud = HUD_SCENE.instantiate()
@@ -353,6 +425,7 @@ func _validate_hud_layouts(viewport_size: Vector2i) -> void:
 	await _validate_pause(hud, viewport, viewport_size)
 	await _validate_stage_banner(hud, viewport, viewport_size)
 	await _validate_boss_banner(hud, viewport, viewport_size)
+	await _validate_ability_indicator(hud, viewport, viewport_size)
 	paused = false
 	root.remove_child(viewport)
 	viewport.queue_free()
@@ -366,7 +439,7 @@ func _run() -> void:
 	paused = false
 	if failures.is_empty():
 		var validation_mode := "com capturas reais" if not capture_dir.is_empty() else "dimensionalmente"
-		print("RESPONSIVE LAYOUT OK: 7 estados validados %s em 5 resoluções" % validation_mode)
+		print("RESPONSIVE LAYOUT OK: menu, 4 abas do perfil e 7 estados de HUD validados %s em 5 resoluções" % validation_mode)
 		quit(0)
 	else:
 		quit(1)

@@ -80,12 +80,20 @@ func update_visual_animation(delta: float, distance_moved: float) -> void:
 
 
 func animate_sprite(delta: float, distance_moved := -1.0, allow_custom_redraw := true) -> void:
-	enemy.sprite.flip_h = enemy.velocity.x < -2.0
+	var use_attack_facing: bool = not enemy.pending_projectile_attack.is_empty() or enemy.projectile_release_time > 0.0
+	if use_attack_facing and absf(enemy.attack_facing_direction.x) >= enemy.ATTACK_FACING_DEADZONE:
+		enemy.sprite.flip_h = enemy.attack_facing_direction.x < 0.0
+	elif not use_attack_facing:
+		enemy.sprite.flip_h = enemy.velocity.x < -2.0
 	enemy.attack_pulse = move_toward(enemy.attack_pulse, 0.0, delta * 2.7)
 	enemy.cast_pulse = move_toward(enemy.cast_pulse, 0.0, delta * 2.4)
 	enemy.hit_squash = move_toward(enemy.hit_squash, 0.0, delta * 7.5)
 	var active_attack := maxf(enemy.attack_pulse, enemy.cast_pulse)
-	if enemy.telegraph_time > 0.0:
+	if enemy.projectile_release_time > 0.0:
+		enemy.sprite.frame = 3
+	elif not enemy.pending_projectile_attack.is_empty():
+		enemy.sprite.frame = 2
+	elif enemy.telegraph_time > 0.0:
 		enemy.sprite.frame = 2
 	elif active_attack > 0.0:
 		enemy.sprite.frame = 2 if active_attack > 0.48 else 3

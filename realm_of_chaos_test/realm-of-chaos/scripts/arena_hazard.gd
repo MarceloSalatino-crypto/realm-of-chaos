@@ -7,6 +7,7 @@ const VOID_REDRAW_INTERVAL := 1.0 / 20.0
 var hazard_kind := "roots"
 var radius := 105.0
 var animation_time := 0.0
+@warning_ignore("shadowed_global_identifier")
 var seed := 1
 var visual_on_screen := false
 var redraw_interval := ICE_REDRAW_INTERVAL
@@ -87,29 +88,29 @@ func _angular_ring(point_count: int, ring_radius: float, phase: float, inset: fl
 	return points
 
 
-func _draw_segmented_ring(ring_radius: float, rotation: float, color: Color, width: float, segment_count: int, coverage: float) -> void:
+func _draw_segmented_ring(ring_radius: float, angle_offset: float, color: Color, width: float, segment_count: int, coverage: float) -> void:
 	var segment_angle := TAU / float(segment_count)
 	for index in range(segment_count):
-		var start := rotation + segment_angle * float(index)
+		var start := angle_offset + segment_angle * float(index)
 		var finish := start + segment_angle * coverage
 		draw_arc(Vector2.ZERO, ring_radius, start, finish, 6, Color(0.025, 0.012, 0.04, 0.88), width + 3.0)
 		draw_arc(Vector2.ZERO, ring_radius, start, finish, 6, color, width)
 
 
-func _draw_void_shard(position: Vector2, angle: float) -> void:
+func _draw_void_shard(shard_position: Vector2, angle: float) -> void:
 	var forward := Vector2.RIGHT.rotated(angle)
 	var side := forward.rotated(PI * 0.5)
 	var outline := PackedVector2Array([
-		position + forward * 7.0,
-		position + side * 5.0,
-		position - forward * 7.0,
-		position - side * 5.0,
+		shard_position + forward * 7.0,
+		shard_position + side * 5.0,
+		shard_position - forward * 7.0,
+		shard_position - side * 5.0,
 	])
 	var inside := PackedVector2Array([
-		position + forward * 4.5,
-		position + side * 2.5,
-		position - forward * 4.5,
-		position - side * 2.5,
+		shard_position + forward * 4.5,
+		shard_position + side * 2.5,
+		shard_position - forward * 4.5,
+		shard_position - side * 2.5,
 	])
 	draw_colored_polygon(outline, Color(0.025, 0.012, 0.04, 0.92))
 	draw_colored_polygon(inside, Color(0.86, 0.38, 1.0, 0.72))

@@ -147,7 +147,7 @@ func _run() -> void:
 		return
 	_check(image.get_size() == EXPECTED_SIZE, "atlas não manteve 1985x793")
 	_check(image.get_width() % 5 == 0, "atlas não pode ser dividido em cinco células iguais")
-	_check(image.get_width() / 5 == CELL_WIDTH, "largura de célula deixou de ser 397")
+	_check(floori(float(image.get_width()) / 5.0) == CELL_WIDTH, "largura de célula deixou de ser 397")
 
 	var signatures: Array[Dictionary] = []
 	for frame_index in range(FRAME_NAMES.size()):

@@ -1,6 +1,5 @@
 extends RefCounted
 
-const GameDefs = preload("res://scripts/game_defs.gd")
 const EnemyScene = preload("res://scenes/enemies/enemy.tscn")
 const EnemyProjectileScene = preload("res://scenes/enemies/enemy_projectile.tscn")
 const GemScene = preload("res://scenes/xp_gem.tscn")
@@ -68,6 +67,7 @@ func get_spawn_position(minimum := 610.0, maximum := 760.0) -> Vector2:
 func add_player_projectile(projectile: Node) -> void:
 	if world.projectiles.get_child_count() >= world.MAX_PLAYER_PROJECTILES:
 		var oldest: Node = world.projectiles.get_child(0)
+		world.player_projectile_batch_renderer.unregister_projectile(oldest)
 		world.projectiles.remove_child(oldest)
 		oldest.queue_free()
 	world.projectiles.add_child(projectile)
@@ -97,6 +97,7 @@ func spawn_enemy_projectile(
 func recycle_enemy_projectile(projectile: Node) -> void:
 	if not is_instance_valid(projectile) or bool(projectile.get("active")):
 		return
+	world.enemy_projectile_batch_renderer.unregister_projectile(projectile)
 	if projectile.get_parent() == world.enemy_projectile_pool:
 		return
 	if world.enemy_projectile_pool.get_child_count() >= world.ENEMY_PROJECTILE_POOL_LIMIT:

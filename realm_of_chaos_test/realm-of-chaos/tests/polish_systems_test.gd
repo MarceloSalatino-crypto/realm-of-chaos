@@ -1,7 +1,5 @@
 extends SceneTree
 
-const GameDefs = preload("res://scripts/game_defs.gd")
-
 var failures: Array[String] = []
 
 
@@ -74,9 +72,9 @@ func _run() -> void:
 	world.time_survived = 299.2
 	_check("00:01" in world._next_boss_status(), "contagem do chefe não arredonda corretamente")
 
-	world.hud.update_run(20.0, 100.0, 0, 10, 1, 0, 1500.0, "I · NORMAL", "Besta 1")
+	world.hud.update_run(20.0, 100.0, 0, 10, 1, 0, 1500.0, "I · NORMAL")
 	_check("PERIGO" in world.hud.health_label.text, "HUD não alerta vida baixa")
-	world.hud.update_run(80.0, 100.0, 0, 10, 1, 0, 1500.0, "I · NORMAL", "Besta 1")
+	world.hud.update_run(80.0, 100.0, 0, 10, 1, 0, 1500.0, "I · NORMAL")
 	_check(not "PERIGO" in world.hud.health_label.text, "alerta de vida baixa não foi limpo")
 
 	for _index in range(world.MAX_PLAYER_PROJECTILES + 9):

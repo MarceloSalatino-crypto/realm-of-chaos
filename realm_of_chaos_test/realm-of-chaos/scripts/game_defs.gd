@@ -271,33 +271,33 @@ static func stage_name(elapsed: float) -> String:
 
 static func difficulty_data(elapsed: float) -> Dictionary:
 	if elapsed < 300.0:
-		var progress := clampf(elapsed / 300.0, 0.0, 1.0)
+		var normal_progress := clampf(elapsed / 300.0, 0.0, 1.0)
 		return {
 			"id": "normal", "name": "I · NORMAL", "color": Color("b995e8"),
-			"interval": lerpf(0.95, 0.52, progress),
-			"batch": 1 + int(progress * 2.0), "cap": roundi(lerpf(60.0, 70.0, progress)),
-			"power": lerpf(1.0, 1.9, progress), "elite_chance": lerpf(0.02, 0.055, progress)
+			"interval": lerpf(0.95, 0.52, normal_progress),
+			"batch": 1 + int(normal_progress * 2.0), "cap": roundi(lerpf(60.0, 70.0, normal_progress)),
+			"power": lerpf(1.0, 1.9, normal_progress), "elite_chance": lerpf(0.02, 0.055, normal_progress)
 		}
 	if elapsed < 600.0:
-		var progress := clampf((elapsed - 300.0) / 300.0, 0.0, 1.0)
+		var hard_progress := clampf((elapsed - 300.0) / 300.0, 0.0, 1.0)
 		return {
 			"id": "hard", "name": "II · DIFÍCIL", "color": Color("ffb454"),
-			"interval": lerpf(0.42, 0.28, progress),
-			"batch": 4 + int(progress * 2.0), "cap": roundi(lerpf(70.0, 78.0, progress)),
-			"power": lerpf(2.0, 3.1, progress), "elite_chance": lerpf(0.07, 0.12, progress)
+			"interval": lerpf(0.42, 0.28, hard_progress),
+			"batch": 4 + int(hard_progress * 2.0), "cap": roundi(lerpf(70.0, 78.0, hard_progress)),
+			"power": lerpf(2.0, 3.1, hard_progress), "elite_chance": lerpf(0.07, 0.12, hard_progress)
 		}
 	if elapsed < 900.0:
-		var progress := clampf((elapsed - 600.0) / 300.0, 0.0, 1.0)
+		var chaos_progress := clampf((elapsed - 600.0) / 300.0, 0.0, 1.0)
 		return {
 			"id": "chaos", "name": "III · CAOS", "color": Color("df63ff"),
-			"interval": lerpf(0.20, 0.11, progress),
-			"batch": 7 + int(progress * 5.0), "cap": roundi(lerpf(78.0, 84.0, progress)),
-			"power": lerpf(3.3, 5.0, progress), "elite_chance": lerpf(0.14, 0.21, progress)
+			"interval": lerpf(0.20, 0.11, chaos_progress),
+			"batch": 7 + int(chaos_progress * 5.0), "cap": roundi(lerpf(78.0, 84.0, chaos_progress)),
+			"power": lerpf(3.3, 5.0, chaos_progress), "elite_chance": lerpf(0.14, 0.21, chaos_progress)
 		}
-	var progress := clampf((elapsed - 900.0) / 600.0, 0.0, 1.0)
+	var inferno_progress := clampf((elapsed - 900.0) / 600.0, 0.0, 1.0)
 	return {
 		"id": "inferno", "name": "IV · MODO INFERNO", "color": Color("ff4b52"),
-		"interval": lerpf(0.085, 0.05, progress),
-		"batch": 14 + int(progress * 6.0), "cap": roundi(lerpf(84.0, 90.0, progress)),
-		"power": lerpf(5.5, 10.0, progress), "elite_chance": lerpf(0.23, 0.34, progress)
+		"interval": lerpf(0.085, 0.05, inferno_progress),
+		"batch": 14 + int(inferno_progress * 6.0), "cap": roundi(lerpf(84.0, 90.0, inferno_progress)),
+		"power": lerpf(5.5, 10.0, inferno_progress), "elite_chance": lerpf(0.23, 0.34, inferno_progress)
 	}

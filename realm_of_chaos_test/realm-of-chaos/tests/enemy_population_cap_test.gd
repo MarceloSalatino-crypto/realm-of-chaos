@@ -1,6 +1,5 @@
 extends SceneTree
 
-const GameDefs = preload("res://scripts/game_defs.gd")
 const WORLD_SCENE = preload("res://scenes/world.tscn")
 
 var failures: Array[String] = []

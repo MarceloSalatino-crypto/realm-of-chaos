@@ -74,13 +74,13 @@ func register_pickup(pickup: Node2D) -> void:
 			_update_entry_transform(entry)
 
 
-func set_pickup_visible(pickup: Node2D, is_visible: bool) -> void:
+func set_pickup_visible(pickup: Node2D, visible_state: bool) -> void:
 	var entry: Dictionary = _entries_by_id.get(pickup.get_instance_id(), {})
 	if entry.is_empty():
 		register_pickup(pickup)
 		entry = _entries_by_id.get(pickup.get_instance_id(), {})
 	if not entry.is_empty():
-		_set_entry_visible(entry, is_visible)
+		_set_entry_visible(entry, visible_state)
 
 
 func update_pickup_bob(pickup: Node2D, bob: float) -> void:
@@ -101,12 +101,12 @@ func mark_pickup_transform_dirty(pickup: Node2D) -> void:
 		_update_entry_transform(entry)
 
 
-func _set_entry_visible(entry: Dictionary, is_visible: bool) -> void:
-	if bool(entry.visible) == is_visible:
+func _set_entry_visible(entry: Dictionary, visible_state: bool) -> void:
+	if bool(entry.visible) == visible_state:
 		return
-	entry.visible = is_visible
+	entry.visible = visible_state
 	_layout_dirty = true
-	if is_visible:
+	if visible_state:
 		_visible_entries.append(entry)
 	else:
 		var visible_index := _visible_entries.find(entry)
@@ -228,11 +228,11 @@ void fragment() {
 	}
 }
 """
-	var material := ShaderMaterial.new()
-	material.shader = shader
+	var shader_material := ShaderMaterial.new()
+	shader_material.shader = shader
 	for index in range(4):
-		material.set_shader_parameter("layer_%d" % index, colors[index])
-	return material
+		shader_material.set_shader_parameter("layer_%d" % index, colors[index])
+	return shader_material
 
 
 func _combined_mesh(layers: Array) -> ArrayMesh:

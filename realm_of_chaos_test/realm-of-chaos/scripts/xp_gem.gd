@@ -125,29 +125,29 @@ func _draw() -> void:
 		return
 	var bob := sin(age * 5.0) * 2.0
 	if pickup_kind == "heal":
-		var center := Vector2(0.0, bob)
+		var heal_center := Vector2(0.0, bob)
 		var outline := PackedVector2Array([
-			center + Vector2(0.0, -13.0), center + Vector2(9.0, -9.0),
-			center + Vector2(12.0, -2.0), center + Vector2(10.0, 8.0),
-			center + Vector2(0.0, 14.0), center + Vector2(-10.0, 8.0),
-			center + Vector2(-12.0, -2.0), center + Vector2(-9.0, -9.0),
+			heal_center + Vector2(0.0, -13.0), heal_center + Vector2(9.0, -9.0),
+			heal_center + Vector2(12.0, -2.0), heal_center + Vector2(10.0, 8.0),
+			heal_center + Vector2(0.0, 14.0), heal_center + Vector2(-10.0, 8.0),
+			heal_center + Vector2(-12.0, -2.0), heal_center + Vector2(-9.0, -9.0),
 		])
 		var fill := PackedVector2Array([
-			center + Vector2(0.0, -10.0), center + Vector2(6.5, -7.0),
-			center + Vector2(8.5, -1.5), center + Vector2(7.0, 5.5),
-			center + Vector2(0.0, 10.5), center + Vector2(-7.0, 5.5),
-			center + Vector2(-8.5, -1.5), center + Vector2(-6.5, -7.0),
+			heal_center + Vector2(0.0, -10.0), heal_center + Vector2(6.5, -7.0),
+			heal_center + Vector2(8.5, -1.5), heal_center + Vector2(7.0, 5.5),
+			heal_center + Vector2(0.0, 10.5), heal_center + Vector2(-7.0, 5.5),
+			heal_center + Vector2(-8.5, -1.5), heal_center + Vector2(-6.5, -7.0),
 		])
 		draw_colored_polygon(outline, Color("240d18"))
 		draw_colored_polygon(fill, Color("d93652"))
 		draw_colored_polygon(PackedVector2Array([
-			center + Vector2(0.0, 0.0), center + Vector2(7.0, -1.5),
-			center + Vector2(6.0, 4.8), center + Vector2(0.0, 9.0),
+			heal_center + Vector2(0.0, 0.0), heal_center + Vector2(7.0, -1.5),
+			heal_center + Vector2(6.0, 4.8), heal_center + Vector2(0.0, 9.0),
 		]), Color("a61f3e"))
-		draw_rect(Rect2(center + Vector2(-3.0, -8.0), Vector2(6.0, 16.0)), Color("240d18"))
-		draw_rect(Rect2(center + Vector2(-8.0, -3.0), Vector2(16.0, 6.0)), Color("240d18"))
-		draw_rect(Rect2(center + Vector2(-1.75, -6.5), Vector2(3.5, 13.0)), Color("fff3e8"))
-		draw_rect(Rect2(center + Vector2(-6.5, -1.75), Vector2(13.0, 3.5)), Color("fff3e8"))
+		draw_rect(Rect2(heal_center + Vector2(-3.0, -8.0), Vector2(6.0, 16.0)), Color("240d18"))
+		draw_rect(Rect2(heal_center + Vector2(-8.0, -3.0), Vector2(16.0, 6.0)), Color("240d18"))
+		draw_rect(Rect2(heal_center + Vector2(-1.75, -6.5), Vector2(3.5, 13.0)), Color("fff3e8"))
+		draw_rect(Rect2(heal_center + Vector2(-6.5, -1.75), Vector2(13.0, 3.5)), Color("fff3e8"))
 		return
 	var color := Color("83ed63") if value < 8 else Color("ffd45f")
 	var highlight := Color("dcffb2") if value < 8 else Color("fff2ad")
@@ -198,9 +198,9 @@ func _refresh_batch_bob() -> void:
 		batch_renderer.update_pickup_bob(self, pickup_batch_bob())
 
 
-func _set_batch_visibility(is_visible: bool) -> void:
+func _set_batch_visibility(visible_state: bool) -> void:
 	if is_instance_valid(batch_renderer):
-		batch_renderer.set_pickup_visible(self, is_visible)
+		batch_renderer.set_pickup_visible(self, visible_state)
 
 
 func _mark_batch_transform_dirty() -> void:

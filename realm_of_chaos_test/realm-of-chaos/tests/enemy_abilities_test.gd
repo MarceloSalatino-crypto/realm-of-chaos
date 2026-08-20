@@ -36,9 +36,9 @@ class WorldProbe:
 	var deaths := 0
 	var audio: Node
 
-	func spawn_effect(position: Vector2, color: Color, radius: float, duration: float, important := false) -> void:
+	func spawn_effect(world_position: Vector2, color: Color, radius: float, duration: float, important := false) -> void:
 		effects.append({
-			"position": position,
+			"position": world_position,
 			"color": color,
 			"radius": radius,
 			"duration": duration,
@@ -46,7 +46,7 @@ class WorldProbe:
 		})
 
 	func spawn_enemy_projectile(
-		position: Vector2,
+		world_position: Vector2,
 		direction: Vector2,
 		amount: float,
 		projectile_speed: float,
@@ -55,7 +55,7 @@ class WorldProbe:
 		danger_style := false
 	) -> Node:
 		projectiles.append({
-			"position": position,
+			"position": world_position,
 			"direction": direction,
 			"amount": amount,
 			"speed": projectile_speed,
@@ -119,6 +119,14 @@ func _reset_probe(world: Node, player: Node) -> void:
 	player.last_force = Vector2.ZERO
 
 
+func _release_prepared_projectiles(enemy: Node) -> void:
+	enemy._update_projectile_attack(enemy.PROJECTILE_PREPARE_DURATION + 0.001)
+
+
+func _finish_projectile_release(enemy: Node) -> void:
+	enemy._update_projectile_attack(enemy.PROJECTILE_RELEASE_DURATION + 0.001)
+
+
 func _run() -> void:
 	var player := PlayerProbe.new()
 	root.add_child(player)
@@ -135,7 +143,7 @@ func _run() -> void:
 		"_try_begin_special", "_begin_special", "_execute_special", "_execute_sovereign_pattern",
 		"_ground_slam", "_bomber_burst", "_summon_minions", "_cast_guardian_ward",
 		"_special_radius", "_update_boss_phase", "_cast_projectile",
-		"_spawn_radial_projectiles", "_spawn_enemy_projectile"
+		"_update_projectile_attack", "_spawn_radial_projectiles", "_spawn_enemy_projectile"
 	]:
 		_check(caster.has_method(method), "API de habilidade ausente: " + method)
 
@@ -191,22 +199,39 @@ func _run() -> void:
 	mage.player = player
 	world.projectiles.clear()
 	mage._cast_projectile(Vector2.RIGHT)
-	_check(world.projectiles.size() == 1 and is_equal_approx(mage.cast_cooldown, 2.7) and is_equal_approx(mage.cast_pulse, 1.0), "disparo simples do mago mudou")
+	_check(world.projectiles.is_empty() and mage.pending_projectile_attack == "normal", "mago disparou antes da pose de preparacao")
+	_check(is_equal_approx(mage.cast_cooldown, 2.7) and is_equal_approx(mage.cast_pulse, 1.0), "cooldown ou pulso inicial do mago mudou")
+	mage._update_projectile_attack(0.19)
+	_check(world.projectiles.is_empty(), "mago disparou antes dos 0,20s de preparacao")
+	mage._update_projectile_attack(0.011)
+	_check(world.projectiles.size() == 1 and mage.pending_projectile_attack.is_empty(), "disparo simples do mago nao saiu na liberacao")
 	_check(bool(world.projectiles[0].danger) and Color(world.projectiles[0].color).is_equal_approx(Color("ff496d")), "identidade visual perigosa do projetil do mago mudou")
 	_check(is_equal_approx(float(world.projectiles[0].amount), mage.contact_damage * 0.70) and is_equal_approx(float(world.projectiles[0].speed), 245.0), "parametros do projetil do mago mudaram")
+	_check(Vector2(world.projectiles[0].position).is_equal_approx(mage.global_position + Vector2.RIGHT * (mage.hit_radius + 8.0)), "alcance inicial do projetil do mago mudou")
 
 	var archer = _spawn_enemy("archer", world)
 	archer.player = player
 	world.projectiles.clear()
 	archer._cast_projectile(Vector2.RIGHT)
-	_check(world.projectiles.size() == 3 and is_equal_approx(archer.cast_cooldown, 1.65), "rajada tripla do arqueiro mudou")
+	_check(world.projectiles.is_empty() and archer.pending_projectile_attack == "normal" and is_equal_approx(archer.cast_cooldown, 1.65), "preparacao ou cooldown da rajada tripla mudou")
+	_release_prepared_projectiles(archer)
+	_check(world.projectiles.size() == 3, "rajada tripla do arqueiro nao saiu na liberacao")
 	_check(float(world.projectiles[0].direction.y) < 0.0 and is_zero_approx(float(world.projectiles[1].direction.y)) and float(world.projectiles[2].direction.y) > 0.0, "abertura angular do arqueiro mudou")
+
+	var overlapping_necromancer = _spawn_enemy("necromancer", world)
+	overlapping_necromancer.player = player
+	overlapping_necromancer._cast_projectile(Vector2.RIGHT)
+	overlapping_necromancer.special_cooldown = 0.0
+	overlapping_necromancer._try_begin_special(500.0)
+	_check(overlapping_necromancer.pending_projectile_attack == "normal" and overlapping_necromancer.pending_special == "summon", "preparacao do tiro atrasou a frequencia do especial do necromante")
 
 	world.projectiles.clear()
 	caster.final_boss = true
 	caster.movement_age = 0.0
 	caster._spawn_radial_projectiles(7, 300.0, 0.5)
-	_check(world.projectiles.size() == 7 and is_equal_approx(caster.cast_pulse, 1.0), "quantidade da rajada radial mudou")
+	_check(world.projectiles.is_empty() and caster.pending_projectile_attack == "radial" and is_equal_approx(caster.cast_pulse, 1.0), "rajada radial nao entrou em preparacao")
+	_release_prepared_projectiles(caster)
+	_check(world.projectiles.size() == 7 and is_equal_approx(caster.cast_pulse, 0.46), "quantidade ou pose de liberacao da rajada radial mudou")
 	_check(is_equal_approx(float(world.projectiles[0].size), 12.0) and is_equal_approx(float(world.projectiles[0].amount), caster.contact_damage * 0.5), "parametros da rajada radial final mudaram")
 
 	var ally = _spawn_enemy("prowler", world)
@@ -231,31 +256,43 @@ func _run() -> void:
 	ability_boss.pending_special = "slam"
 	ability_boss._execute_special(Vector2.RIGHT)
 	_check(ability_boss.pending_special.is_empty() and is_equal_approx(ability_boss.attack_pulse, 0.46), "estado comum de execucao do especial mudou")
-	_check(is_equal_approx(player.damage_taken, 82.0) and world.projectiles.size() == 9, "impacto ou projeteis do colosso mudaram")
+	_check(is_equal_approx(player.damage_taken, 82.0) and world.projectiles.is_empty(), "impacto do colosso mudou ou projeteis ignoraram a preparacao")
 	_check(is_equal_approx(ability_boss.special_cooldown, 2.9) and world.audio.explosions == 1, "cooldown ou audio do colosso mudou")
+	_release_prepared_projectiles(ability_boss)
+	_check(world.projectiles.size() == 9, "projeteis do colosso nao sairam na liberacao")
+	_finish_projectile_release(ability_boss)
 
 	_reset_probe(world, player)
 	ability_boss.boss_phase = 2
 	ability_boss.pending_special = "radial"
 	ability_boss._execute_special(Vector2.RIGHT)
-	_check(world.projectiles.size() == 15 and is_equal_approx(player.damage_taken, 52.0), "padrao radial da segunda fase mudou")
+	_check(world.projectiles.is_empty() and is_equal_approx(player.damage_taken, 52.0), "padrao radial ignorou a preparacao ou mudou o impacto")
 	_check(is_equal_approx(ability_boss.special_cooldown, 2.66), "cooldown do padrao radial mudou")
+	_release_prepared_projectiles(ability_boss)
+	_check(world.projectiles.size() == 15, "padrao radial da segunda fase nao saiu na liberacao")
+	_finish_projectile_release(ability_boss)
 
 	_reset_probe(world, player)
 	ability_boss.boss_phase = 3
 	ability_boss.dash_velocity = Vector2.ZERO
 	ability_boss.pending_special = "reaper_dash"
 	ability_boss._execute_special(Vector2.RIGHT)
-	_check(ability_boss.dash_velocity.is_equal_approx(Vector2(930.0, 0.0)) and world.projectiles.size() == 11 and world.spawned_minions.size() == 3, "padrao do ceifador na terceira fase mudou")
+	_check(ability_boss.dash_velocity.is_equal_approx(Vector2(930.0, 0.0)) and world.projectiles.is_empty() and world.spawned_minions.size() == 3, "padrao do ceifador ignorou a preparacao ou mudou dash/invocacoes")
 	_check(is_equal_approx(ability_boss.special_cooldown, 1.74), "cooldown do ceifador mudou")
+	_release_prepared_projectiles(ability_boss)
+	_check(world.projectiles.size() == 11, "projeteis do ceifador nao sairam na liberacao")
+	_finish_projectile_release(ability_boss)
 
 	_reset_probe(world, player)
 	world.nearby = [ability_boss, ally]
 	ability_boss.boss_phase = 3
 	ability_boss.pending_special = "titan_slam"
 	ability_boss._execute_special(Vector2.RIGHT)
-	_check(world.projectiles.size() == 14 and world.spawned_minions.size() == 4 and is_equal_approx(player.damage_taken, 100.0), "padrao do tita na terceira fase mudou")
+	_check(world.projectiles.is_empty() and world.spawned_minions.size() == 4 and is_equal_approx(player.damage_taken, 100.0), "padrao do tita ignorou a preparacao ou mudou impacto/invocacoes")
 	_check(is_equal_approx(ability_boss.special_cooldown, 2.5), "cooldown do tita mudou")
+	_release_prepared_projectiles(ability_boss)
+	_check(world.projectiles.size() == 14, "projeteis do tita nao sairam na liberacao")
+	_finish_projectile_release(ability_boss)
 
 	_reset_probe(world, player)
 	ability_boss.boss_phase = 3
@@ -264,7 +301,9 @@ func _run() -> void:
 	ability_boss.pending_special = "sovereign"
 	ability_boss._execute_special(Vector2.RIGHT)
 	_check(ability_boss.boss_pattern_index == 1 and ability_boss.dash_velocity.is_equal_approx(Vector2(760.0, 0.0)), "avanco do Soberano mudou")
-	_check(world.projectiles.size() == 24 and is_equal_approx(player.damage_taken, 72.0) and is_equal_approx(ability_boss.special_cooldown, 1.36), "padrao final do Soberano mudou")
+	_check(world.projectiles.is_empty() and is_equal_approx(player.damage_taken, 72.0) and is_equal_approx(ability_boss.special_cooldown, 1.36), "padrao final do Soberano ignorou a preparacao ou mudou impacto/cooldown")
+	_release_prepared_projectiles(ability_boss)
+	_check(world.projectiles.size() == 24, "projeteis finais do Soberano nao sairam na liberacao")
 
 	var phase_boss = _spawn_enemy("ossuary_colossus", world)
 	phase_boss.player = player

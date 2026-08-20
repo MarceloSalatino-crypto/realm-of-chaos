@@ -1,7 +1,5 @@
 extends SceneTree
 
-const GameDefs = preload("res://scripts/game_defs.gd")
-
 var failures: Array[String] = []
 
 

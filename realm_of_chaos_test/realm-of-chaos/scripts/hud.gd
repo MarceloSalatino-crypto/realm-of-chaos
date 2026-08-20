@@ -1,7 +1,7 @@
 extends CanvasLayer
 
 const MinimapScript = preload("res://scripts/minimap.gd")
-const GameDefs = preload("res://scripts/game_defs.gd")
+const AbilityIndicatorScript = preload("res://scripts/ability_indicator.gd")
 const UPGRADE_ICON_TEXTURES := {
 	"chaos_bolt": preload("res://assets/ui/upgrade_icons/chaos_bolt.png"),
 	"shadow_blades": preload("res://assets/ui/upgrade_icons/shadow_blades.png"),
@@ -20,6 +20,18 @@ const UPGRADE_ICON_TEXTURES := {
 	"armor": preload("res://assets/ui/upgrade_icons/armor.png"),
 	"regeneration": preload("res://assets/ui/upgrade_icons/regeneration.png"),
 	"critical": preload("res://assets/ui/upgrade_icons/critical.png"),
+}
+const CHARACTER_ABILITY_ICONS := {
+	"eclipse_hunter": preload("res://assets/ui/upgrade_icons/chaos_bolt.png"),
+	"glacial_oracle": preload("res://assets/ui/upgrade_icons/soul_orbit.png"),
+	"crimson_knight": preload("res://assets/ui/upgrade_icons/shadow_blades.png"),
+	"void_automaton": preload("res://assets/ui/upgrade_icons/chaos_nova.png"),
+}
+const CHARACTER_ABILITY_COLORS := {
+	"eclipse_hunter": Color("d89cff"),
+	"glacial_oracle": Color("70dcff"),
+	"crimson_knight": Color("ff6b72"),
+	"void_automaton": Color("b873ff"),
 }
 
 signal upgrade_selected(upgrade_id: String, rarity: String)
@@ -44,11 +56,24 @@ var boss_intro: Control
 var boss_intro_band: ColorRect
 var boss_intro_label: Label
 var minimap: Control
-var dash_label: Label
+var ability_indicator: Control
 var stage_banner_tween: Tween
 var boss_intro_tween: Tween
 var damage_flash_tween: Tween
 var upgrade_synergy_icon_size := 32.0
+var bound_world: Node
+var pause_scroll: ScrollContainer
+var pause_content_grid: GridContainer
+var pause_character_card: PanelContainer
+var pause_loadout_card: PanelContainer
+var pause_portrait: TextureRect
+var pause_character_name: Label
+var pause_character_role: Label
+var pause_stat_grid: GridContainer
+var pause_stat_labels: Array[Label] = []
+var pause_weapons_grid: GridContainer
+var pause_passives_grid: GridContainer
+var pause_button_row: HBoxContainer
 
 @onready var health_bar: ProgressBar = $Top/HealthBar
 @onready var health_label: Label = $Top/HealthBar/Label
@@ -58,7 +83,6 @@ var upgrade_synergy_icon_size := 32.0
 @onready var kills_label: Label = $Top/Kills
 @onready var essence_label: Label = $Top/Essence
 @onready var stage_label: Label = $Top/Stage
-@onready var weapons_label: Label = $Weapons
 @onready var world_event_label: Label = $WorldEvent
 @onready var boss_panel: Control = $Boss
 @onready var boss_bar: ProgressBar = $Boss/Bar
@@ -132,11 +156,12 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for index in range(upgrade_buttons.size()):
 		upgrade_buttons[index].pressed.connect(_on_upgrade_button_pressed.bind(index))
-	$PauseOverlay/Panel/VBox/Resume.pressed.connect(_on_resume_pressed)
-	$PauseOverlay/Panel/VBox/Restart.pressed.connect(func(): restart_requested.emit())
-	$PauseOverlay/Panel/VBox/Menu.pressed.connect(func(): menu_requested.emit())
+	pause_buttons[0].pressed.connect(_on_resume_pressed)
+	pause_buttons[1].pressed.connect(func(): restart_requested.emit())
+	pause_buttons[2].pressed.connect(func(): menu_requested.emit())
 	$EndOverlay/Panel/Margin/VBox/Restart.pressed.connect(func(): restart_requested.emit())
 	$EndOverlay/Panel/Margin/VBox/Menu.pressed.connect(func(): menu_requested.emit())
+	_build_pause_character_panel()
 	_build_relic_overlay()
 	_build_boss_intro()
 	_build_navigation_ui()
@@ -164,31 +189,279 @@ func _build_navigation_ui() -> void:
 	minimap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	minimap.z_index = -2
 	add_child(minimap)
-	dash_label = Label.new()
-	dash_label.name = "DashStatus"
-	dash_label.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	dash_label.position = Vector2(24.0, -72.0)
-	dash_label.size = Vector2(360.0, 48.0)
-	dash_label.text = "ESPAÇO / A · ESQUIVA PRONTA"
-	dash_label.add_theme_font_size_override("font_size", 14)
-	dash_label.add_theme_color_override("font_color", Color("cbb2df"))
-	dash_label.add_theme_color_override("font_outline_color", Color(0.02, 0.01, 0.04, 0.94))
-	dash_label.add_theme_constant_override("outline_size", 4)
-	dash_label.z_index = -2
-	add_child(dash_label)
+	ability_indicator = AbilityIndicatorScript.new()
+	ability_indicator.name = "AbilityIndicator"
+	ability_indicator.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	ability_indicator.position = Vector2(18.0, -116.0)
+	ability_indicator.size = Vector2(172.0, 96.0)
+	ability_indicator.z_index = -2
+	add_child(ability_indicator)
 
 
 func bind_world(world: Node) -> void:
+	bound_world = world
 	if is_instance_valid(minimap):
 		minimap.bind_world(world)
+	_refresh_pause_character_panel()
 
 
-func update_navigation(dash_status: String, ability_name: String, blessing: String, blessing_remaining: float) -> void:
-	var blessing_text := ""
-	if blessing_remaining > 0.0:
-		blessing_text = "  ·  %s %ds" % [blessing, ceili(blessing_remaining)]
-	dash_label.text = "ESPAÇO / A · %s · %s%s" % [ability_name, dash_status, blessing_text]
-	dash_label.add_theme_color_override("font_color", Color("7fe9ff") if dash_status == "PRONTA" else Color("a98fbd"))
+func update_navigation(cooldown_progress: float, character_id: String, ability_name: String) -> void:
+	var icon := CHARACTER_ABILITY_ICONS.get(character_id, CHARACTER_ABILITY_ICONS.eclipse_hunter) as Texture2D
+	var color := Color(CHARACTER_ABILITY_COLORS.get(character_id, Color("d89cff")))
+	ability_indicator.set_state(cooldown_progress, icon, ability_name, color)
+
+
+func _pause_card_style(border_color: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.055, 0.035, 0.09, 0.96)
+	style.border_color = border_color
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(12)
+	style.content_margin_left = 14.0
+	style.content_margin_right = 14.0
+	style.content_margin_top = 12.0
+	style.content_margin_bottom = 12.0
+	return style
+
+
+func _pause_section_title(text_value: String) -> Label:
+	var label := Label.new()
+	label.text = text_value
+	label.add_theme_color_override("font_color", Color("ffd36b"))
+	label.add_theme_font_size_override("font_size", 16)
+	return label
+
+
+func _build_pause_character_panel() -> void:
+	pause_vbox.alignment = BoxContainer.ALIGNMENT_BEGIN
+	pause_scroll = ScrollContainer.new()
+	pause_scroll.name = "CharacterScroll"
+	pause_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pause_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	pause_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	pause_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	pause_vbox.add_child(pause_scroll)
+	pause_vbox.move_child(pause_scroll, 1)
+
+	pause_content_grid = GridContainer.new()
+	pause_content_grid.name = "CharacterContent"
+	pause_content_grid.columns = 2
+	pause_content_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pause_content_grid.add_theme_constant_override("h_separation", 14)
+	pause_content_grid.add_theme_constant_override("v_separation", 12)
+	pause_scroll.add_child(pause_content_grid)
+
+	pause_character_card = PanelContainer.new()
+	pause_character_card.name = "CharacterCard"
+	pause_character_card.add_theme_stylebox_override("panel", _pause_card_style(Color("7d5aa8")))
+	pause_content_grid.add_child(pause_character_card)
+	var character_box := VBoxContainer.new()
+	character_box.name = "CharacterVBox"
+	character_box.add_theme_constant_override("separation", 7)
+	pause_character_card.add_child(character_box)
+	var portrait_center := CenterContainer.new()
+	portrait_center.name = "PortraitCenter"
+	character_box.add_child(portrait_center)
+	pause_portrait = TextureRect.new()
+	pause_portrait.name = "Portrait"
+	pause_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pause_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	pause_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	portrait_center.add_child(pause_portrait)
+	pause_character_name = Label.new()
+	pause_character_name.name = "CharacterName"
+	pause_character_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pause_character_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	pause_character_name.add_theme_color_override("font_color", Color("f2c4ff"))
+	pause_character_name.add_theme_font_size_override("font_size", 19)
+	character_box.add_child(pause_character_name)
+	pause_character_role = Label.new()
+	pause_character_role.name = "CharacterRole"
+	pause_character_role.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pause_character_role.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	pause_character_role.add_theme_color_override("font_color", Color("bca8d2"))
+	pause_character_role.add_theme_font_size_override("font_size", 13)
+	character_box.add_child(pause_character_role)
+	pause_stat_grid = GridContainer.new()
+	pause_stat_grid.name = "Stats"
+	pause_stat_grid.columns = 2
+	pause_stat_grid.add_theme_constant_override("h_separation", 7)
+	pause_stat_grid.add_theme_constant_override("v_separation", 7)
+	character_box.add_child(pause_stat_grid)
+	for stat_name in ["HP", "XP", "TEMPO", "ESSÊNCIA"]:
+		var stat_panel := PanelContainer.new()
+		stat_panel.name = stat_name.capitalize()
+		stat_panel.custom_minimum_size = Vector2(92.0, 48.0)
+		stat_panel.add_theme_stylebox_override("panel", _pause_card_style(Color(0.32, 0.23, 0.43, 0.75)))
+		pause_stat_grid.add_child(stat_panel)
+		var stat_label := Label.new()
+		stat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		stat_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		stat_label.add_theme_color_override("font_color", Color("e7dcef"))
+		stat_label.add_theme_font_size_override("font_size", 12)
+		stat_panel.add_child(stat_label)
+		pause_stat_labels.append(stat_label)
+
+	pause_loadout_card = PanelContainer.new()
+	pause_loadout_card.name = "LoadoutCard"
+	pause_loadout_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pause_loadout_card.add_theme_stylebox_override("panel", _pause_card_style(Color("9b6bd1")))
+	pause_content_grid.add_child(pause_loadout_card)
+	var loadout_box := VBoxContainer.new()
+	loadout_box.name = "LoadoutVBox"
+	loadout_box.add_theme_constant_override("separation", 7)
+	pause_loadout_card.add_child(loadout_box)
+	loadout_box.add_child(_pause_section_title("ARMAS"))
+	pause_weapons_grid = GridContainer.new()
+	pause_weapons_grid.name = "Weapons"
+	pause_weapons_grid.columns = 2
+	pause_weapons_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pause_weapons_grid.add_theme_constant_override("h_separation", 8)
+	pause_weapons_grid.add_theme_constant_override("v_separation", 6)
+	loadout_box.add_child(pause_weapons_grid)
+	loadout_box.add_child(_pause_section_title("PASSIVOS"))
+	pause_passives_grid = GridContainer.new()
+	pause_passives_grid.name = "Passives"
+	pause_passives_grid.columns = 2
+	pause_passives_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pause_passives_grid.add_theme_constant_override("h_separation", 8)
+	pause_passives_grid.add_theme_constant_override("v_separation", 6)
+	loadout_box.add_child(pause_passives_grid)
+
+	pause_button_row = HBoxContainer.new()
+	pause_button_row.name = "Buttons"
+	pause_button_row.add_theme_constant_override("separation", 10)
+	pause_vbox.add_child(pause_button_row)
+	for button in pause_buttons:
+		button.reparent(pause_button_row)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_refresh_pause_character_panel()
+
+
+func _set_pause_portrait(texture: Texture2D) -> void:
+	if not is_instance_valid(pause_portrait) or not is_instance_valid(texture):
+		return
+	var atlas := AtlasTexture.new()
+	atlas.atlas = texture
+	var texture_size := texture.get_size()
+	atlas.region = Rect2(Vector2.ZERO, Vector2(texture_size.x / 4.0, texture_size.y / 2.0))
+	pause_portrait.texture = atlas
+
+
+func _clear_pause_grid(grid: GridContainer) -> void:
+	for child in grid.get_children():
+		child.free()
+
+
+func _add_pause_loadout_item(grid: GridContainer, definition: Dictionary, level: int, evolved := false) -> void:
+	var item_panel := PanelContainer.new()
+	item_panel.custom_minimum_size = Vector2(0.0, 46.0)
+	item_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var item_style := StyleBoxFlat.new()
+	item_style.bg_color = Color(0.08, 0.055, 0.12, 0.88)
+	item_style.set_corner_radius_all(7)
+	item_style.content_margin_left = 7.0
+	item_style.content_margin_right = 7.0
+	item_style.content_margin_top = 5.0
+	item_style.content_margin_bottom = 5.0
+	item_panel.add_theme_stylebox_override("panel", item_style)
+	grid.add_child(item_panel)
+	var row := HBoxContainer.new()
+	row.name = "Content"
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 7)
+	item_panel.add_child(row)
+	var icon := TextureRect.new()
+	icon.custom_minimum_size = Vector2(34.0, 34.0)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	icon.texture = UPGRADE_ICON_TEXTURES.get(str(definition.id)) as Texture2D
+	row.add_child(icon)
+	var label := Label.new()
+	label.name = "NameAndLevel"
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.add_theme_color_override("font_color", Color("e9dfef"))
+	label.add_theme_font_size_override("font_size", 12)
+	var evolution_text := " · EVOLUÍDA" if evolved else ""
+	label.text = "%s\nNv %d/%d%s" % [str(definition.title), level, int(definition.max), evolution_text]
+	row.add_child(label)
+
+
+func _populate_pause_loadout(grid: GridContainer, levels: Dictionary, evolved_levels := {}) -> void:
+	_clear_pause_grid(grid)
+	var item_count := 0
+	for definition in GameDefs.upgrades():
+		var upgrade_id := str(definition.id)
+		if not levels.has(upgrade_id):
+			continue
+		var item_level := int(levels.get(upgrade_id, 0))
+		if item_level <= 0:
+			continue
+		_add_pause_loadout_item(grid, definition, item_level, bool(evolved_levels.get(upgrade_id, false)))
+		item_count += 1
+	if item_count == 0:
+		var empty_label := Label.new()
+		empty_label.text = "Nenhum equipado"
+		empty_label.add_theme_color_override("font_color", Color("9f8ead"))
+		grid.add_child(empty_label)
+
+
+func _refresh_pause_character_panel() -> void:
+	if not is_instance_valid(pause_portrait):
+		return
+	var character_id := "eclipse_hunter"
+	var level := 17
+	var hp := 104.0
+	var max_hp := 160.0
+	var xp := 86
+	var xp_needed := 132
+	var survived := 754.0
+	var essence := 87
+	var weapon_levels := {
+		"chaos_bolt": 6, "shadow_blades": 4, "soul_orbit": 5,
+		"blood_scythe": 3, "storm_relic": 2, "swarm_idol": 2,
+	}
+	var passive_levels := {
+		"might": 5, "haste": 4, "vitality": 4, "swiftness": 3,
+		"magnet": 3, "armor": 4, "regeneration": 3, "critical": 5,
+	}
+	var evolved_levels := {"chaos_bolt": true}
+	var portrait_texture := load("res://assets/generated/hero_anim_chaos_bolt.png") as Texture2D
+	if is_instance_valid(bound_world) and is_instance_valid(bound_world.player):
+		var player = bound_world.player
+		character_id = str(player.character_id)
+		level = int(player.level)
+		hp = float(player.hp)
+		max_hp = float(player.max_hp)
+		xp = int(player.experience)
+		xp_needed = int(player.experience_needed)
+		survived = float(bound_world.time_survived)
+		essence = int(bound_world.essence_earned)
+		weapon_levels = player.weapon_levels
+		passive_levels = player.passive_levels
+		evolved_levels = player.evolved_weapons
+		portrait_texture = player.sprite.texture
+	var character := GameDefs.character_data(character_id)
+	pause_character_name.text = str(character.title)
+	pause_character_role.text = "%s · NÍVEL %02d" % [str(character.role).to_upper(), level]
+	_set_pause_portrait(portrait_texture)
+	var minutes := floori(survived / 60.0)
+	var seconds := int(survived) % 60
+	var stat_values := [
+		"HP\n%d / %d" % [ceili(hp), ceili(max_hp)],
+		"XP\n%d / %d" % [xp, xp_needed],
+		"TEMPO\n%02d:%02d" % [minutes, seconds],
+		"ESSÊNCIA\n%d" % essence,
+	]
+	for index in range(pause_stat_labels.size()):
+		pause_stat_labels[index].text = stat_values[index]
+	_populate_pause_loadout(pause_weapons_grid, weapon_levels, evolved_levels)
+	_populate_pause_loadout(pause_passives_grid, passive_levels)
+	pause_scroll.scroll_vertical = 0
+	_update_responsive_hud_layout.call_deferred()
 
 
 func _build_relic_overlay() -> void:
@@ -415,24 +688,47 @@ func _update_pause_layout(viewport_size: Vector2) -> void:
 	var horizontal_inset := clampf(viewport_size.x * 0.04, 14.0, 36.0)
 	var vertical_inset := clampf(viewport_size.y * 0.035, 8.0, 26.0)
 	var panel_size := Vector2(
-		minf(480.0, maxf(1.0, viewport_size.x - horizontal_inset * 2.0)),
-		minf(450.0, maxf(1.0, viewport_size.y - vertical_inset * 2.0))
+		minf(960.0, maxf(1.0, viewport_size.x - horizontal_inset * 2.0)),
+		minf(620.0, maxf(1.0, viewport_size.y - vertical_inset * 2.0))
 	)
 	pause_panel.size = panel_size
 	pause_panel.position = (viewport_size - panel_size) * 0.5
 	pause_vbox.add_theme_constant_override(
 		"separation",
-		int(roundf(clampf(viewport_size.y * 0.028, 9.0, 18.0)))
+		int(roundf(clampf(viewport_size.y * 0.018, 7.0, 12.0)))
 	)
 	pause_title.add_theme_font_size_override(
 		"font_size",
-		int(roundf(clampf(minf(viewport_size.x * 0.06, viewport_size.y * 0.053), 24.0, 38.0)))
+		int(roundf(clampf(minf(viewport_size.x * 0.052, viewport_size.y * 0.046), 20.0, 32.0)))
 	)
-	var button_height := roundf(clampf(viewport_size.y * 0.078, 42.0, 58.0))
-	var button_font_size := int(roundf(clampf(viewport_size.y * 0.03, 16.0, 20.0)))
+	var wide_layout := panel_size.x >= 820.0
+	pause_content_grid.columns = 2 if wide_layout else 1
+	pause_weapons_grid.columns = 2 if wide_layout else 1
+	pause_passives_grid.columns = 2 if wide_layout else 1
+	pause_stat_grid.columns = 2 if wide_layout else 4
+	pause_character_card.custom_minimum_size = Vector2(248.0 if wide_layout else 0.0, 0.0)
+	pause_loadout_card.custom_minimum_size = Vector2(520.0 if wide_layout else 0.0, 0.0)
+	var portrait_size := (
+		roundf(clampf(viewport_size.y * 0.18, 86.0, 128.0))
+		if wide_layout
+		else roundf(clampf(viewport_size.y * 0.14, 54.0, 70.0))
+	)
+	pause_portrait.custom_minimum_size = Vector2(portrait_size, portrait_size)
+	pause_character_name.add_theme_font_size_override("font_size", 19 if wide_layout else 17)
+	pause_character_role.add_theme_font_size_override("font_size", 13 if wide_layout else 11)
+	var item_font_size := int(roundf(clampf(viewport_size.y * 0.022, 11.0, 13.0)))
+	for grid in [pause_weapons_grid, pause_passives_grid]:
+		for item_panel in grid.get_children():
+			var item_label := item_panel.get_node_or_null("Content/NameAndLevel") as Label
+			if item_label:
+				item_label.add_theme_font_size_override("font_size", item_font_size)
+	var button_height := roundf(clampf(viewport_size.y * 0.068, 38.0, 50.0))
+	var button_font_size := int(roundf(clampf(viewport_size.y * 0.026, 13.0, 18.0)))
 	for button in pause_buttons:
 		button.custom_minimum_size = Vector2(0.0, button_height)
 		button.add_theme_font_size_override("font_size", button_font_size)
+	pause_panel.size = panel_size
+	pause_panel.position = (viewport_size - panel_size) * 0.5
 
 
 func _update_banner_layout(viewport_size: Vector2) -> void:
@@ -475,7 +771,7 @@ func _update_banner_layout(viewport_size: Vector2) -> void:
 
 func update_run(
 	current_hp: float, maximum_hp: float, current_xp: int, needed_xp: int,
-	level: int, kills: int, remaining: float, stage: String, weapon_summary: String,
+	level: int, kills: int, remaining: float, stage: String,
 	essence := 0, event_title := ""
 ) -> void:
 	health_bar.max_value = maximum_hp
@@ -494,7 +790,7 @@ func update_run(
 	kills_label.text = "☠  %04d" % kills
 	essence_label.text = "ESSÊNCIA  %03d" % essence
 	world_event_label.text = event_title
-	var minutes := int(remaining) / 60
+	var minutes := floori(remaining / 60.0)
 	var seconds := int(remaining) % 60
 	timer_label.text = "%02d:%02d" % [minutes, seconds]
 	stage_label.text = stage
@@ -507,12 +803,11 @@ func update_run(
 		stage_color = Color("ffb454")
 	stage_label.add_theme_color_override("font_color", stage_color)
 	timer_label.add_theme_color_override("font_color", stage_color.lightened(0.18))
-	weapons_label.text = weapon_summary
 
 
-func show_boss(name: String, current: float, maximum: float) -> void:
+func show_boss(boss_name: String, current: float, maximum: float) -> void:
 	boss_panel.show()
-	boss_label.text = name
+	boss_label.text = boss_name
 	update_boss(current, maximum)
 
 
@@ -763,7 +1058,7 @@ func show_end_screen(
 	end_overlay.show()
 	end_title.text = "VITÓRIA!" if victory else "GAME OVER"
 	end_title.add_theme_color_override("font_color", Color("ffd36b") if victory else Color("ff687d"))
-	var minutes := int(survived) / 60
+	var minutes := floori(survived / 60.0)
 	var seconds := int(survived) % 60
 	var result_line := "O chefe final caiu. A próxima fase foi aberta: %s." % next_biome if victory else "Sua jornada terminou, mas você pode reiniciar esta fase."
 	var achievement_text := ""
@@ -826,9 +1121,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if pause_overlay.visible:
 		_on_resume_pressed()
 	else:
+		_refresh_pause_character_panel()
 		pause_overlay.show()
 		get_tree().paused = true
-		$PauseOverlay/Panel/VBox/Resume.grab_focus()
+		pause_buttons[0].grab_focus()
 	get_viewport().set_input_as_handled()
 
 

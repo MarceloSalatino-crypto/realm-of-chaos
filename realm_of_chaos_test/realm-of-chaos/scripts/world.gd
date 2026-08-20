@@ -1,6 +1,7 @@
 extends Node2D
 
-const GameDefs = preload("res://scripts/game_defs.gd")
+#region Dependências e estado compartilhado
+
 const AudioDirectorScript = preload("res://scripts/audio_director.gd")
 const WorldSpatialIndexScript = preload("res://scripts/world_spatial_index.gd")
 const WorldEnvironmentBuilderScript = preload("res://scripts/world_environment_builder.gd")
@@ -90,6 +91,10 @@ var effect_batch_renderer: Node2D
 @onready var hud = $HUD
 @onready var camera: Camera2D = $Player/Camera2D
 
+#endregion
+
+#region Ciclo de vida e orquestração própria
+
 
 func _ready() -> void:
 	randomize()
@@ -168,6 +173,10 @@ func _process(delta: float) -> void:
 	director.update_stage()
 	run_flow.update_hud()
 
+#endregion
+
+#region Fachada do diretor — spawn inicial
+
 
 func _spawn_timer_update(delta: float) -> void:
 	director.update_spawn_timer(delta)
@@ -175,6 +184,10 @@ func _spawn_timer_update(delta: float) -> void:
 
 func _pick_enemy_type() -> String:
 	return director.pick_enemy_type()
+
+#endregion
+
+#region Fachada do gerenciador de entidades — população e spawn
 
 
 func spawn_enemy(kind: String, force_elite := false, power_override := -1.0) -> Node:
@@ -196,6 +209,10 @@ func has_enemy_capacity() -> bool:
 func get_spawn_position(minimum := 610.0, maximum := 760.0) -> Vector2:
 	return entity_manager.get_spawn_position(minimum, maximum)
 
+#endregion
+
+#region Estado visual próprio do World
+
 
 func _refresh_visual_bounds() -> void:
 	var viewport_size := get_viewport_rect().size
@@ -210,15 +227,19 @@ func _refresh_visual_bounds() -> void:
 	)
 
 
-func is_position_in_visual_bounds(position: Vector2, margin := 128.0) -> bool:
+func is_position_in_visual_bounds(world_position: Vector2, margin := 128.0) -> bool:
 	if not is_instance_valid(player):
 		return true
-	var offset: Vector2 = position - player.global_position
+	var offset: Vector2 = world_position - player.global_position
 	return absf(offset.x) <= visual_view_half_size.x + margin and absf(offset.y) <= visual_view_half_size.y + margin
 
+#endregion
 
-func _spawn_position_is_clear(position: Vector2) -> bool:
-	return environment_builder.is_spawn_position_clear(position)
+#region Fachadas de ambiente e diretor
+
+
+func _spawn_position_is_clear(world_position: Vector2) -> bool:
+	return environment_builder.is_spawn_position_clear(world_position)
 
 
 func _update_boss_schedule() -> void:
@@ -256,6 +277,10 @@ func _trigger_world_event(event_id: String) -> void:
 func _end_world_event() -> void:
 	director.end_world_event()
 
+#endregion
+
+#region Fachada do fluxo da partida — recompensas
+
 
 func handle_enemy_death(enemy: Node, xp_value: int, was_elite: bool, was_boss: bool) -> void:
 	run_flow.handle_enemy_death(enemy, xp_value, was_elite, was_boss)
@@ -272,13 +297,17 @@ func open_reward_chest(chest: Node) -> void:
 func _on_relic_selected(relic_id: String) -> void:
 	run_flow.on_relic_selected(relic_id)
 
+#endregion
+
+#region Fachada do gerenciador de entidades — projéteis e efeitos
+
 
 func add_player_projectile(projectile: Node) -> void:
 	entity_manager.add_player_projectile(projectile)
 
 
-func spawn_enemy_projectile(position: Vector2, direction: Vector2, amount: float, projectile_speed: float, color: Color, size: float, danger_style := false) -> Node:
-	return entity_manager.spawn_enemy_projectile(position, direction, amount, projectile_speed, color, size, danger_style)
+func spawn_enemy_projectile(world_position: Vector2, direction: Vector2, amount: float, projectile_speed: float, color: Color, size: float, danger_style := false) -> Node:
+	return entity_manager.spawn_enemy_projectile(world_position, direction, amount, projectile_speed, color, size, danger_style)
 
 
 func recycle_enemy_projectile(projectile: Node) -> void:
@@ -289,32 +318,36 @@ func add_enemy_projectile(projectile: Node) -> void:
 	entity_manager.add_enemy_projectile(projectile)
 
 
-func _spawn_pickup(amount: int, position: Vector2, kind := "xp") -> Node:
-	return entity_manager.spawn_pickup(amount, position, kind)
+func _spawn_pickup(amount: int, world_position: Vector2, kind := "xp") -> Node:
+	return entity_manager.spawn_pickup(amount, world_position, kind)
 
 
-func spawn_effect(position: Vector2, color: Color, radius: float, duration := 0.35, filled := false) -> void:
-	entity_manager.spawn_effect(position, color, radius, duration, filled)
+func spawn_effect(world_position: Vector2, color: Color, radius: float, duration := 0.35, filled := false) -> void:
+	entity_manager.spawn_effect(world_position, color, radius, duration, filled)
 
 
 func _effect_visual_quality(radius: float, duration: float) -> int:
 	return entity_manager.effect_visual_quality(radius, duration)
 
 
-func spawn_weapon_flash(position: Vector2, atlas_frame: int, angle: float, scale_value: float, duration := 0.35, tint := Color.WHITE) -> void:
-	entity_manager.spawn_weapon_flash(position, atlas_frame, angle, scale_value, duration, tint)
+func spawn_weapon_flash(world_position: Vector2, atlas_frame: int, angle: float, scale_value: float, duration := 0.35, tint := Color.WHITE) -> void:
+	entity_manager.spawn_weapon_flash(world_position, atlas_frame, angle, scale_value, duration, tint)
 
 
 func spawn_lightning(chain_points: PackedVector2Array, color := Color("6eeaff")) -> void:
 	entity_manager.spawn_lightning(chain_points, color)
 
 
-func spawn_damage_number(position: Vector2, amount: float, critical := false, healing := false, custom_text := "") -> void:
-	entity_manager.spawn_damage_number(position, amount, critical, healing, custom_text)
+func spawn_damage_number(world_position: Vector2, amount: float, critical := false, healing := false, custom_text := "") -> void:
+	entity_manager.spawn_damage_number(world_position, amount, critical, healing, custom_text)
+
+#endregion
+
+#region Fachada do fluxo da partida — feedback e estatísticas
 
 
-func on_enemy_hit(position: Vector2, amount: float, critical: bool, is_boss: bool) -> void:
-	run_flow.on_enemy_hit(position, amount, critical, is_boss)
+func on_enemy_hit(world_position: Vector2, amount: float, critical: bool, is_boss: bool) -> void:
+	run_flow.on_enemy_hit(world_position, amount, critical, is_boss)
 
 
 func on_weapon_evolved(title: String) -> void:
@@ -356,25 +389,33 @@ func record_player_damage(amount: float) -> void:
 func shake_camera(strength: float, duration := 0.18) -> void:
 	run_flow.shake_camera(strength, duration)
 
+#endregion
+
+#region Fachada do índice espacial
+
 
 func _rebuild_spatial_grid() -> void:
 	spatial_index.rebuild(enemies.get_children())
 
 
-func _grid_cell(position: Vector2) -> Vector2i:
-	return spatial_index.grid_cell(position)
+func _grid_cell(world_position: Vector2) -> Vector2i:
+	return spatial_index.grid_cell(world_position)
 
 
-func get_enemies_near(position: Vector2, radius: float) -> Array[Node]:
+func get_enemies_near(world_position: Vector2, radius: float) -> Array[Node]:
 	if spatial_index.is_empty() and enemies.get_child_count() > 0:
 		_rebuild_spatial_grid()
-	return spatial_index.get_enemies_near(position, radius)
+	return spatial_index.get_enemies_near(world_position, radius)
 
 
-func get_nearest_enemy(position: Vector2, maximum_distance := 1500.0) -> Node2D:
+func get_nearest_enemy(world_position: Vector2, maximum_distance := 1500.0) -> Node2D:
 	if spatial_index.is_empty() and enemies.get_child_count() > 0:
 		_rebuild_spatial_grid()
-	return spatial_index.get_nearest_enemy(position, maximum_distance)
+	return spatial_index.get_nearest_enemy(world_position, maximum_distance)
+
+#endregion
+
+#region Fachadas de progressão, persistência e navegação
 
 
 func _on_level_up_requested() -> void:
@@ -440,6 +481,10 @@ func _return_to_menu() -> void:
 func _resume_run() -> void:
 	run_flow.resume_run()
 
+#endregion
+
+#region Ferramentas de debug do editor
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not OS.has_feature("editor") or not event is InputEventKey:
@@ -487,6 +532,10 @@ func _debug_gain_level() -> void:
 		return
 	player.collect_xp(maxi(1, player.experience_needed - player.experience))
 
+#endregion
+
+#region Fachada do construtor de ambiente
+
 
 func _generate_environment() -> void:
 	environment_builder.generate_environment()
@@ -512,5 +561,7 @@ func _generate_hazards(rng: RandomNumberGenerator) -> void:
 	environment_builder.generate_hazards(rng)
 
 
-func get_environment_effect(position: Vector2) -> Dictionary:
-	return environment_builder.get_environment_effect(position)
+func get_environment_effect(world_position: Vector2) -> Dictionary:
+	return environment_builder.get_environment_effect(world_position)
+
+#endregion

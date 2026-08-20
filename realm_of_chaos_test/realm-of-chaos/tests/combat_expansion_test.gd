@@ -1,7 +1,5 @@
 extends SceneTree
 
-const GameDefs = preload("res://scripts/game_defs.gd")
-
 const NEW_WEAPONS := [
 	"blood_scythe", "forbidden_grimoire", "rune_hammer", "storm_relic", "swarm_idol"
 ]

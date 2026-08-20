@@ -12,7 +12,7 @@ func _init(owner_player) -> void:
 func start_dash(input_direction: Vector2, world: Node) -> void:
 	player.dash_direction = input_direction.normalized() if input_direction.length_squared() > 0.01 else player.last_direction
 	player.dash_duration = 0.18
-	player.dash_cooldown = 3.2
+	player.dash_cooldown = player.DASH_COOLDOWN_DURATION
 	player.invulnerability = maxf(player.invulnerability, 0.34)
 	player.attack_direction = player.dash_direction
 	if world and world.has_method("on_player_dash"):

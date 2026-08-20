@@ -27,9 +27,9 @@ class WorldProbe:
 		query_calls += 1
 		return nearby
 
-	func spawn_effect(position: Vector2, color: Color, radius: float, duration: float, important := false) -> void:
+	func spawn_effect(world_position: Vector2, color: Color, radius: float, duration: float, important := false) -> void:
 		effects.append({
-			"position": position,
+			"position": world_position,
 			"color": color,
 			"radius": radius,
 			"duration": duration,

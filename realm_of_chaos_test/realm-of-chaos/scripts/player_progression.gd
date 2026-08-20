@@ -1,6 +1,5 @@
 extends RefCounted
 
-const GameDefs = preload("res://scripts/game_defs.gd")
 
 var player
 var build_complete := false
