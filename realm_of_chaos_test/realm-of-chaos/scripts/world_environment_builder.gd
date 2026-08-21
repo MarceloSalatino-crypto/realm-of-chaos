@@ -3,6 +3,14 @@ extends RefCounted
 const ArenaHazardScript = preload("res://scripts/arena_hazard.gd")
 const MapOverlayScript = preload("res://scripts/map_overlay.gd")
 const MapLandmarkScript = preload("res://scripts/map_landmark.gd")
+const FLOOR_DECAL_ATLAS = preload("res://assets/generated/map_floor_decals_v1.png")
+
+const TOTAL_DECORATION_COUNT := 310
+const SMALL_DECORATION_COUNT := 274
+const FLOOR_DECAL_VARIATIONS_PER_KIND := 12
+const FLOOR_DECAL_CELL_SIZE := Vector2(320.0, 256.0)
+const TREE_VISUAL_SCALE_MULTIPLIER := 1.25
+const STONE_VISUAL_SCALE_MULTIPLIER := 2.0
 
 var world
 
@@ -53,7 +61,7 @@ func generate_environment() -> void:
 	for path in texture_paths:
 		textures.append(load(path))
 	var biome_tint := _biome_tint()
-	for _index in range(310):
+	for index in range(TOTAL_DECORATION_COUNT):
 		var sprite := Sprite2D.new()
 		sprite.texture = textures[rng.randi_range(0, textures.size() - 1)]
 		var decoration_position := find_free_map_position(rng, 5400.0)
@@ -63,9 +71,42 @@ func generate_environment() -> void:
 		sprite.flip_h = rng.randf() < 0.5
 		sprite.modulate = Color(biome_tint, rng.randf_range(0.36, 0.72))
 		sprite.z_index = -4
-		world.decorations.add_child(sprite)
+		if index < SMALL_DECORATION_COUNT:
+			world.decorations.add_child(sprite)
+		else:
+			sprite.free()
+	generate_floor_decals()
 	generate_obstacles(rng)
 	generate_hazards(rng)
+
+
+func generate_floor_decals() -> void:
+	var decal_rng := RandomNumberGenerator.new()
+	decal_rng.seed = 272401 + world.run_cycle * 1013
+	var tint := _biome_tint().lerp(Color.WHITE, 0.52)
+	var kind_names := ["Crater", "RitualScar", "BattleRemains"]
+	var kind_alpha := [0.54, 0.48, 0.56]
+	var scale_steps := [0.90, 1.0, 1.10]
+	for kind_index in range(kind_names.size()):
+		for variant_index in range(FLOOR_DECAL_VARIATIONS_PER_KIND):
+			var sprite := Sprite2D.new()
+			sprite.name = "FloorDecal_%s_%02d" % [kind_names[kind_index], variant_index]
+			var atlas_texture := AtlasTexture.new()
+			atlas_texture.atlas = FLOOR_DECAL_ATLAS
+			atlas_texture.region = Rect2(
+				Vector2(FLOOR_DECAL_CELL_SIZE.x * kind_index, 0.0),
+				FLOOR_DECAL_CELL_SIZE
+			)
+			sprite.texture = atlas_texture
+			sprite.position = find_free_map_position(decal_rng, 5350.0)
+			sprite.rotation = float(variant_index % 4) * PI * 0.5
+			sprite.flip_h = (variant_index + kind_index) % 2 == 1
+			var scale_index := floori(float(variant_index) / 4.0)
+			sprite.scale = Vector2.ONE * float(scale_steps[scale_index])
+			sprite.modulate = Color(tint, float(kind_alpha[kind_index]))
+			sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			sprite.z_index = -5
+			world.decorations.add_child(sprite)
 
 
 func generate_map_layout(rng: RandomNumberGenerator) -> void:
@@ -127,7 +168,8 @@ func generate_obstacles(rng: RandomNumberGenerator) -> void:
 		var obstacle_sprite := Sprite2D.new()
 		obstacle_sprite.texture = obstacle_textures[index % obstacle_textures.size()]
 		var obstacle_scale := rng.randf_range(0.82, 1.18)
-		obstacle_sprite.scale = Vector2.ONE * obstacle_scale
+		var visual_multiplier := STONE_VISUAL_SCALE_MULTIPLIER if index % obstacle_textures.size() == 3 else TREE_VISUAL_SCALE_MULTIPLIER
+		obstacle_sprite.scale = Vector2.ONE * obstacle_scale * visual_multiplier
 		obstacle_sprite.modulate = Color(_biome_tint(), 0.90)
 		body.add_child(obstacle_sprite)
 		var collision := CollisionShape2D.new()

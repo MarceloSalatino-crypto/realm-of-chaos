@@ -3,9 +3,9 @@ extends StaticBody2D
 
 const LANDMARK_TEXTURE = preload("res://assets/generated/map_landmarks_v1.png")
 const REDRAW_INTERVAL := 1.0 / 20.0
-const VISUAL_SCALE := 0.36
-const VISUAL_BASE_Y := -82.0
-const VISUAL_NOTIFIER_RECT := Rect2(Vector2(-116.0, -220.0), Vector2(232.0, 330.0))
+const VISUAL_SCALE := 0.44
+const VISUAL_BASE_Y := -102.0
+const VISUAL_NOTIFIER_RECT := Rect2(Vector2(-142.0, -275.0), Vector2(284.0, 385.0))
 
 const TITLES := {
 	"altar": "ALTAR RUBRO",

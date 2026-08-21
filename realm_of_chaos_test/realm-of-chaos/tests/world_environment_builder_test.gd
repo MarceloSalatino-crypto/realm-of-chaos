@@ -4,17 +4,17 @@ const EXPECTED_FINGERPRINTS := {
 	0:
 		"L:1187.443,-972.001|L:-1745.951,-972.446|L:1528.383,1771.532|L:-2181.463,1517.789"
 		+ "|D:-3948.120,-4676.428:0.994:0:Tree_2.png|D:26.582,-2484.364:0.653:0:bush_02.png|D:-2880.378,673.646:0.798:0:Tree_1.png|D:-3850.635,5188.012:0.905:1:Tree_2.png"
-		+ "|O:2364.454,-764.659:1.155:Tree_1.png|O:-4264.422,4622.450:1.146:Tree_2.png|O:-3477.472,3049.021:1.151:Tree_3.png"
+		+ "|O:2364.454,-764.659:1.444:Tree_1.png|O:-4264.422,4622.450:1.433:Tree_2.png|O:-3477.472,3049.021:1.438:Tree_3.png"
 		+ "|H:2462.970,2333.371:111.538:2074339079|H:-3972.994,-3381.158:87.745:1746810272|H:-2991.708,-2881.173:87.907:764075067",
 	1:
 		"L:1417.601,-572.423|L:-1457.641,-1591.946|L:881.662,2094.958|L:-2526.310,711.987"
 		+ "|D:895.022,1119.379:0.784:1:little stone_03.png|D:3021.972,3816.530:0.851:1:Mushroom_03.png|D:-3722.988,1838.722:1.008:0:bush_02.png|D:4123.750,-4380.529:0.970:1:bush_01.png"
-		+ "|O:715.368,-484.476:1.128:Tree_1.png|O:3418.682,-525.018:1.019:Tree_2.png|O:3716.484,-3967.489:1.156:Tree_3.png"
+		+ "|O:715.368,-484.476:1.410:Tree_1.png|O:3418.682,-525.018:1.274:Tree_2.png|O:3716.484,-3967.489:1.445:Tree_3.png"
 		+ "|H:1519.975,-3523.890:102.104:3915425591|H:-2562.769,4502.639:85.756:1659196520|H:-4426.203,-4988.647:132.338:1577371512",
 	2:
 		"L:1670.836,121.164|L:-824.965,-1899.021|L:215.485,2244.829|L:-2741.238,-166.495"
 		+ "|D:-4642.380,-4275.922:1.111:0:Tree_3.png|D:1952.251,-3365.961:0.755:0:little stone_03.png|D:3359.965,-3689.631:0.917:0:bush_01.png|D:1705.562,-3300.300:0.984:1:Mushroom_03.png"
-		+ "|O:2768.512,2515.911:1.061:Tree_1.png|O:3731.604,-2970.013:0.953:Tree_2.png|O:-2043.751,-1564.846:0.833:Tree_3.png"
+		+ "|O:2768.512,2515.911:1.326:Tree_1.png|O:3731.604,-2970.013:1.191:Tree_2.png|O:-2043.751,-1564.846:1.041:Tree_3.png"
 		+ "|H:-866.459,2804.220:111.802:1716292391|H:-719.687,3640.600:112.625:366975169|H:2534.791,2152.621:107.070:1882875190",
 }
 
@@ -104,15 +104,30 @@ func _validate_cycle(world: Node, cycle: int) -> void:
 		var landmark = world.landmarks.get_child(index)
 		_check(str(landmark.landmark_kind) == kinds[index], "ordem dos landmarks mudou no ciclo %d" % cycle)
 		_check(landmark.global_position.is_equal_approx(world.landmark_positions[index]), "posicao do landmark %d mudou no ciclo %d" % [index, cycle])
-		_check(landmark.sprite.scale.is_equal_approx(Vector2.ONE * 0.36), "escala visual do landmark %d mudou no ciclo %d" % [index, cycle])
+		_check(landmark.sprite.scale.is_equal_approx(Vector2.ONE * 0.44), "escala visual do landmark %d incorreta no ciclo %d" % [index, cycle])
 		var landmark_collision: CollisionShape2D = landmark.get_child(1)
 		_check(landmark_collision.shape is CircleShape2D and is_equal_approx(landmark_collision.shape.radius, 43.0), "raio de colisao do landmark %d mudou no ciclo %d" % [index, cycle])
 
-	for decoration in world.decorations.get_children():
-		_check(decoration.z_index == -4, "z-index de decoracao mudou")
-		_check(decoration.scale.x >= 0.65 and decoration.scale.x <= 1.15, "escala de decoracao saiu do intervalo")
-		_check(decoration.modulate.a >= 0.36 and decoration.modulate.a <= 0.72, "alpha de decoracao saiu do intervalo")
-		_check(Color(decoration.modulate.r, decoration.modulate.g, decoration.modulate.b).is_equal_approx(expected_tint), "tint de decoracao incorreto")
+	var decal_counts := {"Crater": 0, "RitualScar": 0, "BattleRemains": 0}
+	var decal_tint := expected_tint.lerp(Color.WHITE, 0.52)
+	for decoration_index in range(world.decorations.get_child_count()):
+		var decoration: Sprite2D = world.decorations.get_child(decoration_index)
+		if decoration_index < 274:
+			_check(decoration.z_index == -4, "z-index de decoracao pequena mudou")
+			_check(decoration.scale.x >= 0.65 and decoration.scale.x <= 1.15, "escala de decoracao pequena saiu do intervalo")
+			_check(decoration.modulate.a >= 0.36 and decoration.modulate.a <= 0.72, "alpha de decoracao pequena saiu do intervalo")
+			_check(Color(decoration.modulate.r, decoration.modulate.g, decoration.modulate.b).is_equal_approx(expected_tint), "tint de decoracao pequena incorreto")
+			continue
+		_check(decoration.z_index == -5, "decal grande nao ficou sob as decoracoes pequenas")
+		_check(decoration.texture is AtlasTexture, "decal grande nao usa o atlas compartilhado")
+		_check(decoration.scale.x >= 0.899 and decoration.scale.x <= 1.101, "escala de decal grande saiu do intervalo")
+		_check(Color(decoration.modulate.r, decoration.modulate.g, decoration.modulate.b).is_equal_approx(decal_tint), "tint de decal grande incorreto")
+		for kind in decal_counts:
+			if decoration.name.begins_with("FloorDecal_" + str(kind)):
+				decal_counts[kind] += 1
+	_check(int(decal_counts.Crater) == 12, "quantidade de crateras mudou no ciclo %d" % cycle)
+	_check(int(decal_counts.RitualScar) == 12, "quantidade de marcas rituais mudou no ciclo %d" % cycle)
+	_check(int(decal_counts.BattleRemains) == 12, "quantidade de restos de batalha mudou no ciclo %d" % cycle)
 
 	for obstacle in world.obstacles.get_children():
 		_check(obstacle is StaticBody2D and obstacle.collision_layer == 1 and obstacle.collision_mask == 1, "corpo de obstaculo mudou")
@@ -120,7 +135,14 @@ func _validate_cycle(world: Node, cycle: int) -> void:
 		var sprite: Sprite2D = obstacle.get_child(0)
 		var collision: CollisionShape2D = obstacle.get_child(1)
 		_check(sprite.modulate.is_equal_approx(Color(expected_tint, 0.90)), "tint tematico do obstaculo incorreto no ciclo %d" % cycle)
-		_check(collision.shape is CircleShape2D and is_equal_approx(collision.shape.radius, 18.0 * sprite.scale.x), "raio de colisao do obstaculo mudou")
+		_check(collision.shape is CircleShape2D, "forma de colisao do obstaculo mudou")
+		if not collision.shape is CircleShape2D:
+			continue
+		var is_stone := str(sprite.texture.resource_path).get_file().begins_with("little stone")
+		var expected_visual_multiplier := 2.0 if is_stone else 1.25
+		var base_scale: float = float(collision.shape.radius) / 18.0
+		_check(base_scale >= 0.82 and base_scale <= 1.18, "raio de colisao do obstaculo mudou")
+		_check(is_equal_approx(sprite.scale.x, base_scale * expected_visual_multiplier), "escala visual do obstaculo nao preservou a colisao")
 		_check(is_equal_approx(collision.position.y, 7.0), "offset da colisao do obstaculo mudou")
 
 	for hazard in world.hazards.get_children():
