@@ -69,7 +69,7 @@ func _run() -> void:
 	world.audio.enabled = false
 	world.set_process(false)
 	_check(world.landmarks.get_child_count() == 4 and world.landmark_positions.size() == 4, "mapa não criou os quatro santuários")
-	_check(world.obstacles.get_child_count() == 24, "mapa não criou obstáculos físicos")
+	_check(world.obstacles.get_child_count() == 36, "mapa não criou os 36 obstáculos físicos")
 	_check(is_instance_valid(world.map_overlay) and is_instance_valid(world.hud.minimap), "caminhos ou minimapa não foram criados")
 	_check(world.hazards.get_child_count() == 18, "perigos do bioma não foram distribuídos")
 	var first_hazard = world.hazards.get_child(0)

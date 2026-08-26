@@ -96,10 +96,11 @@ func spawn_scheduled_boss(entry: Dictionary, index: int) -> Node:
 	if has_live_active_boss():
 		return null
 	var boss_power := 1.0 + float(world.run_cycle) * 0.32
-	world.active_boss = world.spawn_enemy(str(entry.kind), false, boss_power)
+	world.active_boss = world.spawn_enemy_near(
+		str(entry.kind), world.player.global_position, 520.0, 610.0, false, boss_power
+	)
 	if not world.active_boss:
 		return null
-	world.active_boss.global_position = world.get_spawn_position(520.0, 610.0)
 	world.boss_spawn_log.append(str(entry.kind))
 	if bool(entry.final):
 		world.final_boss_spawned = true

@@ -51,7 +51,7 @@ func _run() -> void:
 	world.set_process(false)
 
 	for method_name in [
-		&"spawn_enemy", &"enemy_population_cap", &"remaining_enemy_capacity",
+		&"spawn_enemy", &"spawn_enemy_near", &"enemy_population_cap", &"remaining_enemy_capacity",
 		&"has_enemy_capacity", &"get_spawn_position", &"add_player_projectile",
 		&"spawn_enemy_projectile", &"recycle_enemy_projectile", &"add_enemy_projectile",
 		&"_spawn_pickup", &"spawn_effect", &"_effect_visual_quality",
@@ -74,6 +74,12 @@ func _run() -> void:
 	_check_close(boss.power, 2.50, "power_override do chefe mudou")
 	var boss_distance: float = boss.global_position.distance_to(player_position)
 	_check(boss_distance >= 579.9 and boss_distance <= 670.1, "chefe saiu do anel de spawn")
+	var nearby_enemy = world.spawn_enemy_near("prowler", player_position, 54.0, 92.0, false, 1.0)
+	_check(is_instance_valid(nearby_enemy), "spawn local seguro nao criou inimigo em area livre")
+	if is_instance_valid(nearby_enemy):
+		var nearby_distance: float = nearby_enemy.global_position.distance_to(player_position)
+		_check(nearby_distance >= 53.9 and nearby_distance <= 92.1, "spawn local saiu do anel solicitado")
+		_check(world._spawn_position_is_clear(nearby_enemy.global_position), "spawn local ignorou obstaculo ou santuário")
 	world.game_ended = true
 	_check(world.spawn_enemy("prowler") == null, "spawn de inimigo ignorou game_ended")
 	world.game_ended = false

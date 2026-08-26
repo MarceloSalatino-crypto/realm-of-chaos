@@ -186,6 +186,14 @@ func _run() -> void:
 	_check(world.pickups.get_child_count() == PICKUP_COUNT, "teto de 520 pickups não foi preservado")
 	_check(get_nodes_in_group("arena_hazards").size() == 18, "mundo não manteve os 18 perigos")
 	_check(
+		world.environment_builder.visual_batcher.visual_instances.size() >= 1200,
+		"cenário de carga não contém pelo menos 1.200 visuais de mapa"
+	)
+	_check(
+		world.environment_builder.visual_batcher.batch_count() < 200,
+		"1.200+ visuais de mapa foram fragmentados em lotes demais"
+	)
+	_check(
 		world.enemies.get_child_count() == TOTAL_ENEMY_COUNT,
 		"cenário não contém 90 inimigos totais, incluindo quatro elites e um mini-boss"
 	)
@@ -210,8 +218,13 @@ func _run() -> void:
 		% [average_ms, p95_ms, MAX_AVERAGE_MS, MAX_P95_MS]
 	)
 	print(
-		"VISUAL LOAD: 90 inimigos totais, 520 pickups, 18 perigos, 180/96 projéteis e 120 efeitos; média %.2f ms, p95 %.2f ms"
-		% [average_ms, p95_ms]
+		"VISUAL LOAD: 90 inimigos, 1.200+ decoracoes, 520 pickups, 18 perigos, 180/96 projeteis e 120 efeitos; %d lotes de mapa, %d nos; media %.2f ms, p95 %.2f ms"
+		% [
+			world.environment_builder.visual_batcher.batch_count(),
+			int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
+			average_ms,
+			p95_ms,
+		]
 	)
 
 	world.queue_free()

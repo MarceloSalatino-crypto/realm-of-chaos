@@ -72,6 +72,15 @@ class WorldProbe:
 		spawned_minions.append(minion)
 		return minion
 
+	func spawn_enemy_near(
+		kind: String, origin: Vector2, minimum: float, maximum: float,
+		_force_elite := false, _power_override := -1.0, preferred_angle := NAN
+	) -> Node:
+		var minion := spawn_enemy(kind, _force_elite) as Node2D
+		var angle := preferred_angle if is_finite(preferred_angle) else 0.0
+		minion.global_position = origin + Vector2.RIGHT.rotated(angle) * lerpf(minimum, maximum, 0.5)
+		return minion
+
 	func get_enemies_near(_position: Vector2, _radius: float) -> Array:
 		return nearby
 

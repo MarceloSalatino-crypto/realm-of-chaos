@@ -137,9 +137,10 @@ func summon_minions(count: int) -> void:
 		return
 	for index in range(count):
 		var kind := "swarm" if index % 3 == 0 else "prowler"
-		var minion = enemy.world.spawn_enemy(kind, false)
-		if minion:
-			minion.global_position = enemy.global_position + Vector2.RIGHT.rotated(TAU * index / count) * randf_range(54.0, 92.0)
+		enemy.world.spawn_enemy_near(
+			kind, enemy.global_position, 54.0, 92.0, false, -1.0,
+			TAU * float(index) / float(count)
+		)
 	enemy.world.spawn_effect(enemy.global_position, Color("9d72ff"), 115.0, 0.5, true)
 
 

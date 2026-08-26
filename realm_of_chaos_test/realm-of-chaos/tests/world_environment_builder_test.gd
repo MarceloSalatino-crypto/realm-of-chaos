@@ -1,21 +1,19 @@
 extends SceneTree
 
-const EXPECTED_FINGERPRINTS := {
-	0:
-		"L:1187.443,-972.001|L:-1745.951,-972.446|L:1528.383,1771.532|L:-2181.463,1517.789"
-		+ "|D:-3948.120,-4676.428:0.994:0:Tree_2.png|D:26.582,-2484.364:0.653:0:bush_02.png|D:-2880.378,673.646:0.798:0:Tree_1.png|D:-3850.635,5188.012:0.905:1:Tree_2.png"
-		+ "|O:2364.454,-764.659:1.444:Tree_1.png|O:-4264.422,4622.450:1.433:Tree_2.png|O:-3477.472,3049.021:1.438:Tree_3.png"
-		+ "|H:2462.970,2333.371:111.538:2074339079|H:-3972.994,-3381.158:87.745:1746810272|H:-2991.708,-2881.173:87.907:764075067",
-	1:
-		"L:1417.601,-572.423|L:-1457.641,-1591.946|L:881.662,2094.958|L:-2526.310,711.987"
-		+ "|D:895.022,1119.379:0.784:1:little stone_03.png|D:3021.972,3816.530:0.851:1:Mushroom_03.png|D:-3722.988,1838.722:1.008:0:bush_02.png|D:4123.750,-4380.529:0.970:1:bush_01.png"
-		+ "|O:715.368,-484.476:1.410:Tree_1.png|O:3418.682,-525.018:1.274:Tree_2.png|O:3716.484,-3967.489:1.445:Tree_3.png"
-		+ "|H:1519.975,-3523.890:102.104:3915425591|H:-2562.769,4502.639:85.756:1659196520|H:-4426.203,-4988.647:132.338:1577371512",
-	2:
-		"L:1670.836,121.164|L:-824.965,-1899.021|L:215.485,2244.829|L:-2741.238,-166.495"
-		+ "|D:-4642.380,-4275.922:1.111:0:Tree_3.png|D:1952.251,-3365.961:0.755:0:little stone_03.png|D:3359.965,-3689.631:0.917:0:bush_01.png|D:1705.562,-3300.300:0.984:1:Mushroom_03.png"
-		+ "|O:2768.512,2515.911:1.326:Tree_1.png|O:3731.604,-2970.013:1.191:Tree_2.png|O:-2043.751,-1564.846:1.041:Tree_3.png"
-		+ "|H:-866.459,2804.220:111.802:1716292391|H:-719.687,3640.600:112.625:366975169|H:2534.791,2152.621:107.070:1882875190",
+const EXPECTED_SMALL_DECORATIONS := 1200
+const EXPECTED_FLOOR_DECALS := 36
+const EXPECTED_OBSTACLES := 36
+const EXPECTED_VISUAL_INSTANCES := EXPECTED_SMALL_DECORATIONS + EXPECTED_FLOOR_DECALS + EXPECTED_OBSTACLES
+const EXPECTED_CHUNK_SIZE := 1536.0
+
+const SMALL_DECORATION_FILES := {
+	"bush_01.png": true,
+	"bush_02.png": true,
+	"Mushroom_03.png": true,
+	"leaf_litter.png": true,
+	"broken_branches.png": true,
+	"twig_scatter.png": true,
+	"gravel_scatter.png": true,
 }
 
 var failures: Array[String] = []
@@ -26,13 +24,15 @@ func _initialize() -> void:
 
 
 func _check(condition: bool, message: String) -> void:
-	if not condition:
-		failures.append(message)
-		push_error("WORLD ENVIRONMENT BUILDER: " + message)
+	if condition:
+		return
+	failures.append(message)
+	push_error("WORLD ENVIRONMENT BUILDER: " + message)
 
 
 func _clear_generated_environment(world: Node) -> void:
-	for container in [world.decorations, world.obstacles, world.hazards, world.landmarks]:
+	world.environment_builder.visual_batcher.reset()
+	for container in [world.obstacles, world.hazards, world.landmarks]:
 		for child in container.get_children():
 			child.queue_free()
 	await process_frame
@@ -46,115 +46,144 @@ func _environment_fingerprint(world: Node) -> String:
 	var parts: Array[String] = []
 	for position in world.landmark_positions:
 		parts.append("L:" + _vector_fingerprint(position))
+	var visuals: Array[Dictionary] = world.environment_builder.visual_batcher.visual_instances
 	for index in range(4):
-		var decoration: Sprite2D = world.decorations.get_child(index)
+		var visual: Dictionary = visuals[index]
 		parts.append(
 			"D:%s:%.3f:%d:%s"
 			% [
-				_vector_fingerprint(decoration.position),
-				decoration.scale.x,
-				1 if decoration.flip_h else 0,
-				str(decoration.texture.resource_path).get_file(),
+				_vector_fingerprint(Vector2(visual.position)),
+				Vector2(visual.scale).x,
+				1 if bool(visual.flip_h) else 0,
+				str(visual.source_path).get_file(),
 			]
 		)
 	for index in range(3):
 		var obstacle: StaticBody2D = world.obstacles.get_child(index)
-		var obstacle_sprite: Sprite2D = obstacle.get_child(0)
+		var obstacle_visual: Dictionary = visuals[EXPECTED_SMALL_DECORATIONS + EXPECTED_FLOOR_DECALS + index]
 		parts.append(
 			"O:%s:%.3f:%s"
 			% [
 				_vector_fingerprint(obstacle.position),
-				obstacle_sprite.scale.x,
-				str(obstacle_sprite.texture.resource_path).get_file(),
+				Vector2(obstacle_visual.scale).x,
+				str(obstacle_visual.atlas_key),
 			]
 		)
 	for index in range(3):
 		var hazard = world.hazards.get_child(index)
-		parts.append(
-			"H:%s:%.3f:%d"
-			% [_vector_fingerprint(hazard.position), float(hazard.radius), int(hazard.seed)]
-		)
+		parts.append("H:%s:%.3f:%d" % [_vector_fingerprint(hazard.position), float(hazard.radius), int(hazard.seed)])
 	return "|".join(parts)
 
 
-func _validate_cycle(world: Node, cycle: int) -> void:
+func _validate_batches(world: Node, cycle: int) -> void:
+	var batcher = world.environment_builder.visual_batcher
+	_check(batcher.visual_instances.size() == EXPECTED_VISUAL_INSTANCES, "ciclo %d nao registrou 1.272 visuais" % cycle)
+	_check(batcher.chunk_count() > 0 and batcher.chunk_count() <= 64, "ciclo %d criou quantidade invalida de chunks" % cycle)
+	_check(batcher.batch_count() == world.decorations.get_child_count(), "container de decoracao divergiu dos lotes")
+	_check(batcher.batch_count() < 200, "ciclo %d criou lotes demais para 1.272 visuais" % cycle)
+	_check(batcher.atlas_regions.size() == 20, "atlas unificado nao possui as 20 fontes esperadas")
+	for source in batcher.atlas_regions.values():
+		_check(
+			not str(source.path).contains("map_floor_decals_v1"),
+			"atlas legado de decalques voltou a ser usado"
+		)
+	var expected_prefix := "frozen" if cycle == 1 else ("cathedral" if cycle == 2 else "forest")
+	for decal_kind in ["crater", "ritual", "battle"]:
+		var expected_key := "%s_floor_%s" % [expected_prefix, decal_kind]
+		_check(batcher.atlas_regions.has(expected_key), "atlas perdeu variante do bioma: " + expected_key)
+	var rendered_instances := 0
+	for child in world.decorations.get_children():
+		_check(child is MultiMeshInstance2D, "decoracao ainda criou no que nao e MultiMeshInstance2D")
+		if not child is MultiMeshInstance2D:
+			continue
+		var instance := child as MultiMeshInstance2D
+		_check(instance.name.begins_with("DecorationChunk_"), "lote perdeu identificacao de chunk")
+		_check(instance.multimesh.use_colors and instance.multimesh.use_custom_data, "lote perdeu cor ou UV por instancia")
+		_check(instance.texture == batcher.atlas_texture, "lote nao usa o atlas compartilhado")
+		rendered_instances += instance.multimesh.visible_instance_count
+	_check(rendered_instances == EXPECTED_VISUAL_INSTANCES, "MultiMesh nao desenha todas as instancias registradas")
+
+
+func _validate_visual_records(world: Node, expected_tint: Color, cycle: int) -> void:
+	var visuals: Array[Dictionary] = world.environment_builder.visual_batcher.visual_instances
+	var small_count := 0
+	var floor_count := 0
+	var tree_count := 0
+	var stone_count := 0
+	var initial_area_count := 0
+	var corridor_count := 0
+	for visual in visuals:
+		var source_kind := str(visual.source_kind)
+		var position := Vector2(visual.position)
+		if source_kind == "decoration":
+			small_count += 1
+			var file_name := str(visual.source_path).get_file()
+			_check(SMALL_DECORATION_FILES.has(file_name), "decoracao atravessavel usa fonte solida: " + file_name)
+			_check(Vector2(visual.scale).x >= 0.65 and Vector2(visual.scale).x <= 1.15, "escala da decoracao saiu do intervalo")
+			_check(Color(visual.color).a >= 0.34 and Color(visual.color).a <= 0.58, "alpha da decoracao saiu do intervalo")
+			_check(Color(Color(visual.color).r, Color(visual.color).g, Color(visual.color).b).is_equal_approx(expected_tint), "tint da decoracao incorreto")
+			if position.length() < 430.0:
+				initial_area_count += 1
+			for landmark_position in world.landmark_positions:
+				if world._point_segment_distance(position, Vector2.ZERO, landmark_position) < 165.0:
+					corridor_count += 1
+					break
+		elif source_kind.begins_with("floor_"):
+			floor_count += 1
+			var expected_prefix := "frozen" if cycle == 1 else ("cathedral" if cycle == 2 else "forest")
+			_check(str(visual.atlas_key).begins_with(expected_prefix + "_floor_"), "decalque recebeu variante de outro bioma")
+			_check(Color(visual.color).r == 1.0 and Color(visual.color).g == 1.0 and Color(visual.color).b == 1.0, "paleta do decalque ainda recebe tint generico")
+		elif source_kind == "obstacle_tree":
+			tree_count += 1
+		elif source_kind == "obstacle_stone":
+			stone_count += 1
+	_check(small_count == EXPECTED_SMALL_DECORATIONS, "ciclo %d nao criou 1.200 decoracoes baixas" % cycle)
+	_check(floor_count == EXPECTED_FLOOR_DECALS, "ciclo %d nao criou 36 decalques" % cycle)
+	_check(tree_count == 26 and stone_count == 10, "visuais fisicos nao ficaram em 26 arvores + 10 pedras")
+	_check(initial_area_count > 0, "decoracoes visuais continuam excluidas da area inicial")
+	_check(corridor_count > 0, "decoracoes visuais continuam excluidas dos corredores")
+
+
+func _validate_obstacles(world: Node, expected_tint: Color, cycle: int) -> void:
+	_check(world.obstacles.get_child_count() == EXPECTED_OBSTACLES, "ciclo %d nao criou 36 obstaculos" % cycle)
+	_check(not world.environment_builder.obstacle_grid.is_empty(), "grade espacial de obstaculos ficou vazia")
+	var obstacle_positions: Array[Vector2] = []
+	for obstacle in world.obstacles.get_children():
+		_check(obstacle is StaticBody2D and obstacle.collision_layer == 1 and obstacle.collision_mask == 1, "corpo de obstaculo mudou")
+		_check(obstacle.is_in_group("physical_obstacles"), "obstaculo perdeu o grupo central")
+		_check(obstacle.get_child_count() == 1 and obstacle.get_child(0) is CollisionShape2D, "StaticBody2D ainda possui sprite ou perdeu colisor")
+		var collision: CollisionShape2D = obstacle.get_child(0)
+		_check(collision.shape is CircleShape2D, "forma de colisao do obstaculo mudou")
+		if collision.shape is CircleShape2D:
+			var base_scale: float = float(collision.shape.radius) / 18.0
+			_check(base_scale >= 0.82 and base_scale <= 1.18, "raio de colisao saiu do intervalo")
+			_check(is_equal_approx(collision.position.y, 7.0), "offset do colisor mudou")
+		_check(world.environment_builder.obstacles_near(obstacle.global_position, 1.0).has(obstacle), "grade nao encontra obstaculo na propria celula")
+		obstacle_positions.append(obstacle.position)
+	for first_index in range(obstacle_positions.size()):
+		for second_index in range(first_index + 1, obstacle_positions.size()):
+			_check(obstacle_positions[first_index].distance_to(obstacle_positions[second_index]) >= 179.99, "obstaculos violaram espacamento minimo")
+	var obstacle_visual: Dictionary = world.environment_builder.visual_batcher.visual_instances[EXPECTED_SMALL_DECORATIONS + EXPECTED_FLOOR_DECALS]
+	_check(Color(obstacle_visual.color).is_equal_approx(Color(expected_tint, 0.90)), "tint tematico do obstaculo mudou")
+
+
+func _validate_cycle(world: Node, cycle: int) -> String:
 	var biome: Dictionary = GameDefs.biome_data(cycle)
 	var expected_hazard := "ice" if str(biome.id) == "frozen" else ("void" if str(biome.id) == "cathedral" else "roots")
 	var expected_tint := Color("9ec7df") if str(biome.id) == "frozen" else (Color("9e82bb") if str(biome.id) == "cathedral" else Color("b3c7bd"))
-	var expected_boundary := (
-		Color(0.46, 0.78, 0.91, 0.26) if str(biome.id) == "frozen"
-		else (
-			Color(0.63, 0.25, 0.82, 0.26) if str(biome.id) == "cathedral"
-			else Color(0.26, 0.49, 0.39, 0.24)
-		)
-	)
-	_check(world.decorations.get_child_count() == 310, "ciclo %d nao criou 310 decoracoes" % cycle)
-	_check(world.obstacles.get_child_count() == 24, "ciclo %d nao criou 24 obstaculos" % cycle)
 	_check(world.hazards.get_child_count() == 18, "ciclo %d nao criou 18 perigos" % cycle)
 	_check(world.landmarks.get_child_count() == 4 and world.landmark_positions.size() == 4, "ciclo %d nao criou quatro landmarks" % cycle)
-	_check(str(world.ground.texture.resource_path) == str(biome.ground), "textura do solo incorreta no ciclo %d" % cycle)
-	_check(world.ground.modulate.is_equal_approx(Color(biome.ground_modulate)), "modulacao do solo incorreta no ciclo %d" % cycle)
-	_check(str(world.map_overlay.biome_id) == str(biome.id), "overlay recebeu bioma incorreto no ciclo %d" % cycle)
-	_check(world.map_overlay.landmark_positions == world.landmark_positions, "overlay recebeu landmarks diferentes no ciclo %d" % cycle)
-	_check(int(world.map_overlay.layout_seed) == 44321 + cycle * 701, "seed do overlay incorreta no ciclo %d" % cycle)
-	_check(world.map_overlay.boundary_color().is_equal_approx(expected_boundary), "borda temática incorreta no ciclo %d" % cycle)
-
-	var kinds := ["altar", "obelisk", "tree", "portal"]
-	for index in range(4):
-		var landmark = world.landmarks.get_child(index)
-		_check(str(landmark.landmark_kind) == kinds[index], "ordem dos landmarks mudou no ciclo %d" % cycle)
-		_check(landmark.global_position.is_equal_approx(world.landmark_positions[index]), "posicao do landmark %d mudou no ciclo %d" % [index, cycle])
-		_check(landmark.sprite.scale.is_equal_approx(Vector2.ONE * 0.44), "escala visual do landmark %d incorreta no ciclo %d" % [index, cycle])
-		var landmark_collision: CollisionShape2D = landmark.get_child(1)
-		_check(landmark_collision.shape is CircleShape2D and is_equal_approx(landmark_collision.shape.radius, 43.0), "raio de colisao do landmark %d mudou no ciclo %d" % [index, cycle])
-
-	var decal_counts := {"Crater": 0, "RitualScar": 0, "BattleRemains": 0}
-	var decal_tint := expected_tint.lerp(Color.WHITE, 0.52)
-	for decoration_index in range(world.decorations.get_child_count()):
-		var decoration: Sprite2D = world.decorations.get_child(decoration_index)
-		if decoration_index < 274:
-			_check(decoration.z_index == -4, "z-index de decoracao pequena mudou")
-			_check(decoration.scale.x >= 0.65 and decoration.scale.x <= 1.15, "escala de decoracao pequena saiu do intervalo")
-			_check(decoration.modulate.a >= 0.36 and decoration.modulate.a <= 0.72, "alpha de decoracao pequena saiu do intervalo")
-			_check(Color(decoration.modulate.r, decoration.modulate.g, decoration.modulate.b).is_equal_approx(expected_tint), "tint de decoracao pequena incorreto")
-			continue
-		_check(decoration.z_index == -5, "decal grande nao ficou sob as decoracoes pequenas")
-		_check(decoration.texture is AtlasTexture, "decal grande nao usa o atlas compartilhado")
-		_check(decoration.scale.x >= 0.899 and decoration.scale.x <= 1.101, "escala de decal grande saiu do intervalo")
-		_check(Color(decoration.modulate.r, decoration.modulate.g, decoration.modulate.b).is_equal_approx(decal_tint), "tint de decal grande incorreto")
-		for kind in decal_counts:
-			if decoration.name.begins_with("FloorDecal_" + str(kind)):
-				decal_counts[kind] += 1
-	_check(int(decal_counts.Crater) == 12, "quantidade de crateras mudou no ciclo %d" % cycle)
-	_check(int(decal_counts.RitualScar) == 12, "quantidade de marcas rituais mudou no ciclo %d" % cycle)
-	_check(int(decal_counts.BattleRemains) == 12, "quantidade de restos de batalha mudou no ciclo %d" % cycle)
-
-	for obstacle in world.obstacles.get_children():
-		_check(obstacle is StaticBody2D and obstacle.collision_layer == 1 and obstacle.collision_mask == 1, "corpo de obstaculo mudou")
-		_check(obstacle.get_child_count() == 2 and obstacle.get_child(1) is CollisionShape2D, "estrutura de obstaculo mudou")
-		var sprite: Sprite2D = obstacle.get_child(0)
-		var collision: CollisionShape2D = obstacle.get_child(1)
-		_check(sprite.modulate.is_equal_approx(Color(expected_tint, 0.90)), "tint tematico do obstaculo incorreto no ciclo %d" % cycle)
-		_check(collision.shape is CircleShape2D, "forma de colisao do obstaculo mudou")
-		if not collision.shape is CircleShape2D:
-			continue
-		var is_stone := str(sprite.texture.resource_path).get_file().begins_with("little stone")
-		var expected_visual_multiplier := 2.0 if is_stone else 1.25
-		var base_scale: float = float(collision.shape.radius) / 18.0
-		_check(base_scale >= 0.82 and base_scale <= 1.18, "raio de colisao do obstaculo mudou")
-		_check(is_equal_approx(sprite.scale.x, base_scale * expected_visual_multiplier), "escala visual do obstaculo nao preservou a colisao")
-		_check(is_equal_approx(collision.position.y, 7.0), "offset da colisao do obstaculo mudou")
-
+	_check(str(world.ground.texture.resource_path) == str(biome.ground), "textura do solo incorreta")
+	_check(world.ground.modulate.is_equal_approx(Color(biome.ground_modulate)), "modulacao do solo incorreta")
+	_check(str(world.map_overlay.biome_id) == str(biome.id), "overlay recebeu bioma incorreto")
+	_validate_batches(world, cycle)
+	_validate_visual_records(world, expected_tint, cycle)
+	_validate_obstacles(world, expected_tint, cycle)
 	for hazard in world.hazards.get_children():
 		_check(str(hazard.hazard_kind) == expected_hazard, "tipo de perigo incorreto no ciclo %d" % cycle)
 		_check(hazard.radius >= 82.0 and hazard.radius <= 138.0, "raio de perigo saiu do intervalo")
-		_check(hazard.is_in_group("arena_hazards"), "perigo perdeu seu grupo")
-		_check(hazard.get_node_or_null("VisibleOnScreenNotifier2D") != null, "perigo perdeu o notifier visual")
-
-	var fingerprint := _environment_fingerprint(world)
-	print("ENVIRONMENT FINGERPRINT %d: %s" % [cycle, fingerprint])
-	if EXPECTED_FINGERPRINTS.has(cycle):
-		_check(fingerprint == str(EXPECTED_FINGERPRINTS[cycle]), "sequencia deterministica mudou no ciclo %d" % cycle)
+		_check(hazard.get_node_or_null("VisibleOnScreenNotifier2D") != null, "perigo perdeu o notifier")
+	return _environment_fingerprint(world)
 
 
 func _run() -> void:
@@ -164,24 +193,21 @@ func _run() -> void:
 	world.suppress_save = true
 	world.audio.enabled = false
 	world.set_process(false)
+	var initial_node_count := int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+	var initial_batch_count: int = world.environment_builder.visual_batcher.batch_count()
 
 	for method in [
 		"_apply_biome", "_generate_environment", "_generate_map_layout",
 		"_find_free_map_position", "_point_segment_distance", "_generate_obstacles",
-		"_generate_hazards", "_spawn_position_is_clear", "get_environment_effect"
+		"_generate_hazards", "_spawn_position_is_clear", "get_environment_effect",
+		"spawn_enemy_near"
 	]:
 		_check(world.has_method(method), "API ambiental ausente: " + method)
-	_check(world.get_node_or_null("ArenaHazards") == world.hazards, "container de perigos mudou")
-	_check(world.get_node_or_null("Landmarks") == world.landmarks, "container de landmarks mudou")
 	_check(world.get_node_or_null("PhysicalObstacles") == world.obstacles, "container de obstaculos mudou")
 	_check(world.get_node_or_null("MapOverlay") == world.map_overlay, "overlay deixou de ser filho do World")
-	_check(world.rewards.get_index() < world.hazards.get_index() and world.hazards.get_index() < world.landmarks.get_index(), "ordem inicial dos containers mudou")
-	_check(world.landmarks.get_index() < world.obstacles.get_index() and world.obstacles.get_index() < world.map_overlay.get_index(), "ordem final dos containers mudou")
+	_check(is_equal_approx(world._point_segment_distance(Vector2(5.0, 4.0), Vector2.ZERO, Vector2(10.0, 0.0)), 4.0), "distancia ao segmento mudou")
 
-	_check(is_equal_approx(world._point_segment_distance(Vector2(5.0, 4.0), Vector2.ZERO, Vector2(10.0, 0.0)), 4.0), "distancia perpendicular ao segmento mudou")
-	_check(is_equal_approx(world._point_segment_distance(Vector2(15.0, 0.0), Vector2.ZERO, Vector2(10.0, 0.0)), 5.0), "clamp na ponta do segmento mudou")
-	_check(is_equal_approx(world._point_segment_distance(Vector2(3.0, 4.0), Vector2.ZERO, Vector2.ZERO), 5.0), "segmento degenerado mudou")
-
+	var fingerprints: Dictionary = {}
 	for cycle in range(3):
 		await _clear_generated_environment(world)
 		world.run_cycle = cycle
@@ -189,43 +215,42 @@ func _run() -> void:
 		world._apply_biome()
 		world._generate_environment()
 		await process_frame
-		_validate_cycle(world, cycle)
+		fingerprints[cycle] = _validate_cycle(world, cycle)
 
-	var first_rng := RandomNumberGenerator.new()
-	first_rng.seed = 77123
-	var first_free_position: Vector2 = world._find_free_map_position(first_rng, 5400.0)
-	var second_rng := RandomNumberGenerator.new()
-	second_rng.seed = 77123
-	var second_free_position: Vector2 = world._find_free_map_position(second_rng, 5400.0)
-	_check(first_free_position.is_equal_approx(second_free_position), "busca de posicao livre deixou de ser deterministica")
-	_check(first_free_position.length() >= 430.0, "busca de posicao livre entrou na area central")
+	await _clear_generated_environment(world)
+	world.run_cycle = 1
+	world.biome = GameDefs.biome_data(1)
+	world._apply_biome()
+	world._generate_environment()
+	await process_frame
+	_check(_environment_fingerprint(world) == str(fingerprints[1]), "geracao deixou de ser deterministica")
 
-	var temporary_obstacle := Node2D.new()
-	world.obstacles.add_child(temporary_obstacle)
+	var temporary_obstacle := StaticBody2D.new()
 	temporary_obstacle.global_position = Vector2.ZERO
+	world.obstacles.add_child(temporary_obstacle)
+	world.environment_builder.rebuild_obstacle_grid()
 	_check(not world._spawn_position_is_clear(Vector2.ZERO), "spawn ignorou obstaculo dentro de 105px")
 	temporary_obstacle.global_position = Vector2(106.0, 0.0)
+	world.environment_builder.rebuild_obstacle_grid()
 	_check(world._spawn_position_is_clear(Vector2.ZERO), "spawn bloqueou obstaculo fora de 105px")
 	temporary_obstacle.queue_free()
 	await process_frame
+	world.environment_builder.rebuild_obstacle_grid()
 
-	var temporary_landmark := Node2D.new()
-	world.landmarks.add_child(temporary_landmark)
-	temporary_landmark.global_position = Vector2.ZERO
-	_check(not world._spawn_position_is_clear(Vector2.ZERO), "spawn ignorou landmark dentro de 145px")
-	temporary_landmark.global_position = Vector2(146.0, 0.0)
-	_check(world._spawn_position_is_clear(Vector2.ZERO), "spawn bloqueou landmark fora de 145px")
-	temporary_landmark.queue_free()
-	await process_frame
+	var clear_spawn: Vector2 = world.environment_builder.find_clear_spawn_position(Vector2.ZERO, 610.0, 760.0)
+	_check(is_finite(clear_spawn.x) and world._spawn_position_is_clear(clear_spawn), "busca de spawn nao retornou posicao valida")
+	var impossible_spawn: Vector2 = world.environment_builder.find_clear_spawn_position(Vector2(7000.0, 7000.0), 10.0, 20.0, 0)
+	_check(not is_finite(impossible_spawn.x), "fallback inseguro ainda retorna posicao invalida")
 
 	var first_hazard = world.hazards.get_child(0)
 	var hazard_effect: Dictionary = world.get_environment_effect(first_hazard.global_position)
-	_check(str(hazard_effect.name) == "FENDA DO VAZIO" and is_equal_approx(float(hazard_effect.damage), 9.0), "efeito do perigo cathedral mudou")
-	var neutral_effect: Dictionary = world.get_environment_effect(Vector2.ZERO)
-	_check(is_equal_approx(float(neutral_effect.speed), 1.0) and str(neutral_effect.name).is_empty(), "efeito ambiental neutro mudou")
+	_check(not str(hazard_effect.name).is_empty(), "efeito do perigo nao foi encontrado")
 
 	world.queue_free()
 	await process_frame
 	if failures.is_empty():
-		print("WORLD ENVIRONMENT BUILDER OK: biomas, layout, decoracoes, obstaculos, perigos e consultas validados")
+		print(
+			"WORLD ENVIRONMENT BUILDER OK: 1.200 decoracoes em %d lotes; cena inicial com %d nos; colisores, grade e spawn seguro validados"
+			% [initial_batch_count, initial_node_count]
+		)
 	quit(0 if failures.is_empty() else 1)

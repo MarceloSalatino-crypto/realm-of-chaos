@@ -34,9 +34,36 @@ func spawn_enemy(kind: String, force_elite := false, power_override := -1.0) -> 
 		return null
 	if not has_enemy_capacity():
 		return null
+	var data := GameDefs.enemy_data(kind)
+	var is_boss := bool(data.get("boss", false))
+	var spawn_position := get_spawn_position(580.0 if is_boss else 610.0, 670.0 if is_boss else 760.0)
+	if not _position_is_finite(spawn_position):
+		return null
+	return _spawn_enemy_at_position(kind, spawn_position, force_elite, power_override, data)
+
+
+func spawn_enemy_near(
+	kind: String, origin: Vector2, minimum: float, maximum: float,
+	force_elite := false, power_override := -1.0, preferred_angle := NAN
+) -> Node:
+	if world.game_ended or not is_instance_valid(world.player) or not has_enemy_capacity():
+		return null
+	var spawn_position: Vector2 = world.environment_builder.find_clear_spawn_position(
+		origin, minimum, maximum, 12, preferred_angle
+	)
+	if not _position_is_finite(spawn_position):
+		return null
+	return _spawn_enemy_at_position(
+		kind, spawn_position, force_elite, power_override, GameDefs.enemy_data(kind)
+	)
+
+
+func _spawn_enemy_at_position(
+	kind: String, spawn_position: Vector2, force_elite: bool,
+	power_override: float, data: Dictionary
+) -> Node:
 	var enemy = EnemyScene.instantiate()
 	var phase := GameDefs.difficulty_data(world.time_survived)
-	var data := GameDefs.enemy_data(kind)
 	var difficulty := float(phase.power) * float(world.biome.get("enemy_power", 1.0))
 	if power_override > 0.0:
 		difficulty = power_override
@@ -45,23 +72,18 @@ func spawn_enemy(kind: String, force_elite := false, power_override := -1.0) -> 
 	var is_elite := force_elite or (not is_boss and randf() < elite_chance)
 	enemy.setup(kind, difficulty, is_elite, world)
 	world.enemies.add_child(enemy)
-	enemy.global_position = get_spawn_position(580.0 if is_boss else 610.0, 670.0 if is_boss else 760.0)
+	enemy.global_position = spawn_position
 	return enemy
 
 
 func get_spawn_position(minimum := 610.0, maximum := 760.0) -> Vector2:
 	if not is_instance_valid(world.player):
-		return Vector2.ZERO
-	var fallback: Vector2 = world.player.global_position
-	for _attempt in range(12):
-		var angle := randf() * TAU
-		var candidate: Vector2 = world.player.global_position + Vector2.RIGHT.rotated(angle) * randf_range(minimum, maximum)
-		fallback = candidate
-		if absf(candidate.x) > 5420.0 or absf(candidate.y) > 5420.0:
-			continue
-		if world.environment_builder.is_spawn_position_clear(candidate):
-			return candidate
-	return Vector2(clampf(fallback.x, -5420.0, 5420.0), clampf(fallback.y, -5420.0, 5420.0))
+		return Vector2.INF
+	return world.environment_builder.find_clear_spawn_position(world.player.global_position, minimum, maximum)
+
+
+func _position_is_finite(position: Vector2) -> bool:
+	return is_finite(position.x) and is_finite(position.y)
 
 
 func add_player_projectile(projectile: Node) -> void:

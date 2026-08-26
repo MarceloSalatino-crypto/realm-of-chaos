@@ -5,6 +5,11 @@ const WORLD_SCENE = preload("res://scenes/world.tscn")
 var failures: Array[String] = []
 
 
+class DummyEnemy:
+	extends Node2D
+	var dead := false
+
+
 func _initialize() -> void:
 	call_deferred("_run")
 
@@ -35,7 +40,7 @@ func _clear_enemy_state(world: Node) -> void:
 
 func _fill_with_dummies(world: Node, target: int) -> void:
 	while world.enemies.get_child_count() < target:
-		world.enemies.add_child(Node2D.new())
+		world.enemies.add_child(DummyEnemy.new())
 
 
 func _remove_dummy(world: Node) -> void:
@@ -100,9 +105,20 @@ func _run() -> void:
 	world.time_survived = 600.0
 	cap = world.enemy_population_cap()
 	var caster = world.spawn_enemy("necromancer", false, 1.0)
+	var summon_obstacle := StaticBody2D.new()
+	summon_obstacle.global_position = caster.global_position + Vector2(73.0, 0.0)
+	world.obstacles.add_child(summon_obstacle)
+	world.environment_builder.rebuild_obstacle_grid()
 	_fill_with_dummies(world, cap - 2)
 	caster._summon_minions(5)
 	_check(world.enemies.get_child_count() == cap, "invocacao nao criou somente os dois lacaios que cabiam")
+	for enemy in world.enemies.get_children():
+		if enemy == caster or not enemy.has_method("take_damage"):
+			continue
+		_check(world._spawn_position_is_clear(enemy.global_position), "invocacao do necromante nasceu sobre obstaculo")
+	summon_obstacle.queue_free()
+	await process_frame
+	world.environment_builder.rebuild_obstacle_grid()
 
 	# Boss nunca e perdido: permanece pendente e ganha prioridade no proximo frame com vaga.
 	_clear_enemy_state(world)

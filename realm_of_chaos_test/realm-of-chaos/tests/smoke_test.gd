@@ -22,7 +22,11 @@ func _run() -> void:
 	world.audio.enabled = false
 
 	_check(is_instance_valid(world.player), "player não foi instanciado")
-	_check(world.decorations.get_child_count() == 310, "mundo procedural incompleto")
+	_check(
+		world.environment_builder.visual_batcher.visual_instances.size() == 1272
+		and world.decorations.get_child_count() < 200,
+		"mundo procedural em lotes incompleto"
+	)
 	_check(world.hud != null, "HUD não foi instanciado")
 	var starting_weapon_count := 0
 	for weapon_id in world.player.WEAPON_IDS:

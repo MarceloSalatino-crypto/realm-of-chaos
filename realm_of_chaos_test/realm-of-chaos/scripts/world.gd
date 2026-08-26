@@ -194,6 +194,15 @@ func spawn_enemy(kind: String, force_elite := false, power_override := -1.0) -> 
 	return entity_manager.spawn_enemy(kind, force_elite, power_override)
 
 
+func spawn_enemy_near(
+	kind: String, origin: Vector2, minimum: float, maximum: float,
+	force_elite := false, power_override := -1.0, preferred_angle := NAN
+) -> Node:
+	return entity_manager.spawn_enemy_near(
+		kind, origin, minimum, maximum, force_elite, power_override, preferred_angle
+	)
+
+
 func enemy_population_cap() -> int:
 	return entity_manager.enemy_population_cap()
 

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dlslkcj1fy3fi"
-path="res://.godot/imported/map_floor_decals_v1.png-8cc1c9ac3d81bcfce0a30e968bc666db.ctex"
+uid="uid://bt4a1sx1q1md2"
+path="res://.godot/imported/ritual.png-280fc6bf65f9080b0eb91bf1dde32f79.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/generated/map_floor_decals_v1.png"
-dest_files=["res://.godot/imported/map_floor_decals_v1.png-8cc1c9ac3d81bcfce0a30e968bc666db.ctex"]
+source_file="res://assets/generated/map_decals_v2/frozen/ritual.png"
+dest_files=["res://.godot/imported/ritual.png-280fc6bf65f9080b0eb91bf1dde32f79.ctex"]
 
 [params]
 

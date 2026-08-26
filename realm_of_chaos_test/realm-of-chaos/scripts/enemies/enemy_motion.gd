@@ -86,4 +86,6 @@ func apply_slow(multiplier: float, duration: float) -> void:
 
 
 func reposition_far() -> void:
-	enemy.global_position = enemy.world.get_spawn_position(690.0, 820.0)
+	var spawn_position: Vector2 = enemy.world.get_spawn_position(690.0, 820.0)
+	if is_finite(spawn_position.x) and is_finite(spawn_position.y):
+		enemy.global_position = spawn_position
