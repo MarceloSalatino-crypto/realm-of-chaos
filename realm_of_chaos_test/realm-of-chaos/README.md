@@ -39,17 +39,18 @@ Uma evolução completa do protótipo original para um loop no estilo survivor: 
 - Números de dano, críticos, congelamento de impacto, telemetria, tremor de câmera e partículas com orçamento visual sob carga.
 - Três músicas ambientes em rotação com crossfade, faixa procedural de chefe e 23 samples reais de efeitos no bus SFX.
 - Mixagem protegida por buses separados de música/efeitos, compressão, limiters, limite de vozes e prioridade para eventos essenciais.
-- Game Over ao morrer ou Vitória após derrotar o chefe final, com reinício da fase ou avanço para o próximo bioma.
+- Game Over ao morrer ou conclusão após derrotar o chefe final, com repetição do mesmo mapa na derrota e retorno à campanha na vitória.
 - Tela final detalhada com dano total, maior fonte de dano, dano recebido, chefes vencidos, relíquias e novas conquistas.
 - Metaprogressão permanente com Essência e melhorias de dano, vida, movimento e crítico.
 - Sete conquistas persistentes e painel de perfil integrado ao menu.
-- Três biomas encadeados: Bosque Profanado, Ruínas Glaciais e Catedral do Vazio.
+- Campanha orientada por dados com dez posições: Bosque Profanado, Ruínas Glaciais e Catedral do Vazio jogáveis, mais sete mapas futuros visíveis como “Em breve”.
+- Desbloqueio sequencial persistente: somente a derrota do chefe final conclui o mapa e libera o próximo; mapas concluídos continuam disponíveis para repetição.
 - Física própria por bioma: raízes reduzem movimento, placas de gelo diminuem tração e fendas do Vazio causam dano contínuo.
-- Mapa estruturado em zonas, com clareira central, caminhos radiais, 24 obstáculos físicos e quatro marcos visuais exploráveis.
+- Mapa estruturado em regiões semânticas, com clareira central, caminhos orgânicos, 36 obstáculos físicos e quatro marcos visuais exploráveis.
 - Santuários do Altar Rubro, Obelisco Cronal, Árvore das Almas e Portal Fraturado concedem bênçãos temporárias de combate.
 - Minimap dinâmico mostra jogador, santuários, chefes e baús de recompensa.
 - Eventos especiais: Lua de Sangue, Tempestade de Almas, Eclipse e Chuva do Vazio.
-- Arena com 310 elementos decorativos determinísticos e variação visual por bioma.
+- Arena com 1.200 detalhes ambientais determinísticos renderizados em lotes e variação visual por bioma.
 - Movimento com aceleração, frenagem e inércia; separação local faz inimigos contornarem uns aos outros em vez de formar um bloco estático.
 - Entrada cinematográfica de chefes e sinalização do perigo do terreno no HUD.
 - Opções persistentes de música, efeitos sonoros, tremor de câmera, intensidade de flashes e tela cheia.
@@ -81,12 +82,13 @@ Get-ChildItem tests -Filter *_test.gd |
   }
 ```
 
-Os três benchmarks possuem critérios reais de aprovação:
+Os benchmarks possuem critérios reais de aprovação:
 
 ```powershell
-godot --headless --path . --fixed-fps 60 --script res://tests/performance_test.gd
-godot --headless --path . --fixed-fps 60 --script res://tests/visual_load_performance_test.gd
-godot --headless --path . --fixed-fps 60 --script res://tests/max_build_drop_performance_test.gd
+godot --headless --path . --script res://tests/performance_test.gd
+godot --headless --path . --script res://tests/visual_load_performance_test.gd
+godot --headless --path . --script res://tests/max_build_drop_performance_test.gd
+godot --path . --script res://tests/forest_collision_performance_test.gd
 ```
 
 Eles falham se a média ultrapassar 14,0 ms ou o p95 ultrapassar 22,0 ms.
@@ -102,10 +104,15 @@ Os atalhos só funcionam em execução pelo editor e não são habilitados em um
 
 ## Estrutura principal
 
+- `docs/environment_art_direction.md`: padrão de qualidade, composição e processo de aprovação visual dos biomas.
 - `scenes/world.tscn`: composição da arena e camadas de atores.
+- `scenes/campaign_select.tscn`: seleção responsiva dos dez nós da campanha.
+- `scripts/campaign_catalog.gd`: definições orientadas por dados dos mapas, requisitos, previews, biomas e parâmetros preservados.
+- `scripts/campaign_manager.gd`: seleção, desbloqueios, conclusões, migração legada e reset isolado da campanha.
 - `scripts/world.gd`: fachada pública, estado compartilhado e ordem principal da partida.
 - `scripts/world_spatial_index.gd`: consultas espaciais de inimigos.
 - `scripts/world_environment_builder.gd`: construção do bioma, perigos, obstáculos e santuários.
+- `scripts/forest_terrain_composer.gd`: regiões semânticas, terreno contínuo e composição aprovada do Bosque Profanado.
 - `scripts/world_persistence.gd`: perfil, opções, recordes e conquistas persistentes.
 - `scripts/world_director.gd`: cronograma de hordas, eventos, elites e chefes.
 - `scripts/world_entity_manager.gd`: criação, limites e pooling de entidades da partida.
@@ -134,8 +141,10 @@ Os atalhos só funcionam em execução pelo editor e não são habilitados em um
 - `assets/generated/`: herói, bestiário e chão originais integrados ao jogo.
 - `tests/`: caracterização dos componentes extraídos, integração de gameplay, áudio, orientação visual, UI e regressões.
 - `tests/performance_test.gd`: referência de IA e busca espacial com 300 inimigos.
-- `tests/visual_load_performance_test.gd`: carga combinada no teto global de 90 inimigos, com 520 pickups, 18 perigos, 276 projéteis e 120 efeitos.
+- `tests/visual_load_performance_test.gd`: carga combinada no teto global de 90 inimigos, com 520 pickups, 276 projéteis e 120 efeitos; o Bosque não possui perigos ambientais.
 - `tests/max_build_drop_performance_test.gd`: custo de 520 mortes após a build ficar completa.
+- `tests/forest_collision_performance_test.gd`: 90 inimigos concentrados ao redor das massas físicas reais do Bosque.
+- `tests/forest_terrain_integration_visual_test.gd`: cinco situações obrigatórias do Bosque no mapa real.
 
 ## Espaço para futuras expansões
 
