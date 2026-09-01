@@ -2,6 +2,42 @@ class_name GameDefs
 extends RefCounted
 
 
+const EvolutionCatalogScript = preload("res://scripts/evolution_catalog.gd")
+const WEAPON_UPGRADE_IDS: Array[String] = [
+	"chaos_bolt", "shadow_blades", "soul_orbit", "chaos_nova",
+	"blood_scythe", "forbidden_grimoire", "rune_hammer", "storm_relic", "swarm_idol",
+]
+const PASSIVE_UPGRADE_IDS: Array[String] = [
+	"might", "haste", "vitality", "swiftness",
+	"magnet", "armor", "regeneration", "critical",
+]
+
+
+const ENEMY_XP_DROP_PROFILES := {
+	"prowler": {"chance": 0.60, "value": 5, "elite_chance": 1.0, "elite_value_multiplier": 2.40, "guaranteed": false, "burst_count": 0, "burst_value": 0},
+	"bat": {"chance": 0.50, "value": 4, "elite_chance": 1.0, "elite_value_multiplier": 2.00, "guaranteed": false, "burst_count": 0, "burst_value": 0},
+	"mage": {"chance": 0.62, "value": 8, "elite_chance": 1.0, "elite_value_multiplier": 2.50, "guaranteed": false, "burst_count": 0, "burst_value": 0},
+	"brute": {"chance": 0.64, "value": 14, "elite_chance": 1.0, "elite_value_multiplier": 2.5714, "guaranteed": false, "burst_count": 0, "burst_value": 0},
+	"ember": {"chance": 0.50, "value": 10, "elite_chance": 1.0, "elite_value_multiplier": 2.00, "guaranteed": false, "burst_count": 0, "burst_value": 0},
+	"bomber": {"chance": 0.70, "value": 10, "elite_chance": 1.0, "elite_value_multiplier": 2.80, "guaranteed": false, "burst_count": 0, "burst_value": 0},
+	"necromancer": {"chance": 0.72, "value": 18, "elite_chance": 1.0, "elite_value_multiplier": 2.8889, "guaranteed": false, "burst_count": 0, "burst_value": 0},
+	"archer": {"chance": 0.67, "value": 12, "elite_chance": 1.0, "elite_value_multiplier": 2.6667, "guaranteed": false, "burst_count": 0, "burst_value": 0},
+	"assassin": {"chance": 0.56, "value": 16, "elite_chance": 1.0, "elite_value_multiplier": 2.25, "guaranteed": false, "burst_count": 0, "burst_value": 0},
+	"swarm": {"chance": 0.25, "value": 4, "elite_chance": 1.0, "elite_value_multiplier": 1.00, "guaranteed": false, "burst_count": 0, "burst_value": 0},
+	"guardian": {"chance": 0.80, "value": 20, "elite_chance": 1.0, "elite_value_multiplier": 3.20, "guaranteed": false, "burst_count": 0, "burst_value": 0},
+	"ossuary_colossus": {"chance": 1.0, "value": 120, "elite_chance": 1.0, "elite_value_multiplier": 1.0, "guaranteed": true, "burst_count": 7, "burst_value": 12},
+	"glacial_archon": {"chance": 1.0, "value": 180, "elite_chance": 1.0, "elite_value_multiplier": 1.0, "guaranteed": true, "burst_count": 7, "burst_value": 12},
+	"infernal_reaper": {"chance": 1.0, "value": 260, "elite_chance": 1.0, "elite_value_multiplier": 1.0, "guaranteed": true, "burst_count": 7, "burst_value": 12},
+	"void_titan": {"chance": 1.0, "value": 380, "elite_chance": 1.0, "elite_value_multiplier": 1.0, "guaranteed": true, "burst_count": 7, "burst_value": 12},
+	"chaos_sovereign": {"chance": 1.0, "value": 900, "elite_chance": 1.0, "elite_value_multiplier": 1.0, "guaranteed": true, "burst_count": 10, "burst_value": 18},
+	"void_knight": {"chance": 1.0, "value": 80, "elite_chance": 1.0, "elite_value_multiplier": 1.0, "guaranteed": true, "burst_count": 7, "burst_value": 12},
+}
+
+
+static func enemy_xp_drop_profile(kind: String) -> Dictionary:
+	return Dictionary(ENEMY_XP_DROP_PROFILES.get(kind, ENEMY_XP_DROP_PROFILES.prowler)).duplicate(true)
+
+
 static func enemy_data(kind: String) -> Dictionary:
 	match kind:
 		"bat":
@@ -77,82 +113,91 @@ static func boss_schedule() -> Array[Dictionary]:
 
 static func upgrades() -> Array[Dictionary]:
 	return [
-		{"id": "chaos_bolt", "title": "Besta do Caos", "icon": "✦", "max": 8,
+		{"id": "chaos_bolt", "title": "Besta do Caos", "icon": "✦", "max": 8, "offer_weight": 1.0, "offer_tier": "standard",
 		 "description": "Dispara setas profanas; ganha dano, projéteis e perfuração.",
 		 "short_description": "Setas profanas: dano, projéteis e perfuração"},
-		{"id": "shadow_blades", "title": "Lâminas Sombrias", "icon": "◆", "max": 6,
+		{"id": "shadow_blades", "title": "Lâminas Sombrias", "icon": "◆", "max": 6, "offer_weight": 1.0, "offer_tier": "standard",
 		 "description": "Dispara uma rajada em leque contra a horda.",
 		 "short_description": "Rajada em leque contra a horda"},
-		{"id": "soul_orbit", "title": "Cetro das Almas", "icon": "◉", "max": 6,
+		{"id": "soul_orbit", "title": "Cetro das Almas", "icon": "◉", "max": 6, "offer_weight": 1.0, "offer_tier": "standard",
 		 "description": "Invoca lâminas orbitais que ferem inimigos próximos.",
 		 "short_description": "Lâminas orbitais ferem inimigos próximos"},
-		{"id": "chaos_nova", "title": "Cajado da Nova", "icon": "☼", "max": 6,
+		{"id": "chaos_nova", "title": "Cajado da Nova", "icon": "☼", "max": 6, "offer_weight": 1.0, "offer_tier": "standard",
 		 "description": "Conjura uma explosão periódica em toda a área.",
 		 "short_description": "Explosão periódica em toda a área"},
-		{"id": "blood_scythe", "title": "Foice Hemática", "icon": "☾", "max": 6,
+		{"id": "blood_scythe", "title": "Foice Hemática", "icon": "☾", "max": 6, "offer_weight": 1.0, "offer_tier": "standard",
 		 "description": "Varre a horda à frente e converte parte do dano em vida.",
 		 "short_description": "Golpe frontal com roubo de vida"},
-		{"id": "forbidden_grimoire", "title": "Grimório Proibido", "icon": "▤", "max": 6,
+		{"id": "forbidden_grimoire", "title": "Grimório Proibido", "icon": "▤", "max": 6, "offer_weight": 1.0, "offer_tier": "standard",
 		 "description": "Abre um selo explosivo sob grupos de inimigos.",
 		 "short_description": "Selo explosivo sob grupos de inimigos"},
-		{"id": "rune_hammer", "title": "Martelo Rúnico", "icon": "◆", "max": 6,
+		{"id": "rune_hammer", "title": "Martelo Rúnico", "icon": "◆", "max": 6, "offer_weight": 1.0, "offer_tier": "standard",
 		 "description": "Esmaga o chão com dano em área e forte repulsão.",
 		 "short_description": "Impacto em área com forte repulsão"},
-		{"id": "storm_relic", "title": "Relíquia da Tempestade", "icon": "ϟ", "max": 6,
+		{"id": "storm_relic", "title": "Relíquia da Tempestade", "icon": "ϟ", "max": 6, "offer_weight": 1.0, "offer_tier": "standard",
 		 "description": "Encadeia relâmpagos entre vários alvos.",
 		 "short_description": "Relâmpagos encadeados entre alvos"},
-		{"id": "swarm_idol", "title": "Ídolo do Enxame", "icon": "◉", "max": 6,
+		{"id": "swarm_idol", "title": "Ídolo do Enxame", "icon": "◉", "max": 6, "offer_weight": 1.0, "offer_tier": "standard",
 		 "description": "Invoca olhos espectrais que perseguem inimigos.",
 		 "short_description": "Olhos espectrais perseguem inimigos"},
-		{"id": "might", "title": "Poder Profano", "icon": "▲", "max": 5,
+		{"id": "might", "title": "Poder Profano", "icon": "▲", "max": 5, "offer_weight": 1.0, "offer_tier": "standard",
 		 "description": "+15% de dano para todas as armas.",
 		 "short_description": "+15% dano de todas as armas"},
-		{"id": "haste", "title": "Ritual Acelerado", "icon": "»", "max": 5,
+		{"id": "haste", "title": "Ritual Acelerado", "icon": "»", "max": 5, "offer_weight": 1.0, "offer_tier": "standard",
 		 "description": "+10% de velocidade de ataque.",
 		 "short_description": "+10% velocidade de ataque"},
-		{"id": "vitality", "title": "Sangue Ancestral", "icon": "♥", "max": 5,
+		{"id": "vitality", "title": "Sangue Ancestral", "icon": "♥", "max": 5, "offer_weight": 1.0, "offer_tier": "standard",
 		 "description": "+25 de vida máxima e cura imediata.",
 		 "short_description": "+25 HP e cura imediata"},
-		{"id": "swiftness", "title": "Passo Espectral", "icon": "➤", "max": 5,
+		{"id": "swiftness", "title": "Passo Espectral", "icon": "➤", "max": 5, "offer_weight": 1.0, "offer_tier": "standard",
 		 "description": "+8% de velocidade de movimento.",
 		 "short_description": "+8% velocidade de movimento"},
-		{"id": "magnet", "title": "Ímã de Éter", "icon": "⌁", "max": 5,
+		{"id": "magnet", "title": "Ímã de Éter", "icon": "⌁", "max": 5, "offer_weight": 1.0, "offer_tier": "standard",
 		 "description": "+35% de alcance para coletar cristais.",
 		 "short_description": "+35% alcance de coleta"},
-		{"id": "armor", "title": "Pele de Pedra", "icon": "⬟", "max": 5,
+		{"id": "armor", "title": "Pele de Pedra", "icon": "⬟", "max": 5, "offer_weight": 1.0, "offer_tier": "standard",
 		 "description": "Reduz em 2 o dano recebido.",
 		 "short_description": "-2 de dano recebido"},
-		{"id": "regeneration", "title": "Pacto Regenerativo", "icon": "+", "max": 5,
+		{"id": "regeneration", "title": "Pacto Regenerativo", "icon": "+", "max": 5, "offer_weight": 1.0, "offer_tier": "standard",
 		 "description": "Recupera vida continuamente.",
 		 "short_description": "Regenera HP continuamente"},
-		{"id": "critical", "title": "Olhar Fatal", "icon": "!", "max": 5,
+		{"id": "critical", "title": "Olhar Fatal", "icon": "!", "max": 5, "offer_weight": 1.0, "offer_tier": "standard",
 		 "description": "+7% de chance de dano crítico.",
 		 "short_description": "+7% chance de dano crítico"}
 	]
 
 
 static func evolution_data(weapon_id: String) -> Dictionary:
-	match weapon_id:
-		"chaos_bolt":
-			return {"title": "BALISTA ABISSAL", "passive": "critical", "weapon_level": 8, "passive_level": 3}
-		"shadow_blades":
-			return {"title": "DANÇA DAS SOMBRAS", "passive": "swiftness", "weapon_level": 6, "passive_level": 3}
-		"soul_orbit":
-			return {"title": "DEVORADOR DE ESPÍRITOS", "passive": "regeneration", "weapon_level": 6, "passive_level": 3}
-		"chaos_nova":
-			return {"title": "COLAPSO DO VAZIO", "passive": "might", "weapon_level": 6, "passive_level": 3}
-		"blood_scythe":
-			return {"title": "CEIFADORA CARMESIM", "passive": "vitality", "weapon_level": 6, "passive_level": 3}
-		"forbidden_grimoire":
-			return {"title": "CÓDICE DO FIM", "passive": "magnet", "weapon_level": 6, "passive_level": 3}
-		"rune_hammer":
-			return {"title": "MARTELO DO CATACLISMO", "passive": "armor", "weapon_level": 6, "passive_level": 3}
-		"storm_relic":
-			return {"title": "TEMPESTADE ETERNA", "passive": "haste", "weapon_level": 6, "passive_level": 3}
-		"swarm_idol":
-			return {"title": "OLHO DA LEGIÃO", "passive": "regeneration", "weapon_level": 6, "passive_level": 3}
-		_:
-			return {}
+	return EvolutionCatalogScript.legacy_data(weapon_id)
+
+
+static func evolution_recipes() -> Array[Dictionary]:
+	return EvolutionCatalogScript.recipes()
+
+
+static func evolution_recipe(weapon_id: String) -> Dictionary:
+	return EvolutionCatalogScript.recipe_for_weapon(weapon_id)
+
+
+static func evolution_requirements_met(
+	recipe: Dictionary,
+	weapon_levels: Dictionary,
+	passive_levels: Dictionary
+) -> bool:
+	return EvolutionCatalogScript.requirements_met(recipe, weapon_levels, passive_levels)
+
+
+static func evolution_catalog_validation_errors() -> Array[String]:
+	var max_levels: Dictionary = {}
+	for definition in upgrades():
+		max_levels[str(definition.id)] = int(definition.max)
+	return EvolutionCatalogScript.validation_errors(
+		EvolutionCatalogScript.recipes(),
+		WEAPON_UPGRADE_IDS,
+		PASSIVE_UPGRADE_IDS,
+		max_levels,
+		true
+	)
 
 
 static func upgrade_title(upgrade_id: String) -> String:
@@ -246,14 +291,14 @@ static func default_settings() -> Dictionary:
 	}
 
 
-static func biome_data(cycle: int) -> Dictionary:
-	match cycle % 3:
-		1:
+static func biome_data_by_id(biome_id: String) -> Dictionary:
+	match biome_id:
+		"frozen":
 			return {
 				"id": "frozen", "name": "RUÍNAS GLACIAIS", "ground": "res://assets/generated/frozen_ruins_ground.png",
 				"ground_modulate": Color("aecce2"), "fog": Color(0.10, 0.28, 0.42, 0.08), "enemy_power": 1.22
 			}
-		2:
+		"cathedral":
 			return {
 				"id": "cathedral", "name": "CATEDRAL DO VAZIO", "ground": "res://assets/generated/void_cathedral_ground.png",
 				"ground_modulate": Color("b7a7ca"), "fog": Color(0.25, 0.06, 0.36, 0.10), "enemy_power": 1.48
@@ -263,6 +308,13 @@ static func biome_data(cycle: int) -> Dictionary:
 				"id": "forest", "name": "BOSQUE PROFANADO", "ground": "res://assets/generated/corrupted_forest_ground.png",
 				"ground_modulate": Color("d1dbe9"), "fog": Color(0.10, 0.04, 0.16, 0.06), "enemy_power": 1.0
 			}
+
+
+static func biome_data(cycle: int) -> Dictionary:
+	# Fachada legada para testes e ferramentas antigas. O fluxo de campanha em
+	# produção resolve o bioma pelo map_id do CampaignCatalog.
+	var biome_ids := ["forest", "frozen", "cathedral"]
+	return biome_data_by_id(str(biome_ids[posmod(cycle, biome_ids.size())]))
 
 
 static func stage_name(elapsed: float) -> String:

@@ -10,6 +10,7 @@ var popup: Control
 var hero_base_y := 0.0
 var profile_button: Button
 var transitioning := false
+var transition_fade: ColorRect
 var save_path := SAVE_PATH
 var save_load_status := SaveStoreScript.STATUS_MISSING
 var save_load_notice_shown := false
@@ -118,15 +119,27 @@ func _on_play() -> void:
 		return
 	transitioning = true
 	play_button.disabled = true
-	var fade := ColorRect.new()
-	fade.color = Color(0.01, 0.004, 0.025, 0.0)
-	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	fade.mouse_filter = Control.MOUSE_FILTER_STOP
-	fade.z_index = 100
-	add_child(fade)
+	transition_fade = ColorRect.new()
+	transition_fade.color = Color(0.01, 0.004, 0.025, 0.0)
+	transition_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	transition_fade.mouse_filter = Control.MOUSE_FILTER_STOP
+	transition_fade.z_index = 100
+	add_child(transition_fade)
 	var tween := create_tween()
-	tween.tween_property(fade, "color", Color(0.01, 0.004, 0.025, 1.0), 0.32)
-	tween.tween_callback(func(): get_tree().change_scene_to_file("res://scenes/world.tscn"))
+	tween.tween_property(transition_fade, "color", Color(0.01, 0.004, 0.025, 1.0), 0.32)
+	tween.tween_callback(_open_campaign)
+
+
+func _open_campaign() -> void:
+	var transition_guard = get_node_or_null("/root/SceneTransitionGuard")
+	var error: Error = transition_guard.change_scene_to_file("res://scenes/campaign_select.tscn") if transition_guard != null else get_tree().change_scene_to_file("res://scenes/campaign_select.tscn")
+	if error == OK:
+		return
+	transitioning = false
+	play_button.disabled = false
+	if is_instance_valid(transition_fade):
+		transition_fade.queue_free()
+	transition_fade = null
 
 
 func _load_records() -> void:
@@ -140,13 +153,17 @@ func _load_records() -> void:
 	var best_kills := int(config.get_value("record", "best_kills", 0))
 	var victories := int(config.get_value("record", "victories", 0))
 	var essence := int(config.get_value("meta", "essence", 0))
-	var cycle := int(config.get_value("progress", "active_cycle", 0))
+	var campaign_manager = get_node_or_null("/root/CampaignManager")
+	var current_map_name := "BOSQUE PROFANADO"
+	if campaign_manager != null:
+		campaign_manager.load_progress(save_path, false)
+		current_map_name = str(campaign_manager.selected_map().name)
 	var fullscreen := bool(config.get_value("settings", "fullscreen", false))
 	if not OS.has_feature("headless"):
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen else DisplayServer.WINDOW_MODE_WINDOWED)
 	@warning_ignore("integer_division")
 	records_label.text = "%s · %d ESSÊNCIAS\nRECORDE %02d:%02d · %d BANIDOS · %d VITÓRIAS" % [
-		str(GameDefs.biome_data(cycle).name), essence, int(best_time) / 60, int(best_time) % 60, best_kills, victories
+		current_map_name, essence, int(best_time) / 60, int(best_time) % 60, best_kills, victories
 	]
 
 

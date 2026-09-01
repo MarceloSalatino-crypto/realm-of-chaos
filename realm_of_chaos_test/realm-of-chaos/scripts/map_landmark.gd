@@ -31,6 +31,7 @@ var redraw_timer := 0.0
 var sprite: Sprite2D
 var prompt: Label
 var screen_notifier: VisibleOnScreenNotifier2D
+var contact_activation_enabled := false
 
 
 func configure(owner_world: Node, kind: String, landmark_position: Vector2, atlas_frame: int) -> void:
@@ -84,7 +85,7 @@ func _process(delta: float) -> void:
 	if not activated and is_instance_valid(world) and is_instance_valid(world.player):
 		var distance := global_position.distance_to(world.player.global_position)
 		prompt.visible = distance < 430.0
-		if distance <= 112.0:
+		if not contact_activation_enabled and distance <= 112.0:
 			world.activate_landmark(self)
 	if visual_on_screen:
 		redraw_timer -= delta
@@ -100,6 +101,27 @@ func mark_activated() -> void:
 	if is_instance_valid(sprite):
 		sprite.modulate = Color(0.72, 0.72, 0.78, 0.86)
 	queue_redraw()
+
+
+func set_contact_activation_enabled(enabled: bool) -> void:
+	contact_activation_enabled = enabled
+	if not is_instance_valid(prompt) or activated:
+		return
+	prompt.text = "%s\n%s" % [
+		str(TITLES[landmark_kind]),
+		"ENCOSTE PARA ATIVAR" if contact_activation_enabled else "APROXIME-SE",
+	]
+
+
+func activate_from_physical_contact(body: Node) -> bool:
+	if not contact_activation_enabled or activated:
+		return false
+	if not is_instance_valid(world) or world.game_ended or not is_instance_valid(world.player):
+		return false
+	if body != world.player:
+		return false
+	world.activate_landmark(self)
+	return activated
 
 
 func minimap_color() -> Color:

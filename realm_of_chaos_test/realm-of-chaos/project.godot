@@ -20,6 +20,11 @@ run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://assets/generated/hero_chaos_warden.png"
 
+[autoload]
+
+CampaignManager="*res://scripts/campaign_manager.gd"
+SceneTransitionGuard="*res://scripts/scene_transition_guard.gd"
+
 [display]
 
 window/size/viewport_width=1280

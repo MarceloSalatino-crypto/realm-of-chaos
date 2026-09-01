@@ -131,34 +131,10 @@ func draw() -> void:
 		var evolved := bool(player.evolved_weapons.soul_orbit)
 		var radius: float = 122.0 + orbit_level * 8.0 if evolved else 72.0 + orbit_level * 8.0
 		var blade_count: int = 6 + int(orbit_level / 2.0) if evolved else 2 + int(orbit_level / 2.0)
-		for index in range(blade_count):
-			var position: Vector2 = Vector2.RIGHT.rotated(player.orbit_angle + TAU * index / blade_count) * radius
-			var radial := position.normalized()
-			var tangent := radial.rotated(PI * 0.5)
-			var blade_outline := PackedVector2Array([
-				position - tangent * 14.0 - radial * 5.0,
-				position + tangent * 7.0 - radial * 7.0,
-				position + tangent * 14.0,
-				position + tangent * 7.0 + radial * 7.0,
-				position - tangent * 14.0 + radial * 5.0,
-				position - tangent * 8.0,
-			])
-			var blade_fill := PackedVector2Array([
-				position - tangent * 10.5 - radial * 2.8,
-				position + tangent * 5.5 - radial * 4.1,
-				position + tangent * 10.5,
-				position + tangent * 5.5 + radial * 4.1,
-				position - tangent * 10.5 + radial * 2.8,
-				position - tangent * 6.5,
-			])
-			var blade_color := Color("efb83f") if evolved else Color("b96cff")
-			player.draw_colored_polygon(blade_outline, Color("1b1022"))
-			player.draw_colored_polygon(blade_fill, blade_color.darkened(0.18))
-			player.draw_line(
-				position - tangent * 5.0 - radial * 1.4,
-				position + tangent * 6.5 - radial * 2.0,
-				blade_color.lightened(0.40), 1.4
-			)
+		if evolved:
+			_draw_soul_devourer(blade_count, radius)
+		else:
+			_draw_base_soul_orbit(blade_count, radius)
 	if player.attack_flash > 0.0:
 		var direction: Vector2 = player.attack_direction.normalized()
 		var side := direction.rotated(PI * 0.5)
@@ -188,3 +164,114 @@ func draw() -> void:
 			muzzle + direction * 15.0,
 			Color(0.94, 0.76, 1.0, player.attack_flash), 2.5
 		)
+
+
+func _draw_base_soul_orbit(blade_count: int, radius: float) -> void:
+	for index in range(blade_count):
+		var position: Vector2 = Vector2.RIGHT.rotated(player.orbit_angle + TAU * index / blade_count) * radius
+		var radial := position.normalized()
+		var tangent := radial.rotated(PI * 0.5)
+		var blade_outline := PackedVector2Array([
+			position - tangent * 14.0 - radial * 5.0,
+			position + tangent * 7.0 - radial * 7.0,
+			position + tangent * 14.0,
+			position + tangent * 7.0 + radial * 7.0,
+			position - tangent * 14.0 + radial * 5.0,
+			position - tangent * 8.0,
+		])
+		var blade_fill := PackedVector2Array([
+			position - tangent * 10.5 - radial * 2.8,
+			position + tangent * 5.5 - radial * 4.1,
+			position + tangent * 10.5,
+			position + tangent * 5.5 + radial * 4.1,
+			position - tangent * 10.5 + radial * 2.8,
+			position - tangent * 6.5,
+		])
+		var blade_color := Color("b96cff")
+		player.draw_colored_polygon(blade_outline, Color("1b1022"))
+		player.draw_colored_polygon(blade_fill, blade_color.darkened(0.18))
+		player.draw_line(
+			position - tangent * 5.0 - radial * 1.4,
+			position + tangent * 6.5 - radial * 2.0,
+			blade_color.lightened(0.40), 1.4
+		)
+
+
+func _draw_soul_devourer(blade_count: int, radius: float) -> void:
+	var vertices := PackedVector2Array()
+	var colors := PackedColorArray()
+	var indices := PackedInt32Array()
+	for index in range(blade_count):
+		var position: Vector2 = Vector2.RIGHT.rotated(player.orbit_angle + TAU * index / blade_count) * radius
+		var radial := position.normalized()
+		var tangent := radial.rotated(PI * 0.5)
+		_append_visual_polygon(vertices, colors, indices, PackedVector2Array([
+			position - tangent * 17.0 - radial * 7.0,
+			position + tangent * 8.0 - radial * 9.0,
+			position + tangent * 18.0,
+			position + tangent * 7.0 + radial * 9.0,
+			position - tangent * 17.0 + radial * 7.0,
+			position - tangent * 9.0,
+		]), Color("160f20"))
+		_append_visual_polygon(vertices, colors, indices, PackedVector2Array([
+			position - tangent * 12.5 - radial * 3.5,
+			position + tangent * 5.5 - radial * 5.0,
+			position + tangent * 13.0,
+			position + tangent * 5.5 + radial * 5.0,
+			position - tangent * 12.5 + radial * 3.5,
+			position - tangent * 7.0,
+		]), Color("72449a"))
+		_append_visual_polygon(vertices, colors, indices, PackedVector2Array([
+			position - tangent * 6.0 - radial * 1.8,
+			position + tangent * 8.8,
+			position - tangent * 2.0 + radial * 1.8,
+		]), Color("efc86a"))
+	var charges := 0
+	var release_visual_time := 0.0
+	if player.combat:
+		charges = int(player.combat.soul_essence_charges)
+		release_visual_time = float(player.combat.soul_devourer_release_visual_time)
+	for index in range(charges):
+		var direction := Vector2.RIGHT.rotated(-player.orbit_angle * 0.62 + TAU * index / 6.0)
+		var center := direction * (35.0 + float(index % 2) * 5.0)
+		var side := direction.rotated(PI * 0.5)
+		_append_visual_polygon(vertices, colors, indices, PackedVector2Array([
+			center - side * 3.5 - direction * 6.0,
+			center + direction * 8.0,
+			center + side * 3.5 - direction * 6.0,
+		]), Color("d9a853" if index % 2 == 0 else "9b61c3"))
+	if release_visual_time > 0.0:
+		var intensity := clampf(release_visual_time / 0.44, 0.0, 1.0)
+		var direction := Vector2.RIGHT.rotated(player.orbit_angle * 0.18 + 0.24)
+		var side := direction.rotated(PI * 0.5)
+		var opening := 8.0 + intensity * 7.0
+		var reach := 27.0 + intensity * 10.0
+		_append_visual_polygon(vertices, colors, indices, PackedVector2Array([
+			-direction * 7.0 + side * (opening + 4.0),
+			direction * 6.0 + side * (opening + 8.0),
+			direction * reach + side * 5.0,
+			direction * (reach + 7.0) - side * 1.0,
+			direction * 4.0 + side * 4.0,
+		]), Color(0.91, 0.66, 0.28, intensity))
+		_append_visual_polygon(vertices, colors, indices, PackedVector2Array([
+			-direction * 6.0 - side * (opening + 3.0),
+			direction * 3.0 - side * (opening + 7.0),
+			direction * (reach - 4.0) - side * 7.0,
+			direction * (reach + 5.0) - side * 2.0,
+			direction * 2.0 - side * 4.0,
+		]), Color(0.58, 0.34, 0.76, intensity))
+	if not vertices.is_empty():
+		RenderingServer.canvas_item_add_triangle_array(player.get_canvas_item(), indices, vertices, colors)
+
+
+func _append_visual_polygon(
+	vertices: PackedVector2Array, colors: PackedColorArray, indices: PackedInt32Array,
+	polygon: PackedVector2Array, color: Color
+) -> void:
+	var polygon_indices := Geometry2D.triangulate_polygon(polygon)
+	var base := vertices.size()
+	for point in polygon:
+		vertices.append(point)
+		colors.append(color)
+	for polygon_index in polygon_indices:
+		indices.append(base + polygon_index)

@@ -1,12 +1,29 @@
 extends RefCounted
 
 
+const OFFER_HISTORY_LIMIT := 2
+const RECENT_OFFER_MULTIPLIER := 0.32
+const OWNED_OFFER_MULTIPLIER := 1.22
+const SYNERGY_OFFER_MULTIPLIER := 1.12
+const EARLY_DISCOVERY_LEVEL_END := 8
+const MID_BUILD_LEVEL_END := 22
+const REPEAT_REROLL_ATTEMPTS := 10
+
 var player
 var build_complete := false
+var offer_rng := RandomNumberGenerator.new()
+var offer_seed := 0
+var offer_history: Array[Array] = []
+var last_offer_signature := ""
+var offer_weight_overrides: Dictionary = {}
 
 
 func _init(owner_player) -> void:
 	player = owner_player
+	var catalog_errors := GameDefs.evolution_catalog_validation_errors()
+	assert(catalog_errors.is_empty(), "Catálogo de evoluções inválido:\n%s" % "\n".join(catalog_errors))
+	var instance_entropy := int(player.get_instance_id()) if is_instance_valid(player) else 0
+	set_offer_seed(int(Time.get_ticks_usec()) ^ instance_entropy)
 
 
 func collect_xp(amount: int) -> void:
@@ -19,6 +36,8 @@ func collect_xp(amount: int) -> void:
 
 
 func get_upgrade_options(count: int, excluded_ids: Array[String] = []) -> Array[Dictionary]:
+	if count <= 0:
+		return []
 	var pool: Array[Dictionary] = []
 	var fallback_pool: Array[Dictionary] = []
 	var any_available := false
@@ -34,11 +53,19 @@ func get_upgrade_options(count: int, excluded_ids: Array[String] = []) -> Array[
 			pool.append(candidate)
 	build_complete = not any_available
 	if pool.size() < count:
-		fallback_pool.shuffle()
-		pool.append_array(fallback_pool.slice(0, count - pool.size()))
-	pool.shuffle()
+		var fallback_needed := count - pool.size()
+		pool.append_array(_draw_weighted_definitions(fallback_pool, fallback_needed))
+	var option_count := mini(count, pool.size())
+	var selected_definitions: Array[Dictionary] = []
+	var selected_signature := ""
+	for _attempt in range(REPEAT_REROLL_ATTEMPTS):
+		selected_definitions = _draw_weighted_definitions(pool, option_count)
+		selected_definitions = _ensure_relevant_option(selected_definitions, pool)
+		selected_signature = _offer_signature(selected_definitions)
+		if selected_signature != last_offer_signature or pool.size() <= option_count:
+			break
 	var options: Array[Dictionary] = []
-	for definition in pool.slice(0, mini(count, pool.size())):
+	for definition in selected_definitions:
 		var upgrade_id := str(definition.id)
 		var current := get_upgrade_level(upgrade_id)
 		var rarity := roll_rarity()
@@ -48,10 +75,154 @@ func get_upgrade_options(count: int, excluded_ids: Array[String] = []) -> Array[
 		definition["levels_gained"] = mini(levels_gained, int(definition.max) - current)
 		definition["rarity"] = rarity
 		definition["category"] = "NOVA ARMA" if player.weapon_levels.has(upgrade_id) and current == 0 else ("ARMA" if player.weapon_levels.has(upgrade_id) else "PASSIVO")
+		definition["offer_weight"] = float(definition.get("offer_weight", 1.0))
+		definition["offer_tier"] = str(definition.get("offer_tier", "standard"))
 		definition["evolution_hint"] = evolution_hint_for(upgrade_id)
 		definition["synergy_items"] = synergy_items_for(upgrade_id)
 		options.append(definition)
+	if not selected_definitions.is_empty():
+		_record_offer(selected_definitions, selected_signature)
 	return options
+
+
+func set_offer_seed(seed_value: int) -> void:
+	offer_seed = seed_value
+	offer_rng.seed = seed_value
+	reset_offer_history()
+
+
+func reset_offer_history() -> void:
+	offer_history.clear()
+	last_offer_signature = ""
+
+
+func set_offer_weight_overrides(overrides: Dictionary) -> void:
+	offer_weight_overrides = overrides.duplicate(true)
+
+
+func _draw_weighted_definitions(source: Array[Dictionary], count: int) -> Array[Dictionary]:
+	var available: Array[Dictionary] = source.duplicate()
+	var selected: Array[Dictionary] = []
+	while not available.is_empty() and selected.size() < count:
+		var selected_index := _weighted_definition_index(available)
+		selected.append(available[selected_index].duplicate())
+		available.remove_at(selected_index)
+	return selected
+
+
+func _weighted_definition_index(definitions: Array[Dictionary]) -> int:
+	var weights: Array[float] = []
+	var total_weight := 0.0
+	for definition in definitions:
+		var weight := _candidate_offer_weight(definition)
+		weights.append(weight)
+		total_weight += weight
+	if total_weight <= 0.0:
+		return offer_rng.randi_range(0, definitions.size() - 1)
+	var roll := offer_rng.randf() * total_weight
+	for index in range(definitions.size()):
+		roll -= weights[index]
+		if roll <= 0.0:
+			return index
+	return definitions.size() - 1
+
+
+func _candidate_offer_weight(definition: Dictionary) -> float:
+	var upgrade_id := str(definition.id)
+	var base_weight := float(offer_weight_overrides.get(upgrade_id, definition.get("offer_weight", 1.0)))
+	var weight := maxf(base_weight, 0.0)
+	var current_level := get_upgrade_level(upgrade_id)
+	var is_owned := current_level > 0
+	if is_owned:
+		weight *= OWNED_OFFER_MULTIPLIER
+	else:
+		weight *= _new_item_phase_multiplier()
+	if _is_synergy_relevant(upgrade_id):
+		weight *= SYNERGY_OFFER_MULTIPLIER
+	var recent_count := _recent_offer_count(upgrade_id)
+	if recent_count > 0:
+		weight *= pow(RECENT_OFFER_MULTIPLIER, recent_count)
+	return weight
+
+
+func _new_item_phase_multiplier() -> float:
+	if player.level <= EARLY_DISCOVERY_LEVEL_END:
+		return 1.35
+	if player.level <= MID_BUILD_LEVEL_END:
+		return 0.82
+	return 0.48
+
+
+func _recent_offer_count(upgrade_id: String) -> int:
+	var count := 0
+	for offered_ids in offer_history:
+		if upgrade_id in offered_ids:
+			count += 1
+	return count
+
+
+func _is_relevant_option(upgrade_id: String) -> bool:
+	return get_upgrade_level(upgrade_id) > 0 or _is_synergy_relevant(upgrade_id)
+
+
+func _is_synergy_relevant(upgrade_id: String) -> bool:
+	if player.weapon_levels.has(upgrade_id):
+		var own_recipe := GameDefs.evolution_recipe(upgrade_id)
+		for requirement_value in own_recipe.get("requirements", []):
+			var requirement := Dictionary(requirement_value)
+			if str(requirement.get("kind", "")) == "weapon" and str(requirement.get("id", "")) == upgrade_id:
+				continue
+			if _requirement_current_level(requirement) > 0:
+				return true
+	for recipe in GameDefs.evolution_recipes():
+		var base_weapon := str(recipe.get("base_weapon", ""))
+		if base_weapon == upgrade_id:
+			continue
+		if int(player.weapon_levels.get(base_weapon, 0)) <= 0 or bool(player.evolved_weapons.get(base_weapon, false)):
+			continue
+		for requirement_value in recipe.get("requirements", []):
+			var requirement := Dictionary(requirement_value)
+			if str(requirement.get("id", "")) == upgrade_id:
+				return true
+	return false
+
+
+func _ensure_relevant_option(selected: Array[Dictionary], source: Array[Dictionary]) -> Array[Dictionary]:
+	if selected.is_empty():
+		return selected
+	for definition in selected:
+		if _is_relevant_option(str(definition.id)):
+			return selected
+	var selected_ids: Array[String] = []
+	for definition in selected:
+		selected_ids.append(str(definition.id))
+	var relevant_candidates: Array[Dictionary] = []
+	for definition in source:
+		var upgrade_id := str(definition.id)
+		if upgrade_id not in selected_ids and _is_relevant_option(upgrade_id):
+			relevant_candidates.append(definition)
+	if relevant_candidates.is_empty():
+		return selected
+	selected[selected.size() - 1] = _draw_weighted_definitions(relevant_candidates, 1)[0]
+	return selected
+
+
+func _offer_signature(definitions: Array[Dictionary]) -> String:
+	var ids: Array[String] = []
+	for definition in definitions:
+		ids.append(str(definition.id))
+	ids.sort()
+	return "|".join(ids)
+
+
+func _record_offer(definitions: Array[Dictionary], signature: String) -> void:
+	var ids: Array[String] = []
+	for definition in definitions:
+		ids.append(str(definition.id))
+	offer_history.append(ids)
+	while offer_history.size() > OFFER_HISTORY_LIMIT:
+		offer_history.pop_front()
+	last_offer_signature = signature
 
 
 func evolution_hint_for(upgrade_id: String) -> String:
@@ -74,30 +245,58 @@ func evolution_hint_for(upgrade_id: String) -> String:
 
 func synergy_items_for(upgrade_id: String) -> Array[Dictionary]:
 	var synergy_items: Array[Dictionary] = []
-	if player.weapon_levels.has(upgrade_id):
-		var evolution := GameDefs.evolution_data(upgrade_id)
-		if not evolution.is_empty():
-			synergy_items.append({
-				"id": str(evolution.passive),
-				"required_level": int(evolution.passive_level),
-			})
-		return synergy_items
-	for weapon_id in player.WEAPON_IDS:
-		if int(player.weapon_levels.get(weapon_id, 0)) <= 0 or bool(player.evolved_weapons.get(weapon_id, false)):
+	var added_ids: Dictionary = {}
+	for recipe in GameDefs.evolution_recipes():
+		var base_weapon := str(recipe.get("base_weapon", ""))
+		if base_weapon == upgrade_id:
+			for requirement_value in recipe.get("requirements", []):
+				var requirement := Dictionary(requirement_value)
+				var requirement_id := str(requirement.get("id", ""))
+				if str(requirement.get("kind", "")) == "weapon" and requirement_id == base_weapon:
+					continue
+				if not added_ids.has(requirement_id):
+					synergy_items.append({
+						"id": requirement_id,
+						"required_level": int(requirement.get("level", 0)),
+					})
+					added_ids[requirement_id] = true
 			continue
-		var evolution := GameDefs.evolution_data(weapon_id)
-		if str(evolution.get("passive", "")) == upgrade_id:
+		if int(player.weapon_levels.get(base_weapon, 0)) <= 0 or bool(player.evolved_weapons.get(base_weapon, false)):
+			continue
+		for requirement_value in recipe.get("requirements", []):
+			var requirement := Dictionary(requirement_value)
+			if str(requirement.get("id", "")) != upgrade_id or added_ids.has(base_weapon):
+				continue
 			synergy_items.append({
-				"id": weapon_id,
+				"id": base_weapon,
 				"required_level": 0,
 			})
+			added_ids[base_weapon] = true
 	return synergy_items
+
+
+func _requirement_current_level(requirement: Dictionary) -> int:
+	var item_id := str(requirement.get("id", ""))
+	match str(requirement.get("kind", "")):
+		"weapon":
+			return int(player.weapon_levels.get(item_id, 0))
+		"passive":
+			return int(player.passive_levels.get(item_id, 0))
+	return 0
 
 
 func active_weapon_count() -> int:
 	var count := 0
 	for weapon_id in player.WEAPON_IDS:
 		if int(player.weapon_levels.get(weapon_id, 0)) > 0:
+			count += 1
+	return count
+
+
+func active_passive_count() -> int:
+	var count := 0
+	for passive_id in player.passive_levels:
+		if int(player.passive_levels.get(passive_id, 0)) > 0:
 			count += 1
 	return count
 
@@ -128,6 +327,12 @@ func upgrade_is_available(definition: Dictionary) -> bool:
 		and active_weapon_count() >= player.MAX_WEAPONS
 	):
 		return false
+	if (
+		player.passive_levels.has(upgrade_id)
+		and int(player.passive_levels[upgrade_id]) <= 0
+		and active_passive_count() >= player.MAX_PASSIVES
+	):
+		return false
 	return get_upgrade_level(upgrade_id) < int(definition.max)
 
 
@@ -137,7 +342,7 @@ func banish_upgrade(upgrade_id: String) -> void:
 
 
 func roll_rarity() -> String:
-	var roll := randf()
+	var roll := offer_rng.randf()
 	if roll < 0.08:
 		return "LENDÁRIO"
 	if roll < 0.28:
@@ -161,6 +366,8 @@ func apply_upgrade(upgrade_id: String, rarity := "COMUM") -> void:
 		refresh_build_complete()
 		return
 	var previous_level := int(player.passive_levels.get(upgrade_id, 0))
+	if previous_level <= 0 and player.passive_levels.has(upgrade_id) and active_passive_count() >= player.MAX_PASSIVES:
+		return
 	var new_level := mini(upgrade_max(upgrade_id), previous_level + bonus)
 	var applied_levels := new_level - previous_level
 	if applied_levels <= 0:
@@ -201,17 +408,15 @@ func check_weapon_evolutions() -> void:
 	for weapon_id in player.WEAPON_IDS:
 		if bool(player.evolved_weapons[weapon_id]):
 			continue
-		var evolution := GameDefs.evolution_data(weapon_id)
-		if evolution.is_empty():
+		var recipe := GameDefs.evolution_recipe(weapon_id)
+		if recipe.is_empty():
 			continue
-		if int(player.weapon_levels[weapon_id]) < int(evolution.weapon_level):
-			continue
-		if int(player.passive_levels.get(str(evolution.passive), 0)) < int(evolution.passive_level):
+		if not GameDefs.evolution_requirements_met(recipe, player.weapon_levels, player.passive_levels):
 			continue
 		player.evolved_weapons[weapon_id] = true
 		var world: Node = player.get_tree().get_first_node_in_group("world")
 		if world:
-			world.on_weapon_evolved(str(evolution.title))
+			world.on_weapon_evolved(str(recipe.title))
 
 
 func apply_meta_bonuses(meta: Dictionary) -> void:
@@ -228,6 +433,7 @@ func apply_meta_bonuses(meta: Dictionary) -> void:
 
 func apply_landmark_blessing(kind: String, duration := 40.0) -> String:
 	player.blessing_time = duration
+	player.blessing_kind = kind
 	player.temporary_damage_multiplier = 1.0
 	player.temporary_cooldown_multiplier = 1.0
 	player.temporary_move_multiplier = 1.0
@@ -255,6 +461,28 @@ func apply_landmark_blessing(kind: String, duration := 40.0) -> String:
 		_:
 			player.blessing_title = "BÊNÇÃO DO MAPA"
 	return player.blessing_title
+
+
+func active_landmark_buffs() -> Array[Dictionary]:
+	if player.blessing_time <= 0.0 or player.blessing_title.is_empty():
+		return []
+	var effect_text := "Bênção temporária"
+	match player.blessing_kind:
+		"altar":
+			effect_text = "+32% dano"
+		"obelisk":
+			effect_text = "-28% recarga · +12% crítico"
+		"tree":
+			effect_text = "+24% movimento · ×2,6 coleta"
+		"portal":
+			effect_text = "+7 armadura · +12% movimento"
+	return [{
+		"id": player.blessing_kind,
+		"name": player.blessing_title,
+		"effect": effect_text,
+		"remaining": player.blessing_time,
+		"permanent": false,
+	}]
 
 
 func apply_character(selected_id: String) -> void:

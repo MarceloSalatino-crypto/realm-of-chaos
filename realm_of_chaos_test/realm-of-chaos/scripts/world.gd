@@ -12,6 +12,8 @@ const WorldRunFlowScript = preload("res://scripts/world_run_flow.gd")
 const ProjectileBatchRendererScript = preload("res://scripts/projectile_batch_renderer.gd")
 const PickupBatchRendererScript = preload("res://scripts/pickup_batch_renderer.gd")
 const EffectBatchRendererScript = preload("res://scripts/effect_batch_renderer.gd")
+const MapEncounterCatalogScript = preload("res://scripts/map_encounter_catalog.gd")
+const MapEncounterProfileScript = preload("res://scripts/map_encounter_profile.gd")
 
 const RUN_DURATION := 25.0 * 60.0
 const BOSS_TIMES := [300.0, 600.0, 900.0, 1200.0, 1500.0]
@@ -35,12 +37,20 @@ var spawn_timer := 0.2
 var boss_index := 0
 var event_index := 0
 var game_ended := false
+var run_was_victory := false
 var pending_upgrades := 0
 var upgrade_active := false
 var active_boss: Node
 var active_boss_arena: Node
 var last_stage := ""
+# `run_cycle` permanece como fachada temporária para testes/ferramentas antigas.
+# A produção escolhe conteúdo exclusivamente pelos dados de `campaign_map_id`.
 var run_cycle := 0
+var campaign_map_override_id := ""
+var campaign_map_id := "profaned_forest"
+var campaign_map: Dictionary = {}
+var map_seed_offset := 0
+var map_boss_power := 1.0
 var biome: Dictionary = {}
 var final_boss_spawned := false
 var boss_spawn_log: Array[String] = []
@@ -52,7 +62,9 @@ var event_remaining := 0.0
 var enemy_speed_multiplier := 1.0
 var event_spawn_multiplier := 1.0
 var event_magnet_applied := false
+var event_pickup_multiplier := 1.0
 var suppress_save := false
+var persistence_path_override := ""
 var audio: Node
 var rewards: Node2D
 var hazards: Node2D
@@ -78,6 +90,8 @@ var player_projectile_batch_renderer: Node2D
 var enemy_projectile_batch_renderer: Node2D
 var pickup_batch_renderer: Node2D
 var effect_batch_renderer: Node2D
+var encounter_profile: MapEncounterProfileScript
+var run_duration := RUN_DURATION
 
 @onready var player = $Player
 @onready var ground: Sprite2D = $Ground
@@ -111,12 +125,21 @@ func _ready() -> void:
 	audio.name = "AudioDirector"
 	add_child(audio)
 	entity_manager = WorldEntityManagerScript.new(self)
-	persistence = WorldPersistenceScript.new(self, SAVE_PATH)
+	var resolved_save_path := persistence_path_override
+	if resolved_save_path.is_empty():
+		var campaign_manager = get_node_or_null("/root/CampaignManager")
+		resolved_save_path = (
+			str(campaign_manager.save_path)
+			if campaign_manager != null and not str(campaign_manager.save_path).is_empty()
+			else SAVE_PATH
+		)
+	persistence = WorldPersistenceScript.new(self, resolved_save_path)
 	director = WorldDirectorScript.new(self)
 	run_flow = WorldRunFlowScript.new(self)
 	_load_progression()
+	_load_encounter_profile()
 	_apply_biome()
-	audio.set_music_stage("normal")
+	audio.set_music_stage(encounter_profile.music_stage_for("normal"))
 	player.level_up_requested.connect(_on_level_up_requested)
 	player.died.connect(_on_player_died)
 	hud.upgrade_selected.connect(_on_upgrade_selected)
@@ -127,7 +150,7 @@ func _ready() -> void:
 	hud.bind_world(self)
 	_generate_environment()
 	_refresh_visual_bounds()
-	last_stage = GameDefs.stage_name(time_survived)
+	last_stage = encounter_profile.stage_name(time_survived)
 	hud.show_stage_banner("%s · ARMA INICIAL: %s" % [str(biome.name), player.equipped_weapon_title()])
 	_rebuild_spatial_grid()
 
@@ -162,7 +185,7 @@ func _process(delta: float) -> void:
 		return
 	director.process_spawn_queue()
 	_refresh_visual_bounds()
-	time_survived = minf(RUN_DURATION, time_survived + delta)
+	time_survived = minf(run_duration, time_survived + delta)
 	spatial_timer -= delta
 	if spatial_timer <= 0.0:
 		_rebuild_spatial_grid()
@@ -185,6 +208,11 @@ func _spawn_timer_update(delta: float) -> void:
 func _pick_enemy_type() -> String:
 	return director.pick_enemy_type()
 
+
+func difficulty_data(elapsed := -1.0) -> Dictionary:
+	var resolved_elapsed := time_survived if elapsed < 0.0 else elapsed
+	return encounter_profile.difficulty_at(resolved_elapsed)
+
 #endregion
 
 #region Fachada do gerenciador de entidades — população e spawn
@@ -200,6 +228,15 @@ func spawn_enemy_near(
 ) -> Node:
 	return entity_manager.spawn_enemy_near(
 		kind, origin, minimum, maximum, force_elite, power_override, preferred_angle
+	)
+
+
+func spawn_enemy_at_validated_position(
+	kind: String, spawn_position: Vector2,
+	force_elite := false, power_override := -1.0
+) -> Node:
+	return entity_manager.spawn_enemy_at_validated_position(
+		kind, spawn_position, force_elite, power_override
 	)
 
 
@@ -291,8 +328,10 @@ func _end_world_event() -> void:
 #region Fachada do fluxo da partida — recompensas
 
 
-func handle_enemy_death(enemy: Node, xp_value: int, was_elite: bool, was_boss: bool) -> void:
-	run_flow.handle_enemy_death(enemy, xp_value, was_elite, was_boss)
+func handle_enemy_death(
+	enemy: Node, xp_value: int, was_elite: bool, was_boss: bool, xp_chance_roll := -1.0
+) -> void:
+	run_flow.handle_enemy_death(enemy, xp_value, was_elite, was_boss, xp_chance_roll)
 
 
 func _spawn_reward_chest(chest_position: Vector2, boss_name: String) -> Node:
@@ -331,8 +370,13 @@ func _spawn_pickup(amount: int, world_position: Vector2, kind := "xp") -> Node:
 	return entity_manager.spawn_pickup(amount, world_position, kind)
 
 
-func spawn_effect(world_position: Vector2, color: Color, radius: float, duration := 0.35, filled := false) -> void:
-	entity_manager.spawn_effect(world_position, color, radius, duration, filled)
+func spawn_effect(
+	world_position: Vector2, color: Color, radius: float, duration := 0.35,
+	filled := false, combat_critical_visual := false
+) -> void:
+	entity_manager.spawn_effect(
+		world_position, color, radius, duration, filled, combat_critical_visual
+	)
 
 
 func _effect_visual_quality(radius: float, duration: float) -> int:
@@ -341,6 +385,64 @@ func _effect_visual_quality(radius: float, duration: float) -> int:
 
 func spawn_weapon_flash(world_position: Vector2, atlas_frame: int, angle: float, scale_value: float, duration := 0.35, tint := Color.WHITE) -> void:
 	entity_manager.spawn_weapon_flash(world_position, atlas_frame, angle, scale_value, duration, tint)
+
+
+func spawn_crimson_reaper_slash(world_position: Vector2, angle: float, radius: float) -> Node:
+	return entity_manager.spawn_crimson_reaper_slash(world_position, angle, radius)
+
+
+func spawn_codex_ritual(
+	world_position: Vector2, radius: float, damage: float,
+	critical_chance: float, critical_multiplier: float
+) -> Node:
+	return entity_manager.spawn_codex_ritual(
+		world_position, radius, damage, critical_chance, critical_multiplier
+	)
+
+
+func spawn_void_collapse(
+	world_position: Vector2, radius: float, damage: float,
+	critical_chance: float, critical_multiplier: float
+) -> Node:
+	return entity_manager.spawn_void_collapse(
+		world_position, radius, damage, critical_chance, critical_multiplier
+	)
+
+
+func spawn_cataclysm_rupture(
+	world_position: Vector2, direction: Vector2, radius: float, damage: float
+) -> Node:
+	return entity_manager.spawn_cataclysm_rupture(
+		world_position, direction, radius, damage
+	)
+
+
+func spawn_eternal_storm(origin: Vector2, target_entries: Array[Dictionary]) -> Node:
+	return entity_manager.spawn_eternal_storm(origin, target_entries)
+
+
+func spawn_legion_focus(
+	owner_player: Node2D, priority_target: Node, attack_entries: Array[Dictionary]
+) -> Node:
+	return entity_manager.spawn_legion_focus(owner_player, priority_target, attack_entries)
+
+
+func spawn_abyssal_ballista_volley(
+	owner_player: Node2D, direction: Vector2, projectile_entries: Array[Dictionary]
+) -> Node:
+	return entity_manager.spawn_abyssal_ballista_volley(owner_player, direction, projectile_entries)
+
+
+func spawn_spirit_devourer_release(
+	origin: Vector2, target_positions: PackedVector2Array, charge_count: int
+) -> Node:
+	return entity_manager.spawn_spirit_devourer_release(origin, target_positions, charge_count)
+
+
+func spawn_shadow_dance_sequence(
+	owner_player: Node2D, projectile_entries: Array[Dictionary]
+) -> Node:
+	return entity_manager.spawn_shadow_dance_sequence(owner_player, projectile_entries)
 
 
 func spawn_lightning(chain_points: PackedVector2Array, color := Color("6eeaff")) -> void:
@@ -467,12 +569,24 @@ func _evaluate_achievements(victory: bool) -> Array[String]:
 	return persistence.evaluate_achievements(victory)
 
 
-func _save_record(victory: bool) -> void:
-	persistence.save_record(victory)
+func _save_record(victory: bool) -> Dictionary:
+	return persistence.save_record(victory)
+
+
+func _finalize_run(victory: bool) -> Dictionary:
+	return persistence.finalize_run(victory)
 
 
 func _load_progression() -> void:
 	persistence.load_progression()
+
+
+func _load_encounter_profile() -> void:
+	var profile_id := str(campaign_map.get("encounter_profile_id", MapEncounterCatalogScript.LEGACY_PROFILE_ID))
+	encounter_profile = MapEncounterCatalogScript.profile(profile_id)
+	var validation_errors: Array[String] = encounter_profile.validate()
+	assert(validation_errors.is_empty(), "Perfil de encontros inválido (%s):\n%s" % [profile_id, "\n".join(validation_errors)])
+	run_duration = encounter_profile.duration
 
 
 func _apply_biome() -> void:
@@ -513,9 +627,10 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _debug_jump_to_next_boss() -> void:
-	if boss_index >= BOSS_TIMES.size() or game_ended:
+	var schedule: Array[Dictionary] = encounter_profile.boss_schedule
+	if boss_index >= schedule.size() or game_ended:
 		return
-	time_survived = maxf(time_survived, BOSS_TIMES[boss_index] - 0.02)
+	time_survived = maxf(time_survived, float(schedule[boss_index].time) - 0.02)
 	spawn_timer = 0.5
 	hud.show_stage_banner("TESTE · PRÓXIMO CHEFE EM INSTANTES")
 
@@ -524,9 +639,16 @@ func _debug_unlock_evolved_build() -> void:
 	for weapon_id in player.WEAPON_IDS:
 		player.weapon_levels[weapon_id] = player._upgrade_max(weapon_id)
 	for weapon_id in player.WEAPON_IDS:
-		var evolution := GameDefs.evolution_data(weapon_id)
-		if not evolution.is_empty():
-			player.passive_levels[str(evolution.passive)] = 5
+		var recipe := GameDefs.evolution_recipe(weapon_id)
+		for requirement_value in recipe.get("requirements", []):
+			var requirement := Dictionary(requirement_value)
+			var item_id := str(requirement.get("id", ""))
+			var required_level := int(requirement.get("level", 0))
+			match str(requirement.get("kind", "")):
+				"weapon":
+					player.weapon_levels[item_id] = maxi(int(player.weapon_levels.get(item_id, 0)), required_level)
+				"passive":
+					player.passive_levels[item_id] = maxi(int(player.passive_levels.get(item_id, 0)), required_level)
 	player._check_weapon_evolutions()
 	hud.show_stage_banner("TESTE · NOVE EVOLUÇÕES LIBERADAS")
 

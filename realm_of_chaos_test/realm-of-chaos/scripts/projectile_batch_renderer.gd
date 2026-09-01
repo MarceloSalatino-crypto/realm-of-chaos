@@ -28,6 +28,8 @@ func setup(container: Node2D, kind: int) -> void:
 	projectile_container = container
 	renderer_kind = kind
 	name = "PlayerProjectileBatchRenderer" if kind == PLAYER else "EnemyProjectileBatchRenderer"
+	z_index = container.z_index
+	z_as_relative = container.z_as_relative
 	if DisplayServer.get_name() == "headless":
 		set_process(false)
 		return
@@ -110,11 +112,13 @@ void fragment() {
 
 func _build_geometry() -> void:
 	if renderer_kind == PLAYER:
-		_style_order = ["default", "shadow_small", "shadow", "chaos"]
+		_style_order = ["default", "shadow_small", "shadow", "shadow_return", "chaos", "crimson_crescent"]
 		_add_player_default()
 		_add_player_shadow("shadow_small", 1.0 / 6.0)
 		_add_player_shadow("shadow", 0.16)
+		_add_player_shadow_return()
 		_add_player_chaos()
+		_add_player_crimson_crescent()
 	else:
 		_style_order = ["generic", "danger"]
 		_add_enemy_generic()
@@ -147,6 +151,20 @@ func _add_player_shadow(style: String, highlight_width: float) -> void:
 	_add_layer(style, _line_polygon(Vector2(-0.82, -0.12), Vector2(0.58, -0.25), highlight_width), ROLE_HIGHLIGHT)
 
 
+func _add_player_shadow_return() -> void:
+	_add_layer("shadow_return", PackedVector2Array([
+		Vector2(-1.58, -0.52), Vector2(0.36, -0.82), Vector2(1.54, -0.18),
+		Vector2(1.30, 0.20), Vector2(0.22, 0.66), Vector2(-1.62, 0.42),
+		Vector2(-1.02, 0.02),
+	]), ROLE_OUTLINE)
+	_add_layer("shadow_return", PackedVector2Array([
+		Vector2(-1.28, -0.27), Vector2(0.28, -0.51), Vector2(1.17, -0.12),
+		Vector2(0.98, 0.11), Vector2(0.12, 0.38), Vector2(-1.29, 0.23),
+		Vector2(-0.80, 0.01),
+	]), ROLE_MAIN)
+	_add_layer("shadow_return", _line_polygon(Vector2(-0.72, -0.10), Vector2(0.62, -0.28), 0.15), ROLE_HIGHLIGHT)
+
+
 func _add_player_chaos() -> void:
 	_add_layer("chaos", PackedVector2Array([
 		Vector2(-1.72, -0.46), Vector2(0.30, -0.46), Vector2(1.50, 0.0),
@@ -162,6 +180,27 @@ func _add_player_chaos() -> void:
 	]), ROLE_MAIN)
 	_add_layer("chaos", _line_polygon(Vector2(-1.25, 0.0), Vector2(-2.15, 0.0), 0.42), ROLE_OUTLINE)
 	_add_layer("chaos", _line_polygon(Vector2(-1.28, 0.0), Vector2(-2.08, 0.0), 0.18), ROLE_MAIN)
+
+
+func _add_player_crimson_crescent() -> void:
+	_add_layer("crimson_crescent", PackedVector2Array([
+		Vector2(-0.92, -0.94), Vector2(-0.18, -1.28), Vector2(0.70, -1.02),
+		Vector2(1.52, -0.38), Vector2(1.78, 0.0), Vector2(1.52, 0.38),
+		Vector2(0.70, 1.02), Vector2(-0.18, 1.28), Vector2(-0.92, 0.94),
+		Vector2(-0.18, 0.62), Vector2(0.52, 0.42), Vector2(1.02, 0.0),
+		Vector2(0.52, -0.42), Vector2(-0.18, -0.62),
+	]), ROLE_OUTLINE)
+	_add_layer("crimson_crescent", PackedVector2Array([
+		Vector2(-0.72, -0.68), Vector2(-0.10, -0.98), Vector2(0.56, -0.78),
+		Vector2(1.20, -0.28), Vector2(1.40, 0.0), Vector2(1.20, 0.28),
+		Vector2(0.56, 0.78), Vector2(-0.10, 0.98), Vector2(-0.72, 0.68),
+		Vector2(-0.12, 0.48), Vector2(0.42, 0.30), Vector2(0.78, 0.0),
+		Vector2(0.42, -0.30), Vector2(-0.12, -0.48),
+	]), ROLE_MAIN)
+	_add_layer("crimson_crescent", PackedVector2Array([
+		Vector2(-0.15, -0.79), Vector2(0.58, -0.70),
+		Vector2(1.18, -0.20), Vector2(0.48, -0.36),
+	]), ROLE_HIGHLIGHT)
 
 
 func _add_enemy_generic() -> void:
@@ -310,6 +349,13 @@ func _sync_style(style: String, projectiles: Array, inverse_transform: Transform
 		buffer[offset + 11] = color.a
 	multimesh.buffer = buffer
 	multimesh.visible_instance_count = count
+	# A confirmação acontece somente depois que o buffer visível recebeu a
+	# transformação. Projéteis inimigos usam isto como barreira entre criação
+	# lógica e o primeiro tick em que podem colidir.
+	for entry in projectiles:
+		var projectile := instance_from_id(int(entry.id)) as Node2D
+		if is_instance_valid(projectile) and projectile.has_method("mark_visual_presented"):
+			projectile.mark_visual_presented()
 
 
 func _ensure_capacity(batch: Dictionary, required: int) -> void:

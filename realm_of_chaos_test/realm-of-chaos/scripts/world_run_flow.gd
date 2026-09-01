@@ -1,9 +1,11 @@
 extends RefCounted
 
+const CampaignCatalogScript = preload("res://scripts/campaign_catalog.gd")
 const RewardChestScript = preload("res://scripts/reward_chest.gd")
 const COMPLETE_BUILD_CHEST_CHANCE := 0.30
 
 var world
+var scene_transition_active := false
 
 
 func _init(owner_world) -> void:
@@ -11,10 +13,9 @@ func _init(owner_world) -> void:
 
 
 func update_hud() -> void:
-	var remaining := maxf(0.0, world.RUN_DURATION - world.time_survived)
+	var remaining := maxf(0.0, world.run_duration - world.time_survived)
 	var environment: Dictionary = world.environment_builder.get_environment_effect(world.player.global_position)
-	var passive_status := "%s · %ds" % [world.player.blessing_title, ceili(world.player.blessing_time)] if world.player.blessing_time > 0.0 else str(environment.get("name", ""))
-	var status_title: String = world.current_event_title if not world.current_event_title.is_empty() else passive_status
+	var status_title: String = world.current_event_title if not world.current_event_title.is_empty() else str(environment.get("name", ""))
 	var stage_status := "%s · %s" % [world.last_stage, world.director.next_boss_status()]
 	world.hud.update_run(
 		world.player.hp, world.player.max_hp, world.player.experience, world.player.experience_needed,
@@ -25,13 +26,34 @@ func update_hud() -> void:
 		world.player.dash_cooldown_progress(), world.player.character_id,
 		world.player.character_skill_name
 	)
+	world.hud.update_active_buffs(world.player.active_landmark_buffs())
 	if is_instance_valid(world.active_boss) and not world.active_boss.dead:
 		world.hud.update_boss(world.active_boss.hp, world.active_boss.max_hp)
 	else:
 		world.hud.hide_boss()
 
 
-func handle_enemy_death(enemy: Node, xp_value: int, was_elite: bool, was_boss: bool) -> void:
+func resolve_enemy_xp_drop(
+	enemy_type: String, scaled_xp_value: int, was_elite: bool, was_boss: bool,
+	chance_roll := -1.0
+) -> Dictionary:
+	var profile := GameDefs.enemy_xp_drop_profile(enemy_type)
+	var drop_chance := 1.0 if was_boss or bool(profile.guaranteed) else float(
+		profile.elite_chance if was_elite else profile.chance
+	)
+	var resolved_roll := randf() if chance_roll < 0.0 else chance_roll
+	return {
+		"dropped": scaled_xp_value > 0 and (drop_chance >= 1.0 or resolved_roll < drop_chance),
+		"value": maxi(0, scaled_xp_value),
+		"chance": drop_chance,
+		"burst_count": int(profile.burst_count) if was_boss else 0,
+		"burst_value": int(profile.burst_value) if was_boss else 0,
+	}
+
+
+func handle_enemy_death(
+	enemy: Node, xp_value: int, was_elite: bool, was_boss: bool, xp_chance_roll := -1.0
+) -> void:
 	world.enemies_killed += 1
 	var build_complete: bool = world.player.is_build_complete()
 	if was_boss:
@@ -40,10 +62,14 @@ func handle_enemy_death(enemy: Node, xp_value: int, was_elite: bool, was_boss: b
 		world.essence_earned += 3
 	elif world.enemies_killed % 7 == 0:
 		world.essence_earned += 1
-	if build_complete:
-		world.player.collect_xp(xp_value)
-	else:
-		world._spawn_pickup(xp_value, enemy.global_position, "xp")
+	var xp_drop := resolve_enemy_xp_drop(
+		str(enemy.enemy_type), xp_value, was_elite, was_boss, xp_chance_roll
+	)
+	if bool(xp_drop.dropped):
+		if build_complete:
+			world.player.collect_xp(int(xp_drop.value))
+		else:
+			world._spawn_pickup(int(xp_drop.value), enemy.global_position, "xp")
 	var death_color: Color = GameDefs.enemy_data(enemy.enemy_type).color
 	world.spawn_effect(enemy.global_position, death_color, enemy.hit_radius * 2.2, 0.32, true)
 	if (was_elite and randf() < 0.35) or (not was_elite and randf() < 0.018):
@@ -56,8 +82,8 @@ func handle_enemy_death(enemy: Node, xp_value: int, was_elite: bool, was_boss: b
 		if is_instance_valid(world.active_boss_arena):
 			world.active_boss_arena.finish()
 			world.active_boss_arena = null
-	var extra_xp_count := 10 if enemy.final_boss else 7
-	var extra_xp_value := 18 if enemy.final_boss else 12
+	var extra_xp_count := int(xp_drop.burst_count)
+	var extra_xp_value := int(xp_drop.burst_value)
 	if build_complete:
 		world.player.collect_xp(extra_xp_count * extra_xp_value)
 	else:
@@ -70,7 +96,7 @@ func handle_enemy_death(enemy: Node, xp_value: int, was_elite: bool, was_boss: b
 	world.player.grant_boss_reward(enemy.final_boss)
 	shake_camera(12.0, 0.55)
 	if enemy.final_boss:
-		world.hud.show_stage_banner("SOBERANO DERROTADO · PRÓXIMA FASE DESBLOQUEADA")
+		world.hud.show_stage_banner("SOBERANO DERROTADO · MAPA CONCLUÍDO")
 		world.call_deferred("_end_run", true)
 	else:
 		if should_spawn_reward_chest(build_complete):
@@ -78,7 +104,8 @@ func handle_enemy_death(enemy: Node, xp_value: int, was_elite: bool, was_boss: b
 			world.hud.show_stage_banner("MINI-CHEFE BANIDO · O BAÚ DO RITUAL SURGIU")
 		else:
 			world.hud.show_stage_banner("MINI-CHEFE BANIDO · O RITUAL CONTINUA")
-		world.audio.set_music_stage(str(GameDefs.difficulty_data(world.time_survived).id))
+		var phase_id := str(world.difficulty_data().id)
+		world.audio.set_music_stage(world.encounter_profile.music_stage_for(phase_id))
 
 
 func should_spawn_reward_chest(build_complete: bool, chance_roll := -1.0) -> bool:
@@ -185,6 +212,8 @@ func activate_landmark(landmark: Node) -> void:
 	world.shrines_activated += 1
 	world.essence_earned += 4
 	var blessing_name: String = world.player.apply_landmark_blessing(str(landmark.landmark_kind), 40.0)
+	world.hud.update_active_buffs(world.player.active_landmark_buffs())
+	world.hud.highlight_active_buff(str(landmark.landmark_kind))
 	if str(landmark.landmark_kind) == "tree":
 		for pickup in world.pickups.get_children():
 			if is_instance_valid(pickup) and pickup.global_position.distance_to(world.player.global_position) <= 1450.0:
@@ -268,16 +297,38 @@ func end_run(victory: bool) -> void:
 	if world.game_ended:
 		return
 	world.game_ended = true
+	world.run_was_victory = victory
 	world.get_tree().paused = true
-	var new_achievements: Array[String] = world._evaluate_achievements(victory)
-	world._save_record(victory)
-	var next_biome := str(GameDefs.biome_data(world.run_cycle + 1).name) if victory else str(world.biome.name)
+	var finalization: Dictionary = world._finalize_run(victory)
+	var save_confirmed := bool(finalization.get("saved", false))
+	var new_achievements: Array[String] = []
+	for achievement in finalization.get("new_achievements", []):
+		new_achievements.append(str(achievement))
+	var campaign_result: Dictionary = finalization.get("campaign_result", {})
+	var current_map := CampaignCatalogScript.map_data(world.campaign_map_id)
+	var next_map_id := str(campaign_result.get("next_map_id", ""))
+	var next_map := CampaignCatalogScript.map_data(next_map_id)
+	var unlocked_map_id := str(campaign_result.get("unlocked_map_id", ""))
+	var unlocked_map := CampaignCatalogScript.map_data(unlocked_map_id)
+	var campaign_info := {
+		"completed_map_name": str(current_map.get("name", world.biome.name)),
+		"unlocked_map_name": str(unlocked_map.get("name", "")),
+		"next_map_name": str(next_map.get("name", "")),
+		"next_coming_soon": bool(campaign_result.get("next_coming_soon", false)),
+		"save_confirmed": save_confirmed,
+	}
 	var final_stats := run_stats_text()
-	if world.persistence.write_failed:
-		final_stats += "\n\nAVISO · NÃO FOI POSSÍVEL SALVAR O PROGRESSO.\nSeu save anterior e o backup foram mantidos."
+	if not save_confirmed:
+		final_stats += (
+			"\n\nAVISO · NÃO FOI POSSÍVEL SALVAR O RESULTADO."
+			+ "\nDesbloqueios, conquistas, recordes e Essência desta partida não foram registrados."
+			+ "\nSeu save anterior e o backup foram mantidos."
+		)
 	world.hud.show_end_screen(
 		victory, world.time_survived, world.enemies_killed, world.player.level,
-		world.essence_earned, next_biome, final_stats, new_achievements
+		int(finalization.get("confirmed_essence_earned", 0)),
+		str(next_map.get("name", world.biome.name)), final_stats,
+		new_achievements, campaign_info
 	)
 
 
@@ -312,13 +363,54 @@ func weapon_title(source_id: String) -> String:
 
 
 func restart_run() -> void:
-	world.get_tree().paused = false
-	world.get_tree().reload_current_scene()
+	if not _begin_scene_transition():
+		return
+	var tree: SceneTree = world.get_tree()
+	var was_paused: bool = tree.paused
+	tree.paused = false
+	var transition_guard = world.get_node_or_null("/root/SceneTransitionGuard")
+	var error: Error = ERR_UNCONFIGURED
+	if world.run_was_victory:
+		error = transition_guard.change_scene_to_file("res://scenes/campaign_select.tscn") if transition_guard != null else tree.change_scene_to_file("res://scenes/campaign_select.tscn")
+	else:
+		error = transition_guard.reload_current_scene() if transition_guard != null else tree.reload_current_scene()
+	if error != OK:
+		_cancel_scene_transition(was_paused)
 
 
 func return_to_menu() -> void:
-	world.get_tree().paused = false
-	world.get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+	if not _begin_scene_transition():
+		return
+	var tree: SceneTree = world.get_tree()
+	var was_paused: bool = tree.paused
+	tree.paused = false
+	var transition_guard = world.get_node_or_null("/root/SceneTransitionGuard")
+	var error: Error = transition_guard.change_scene_to_file("res://scenes/main_menu.tscn") if transition_guard != null else tree.change_scene_to_file("res://scenes/main_menu.tscn")
+	if error != OK:
+		_cancel_scene_transition(was_paused)
+
+
+func _begin_scene_transition() -> bool:
+	if scene_transition_active or not is_instance_valid(world):
+		return false
+	var tree: SceneTree = world.get_tree()
+	if tree == null:
+		return false
+	scene_transition_active = true
+	if is_instance_valid(world.hud):
+		world.hud.set_scene_transition_locked(true)
+	return true
+
+
+func _cancel_scene_transition(was_paused: bool) -> void:
+	scene_transition_active = false
+	if not is_instance_valid(world):
+		return
+	var tree: SceneTree = world.get_tree()
+	if tree != null:
+		tree.paused = was_paused
+	if is_instance_valid(world.hud):
+		world.hud.set_scene_transition_locked(false)
 
 
 func resume_run() -> void:

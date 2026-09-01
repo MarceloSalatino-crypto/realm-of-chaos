@@ -10,6 +10,7 @@ var uses_danger_style := false
 var owner_world: Node
 var target_player: Node2D
 var active := false
+var visual_presented := false
 
 
 func setup(dir: Vector2, amount: float, projectile_speed: float, color: Color, size := 9.0, danger_style := false, projectile_world: Node = null, player_target: Node2D = null) -> void:
@@ -24,6 +25,7 @@ func setup(dir: Vector2, amount: float, projectile_speed: float, color: Color, s
 	lifetime = 5.0
 	rotation = 0.0
 	active = true
+	visual_presented = false
 	visible = true
 	set_physics_process(true)
 	queue_redraw()
@@ -33,12 +35,14 @@ func bind_runtime(projectile_world: Node, player_target: Node2D) -> void:
 	owner_world = projectile_world
 	target_player = player_target
 	active = true
+	visual_presented = false
 	visible = true
 	set_physics_process(true)
 
 
 func prepare_for_pool() -> void:
 	active = false
+	visual_presented = false
 	visible = false
 	set_physics_process(false)
 
@@ -56,6 +60,10 @@ func _finish() -> void:
 func _physics_process(delta: float) -> void:
 	if not active:
 		return
+	# Um disparo que nasce perto do alvo aguarda sua primeira apresentação visual.
+	# Isso impede múltiplos ticks de física, em FPS baixo, de acertarem antes do draw.
+	if not visual_presented:
+		return
 	global_position += direction * speed * delta
 	rotation += delta * 4.0
 	lifetime -= delta
@@ -67,6 +75,18 @@ func _physics_process(delta: float) -> void:
 	if target_player and global_position.distance_squared_to(target_player.global_position) <= pow(radius + 18.0, 2.0):
 		target_player.take_damage(damage, direction)
 		_finish()
+
+
+func _process(_delta: float) -> void:
+	# Sem batching, o draw acontece depois deste process e antes do próximo tick
+	# de física. Com batching, apenas o renderizador confirma a apresentação
+	# depois de inserir a instância no buffer visível.
+	if active and visible and not _uses_batch_renderer():
+		mark_visual_presented()
+
+
+func mark_visual_presented() -> void:
+	visual_presented = true
 
 
 func _draw() -> void:

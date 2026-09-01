@@ -3,6 +3,10 @@ extends Node2D
 
 const REDRAW_INTERVAL := 1.0 / 30.0
 const HIGH_LOAD_REDRAW_INTERVAL := 1.0 / 20.0
+const NORMAL_RADIUS := 690.0
+const FINAL_RADIUS := 790.0
+const PLAYER_BOUNDARY_MARGIN := 34.0
+const BOSS_BOUNDARY_MARGIN := 12.0
 
 var world: Node
 var boss: Node
@@ -14,15 +18,24 @@ var animation_time := 0.0
 var arena_color := Color("b86cff")
 var redraw_timer := 0.0
 var marker_meshes: Dictionary = {}
+var safe_environment_confinement := false
 
 
-func configure(owner_world: Node, arena_boss: Node, center: Vector2, kind: String, final_boss := false) -> void:
+static func radius_for(final_boss: bool) -> float:
+	return FINAL_RADIUS if final_boss else NORMAL_RADIUS
+
+
+func configure(
+	owner_world: Node, arena_boss: Node, center: Vector2, kind: String,
+	final_boss := false, use_safe_environment_confinement := false
+) -> void:
 	world = owner_world
 	boss = arena_boss
 	global_position = center
 	boss_kind = kind
-	radius = 790.0 if final_boss else 690.0
+	radius = radius_for(final_boss)
 	arena_color = _color_for_kind(kind)
+	safe_environment_confinement = use_safe_environment_confinement
 	z_index = -1
 
 
@@ -30,17 +43,33 @@ func _process(delta: float) -> void:
 	animation_time += delta
 	if not active or not is_instance_valid(world) or not is_instance_valid(world.player):
 		return
-	var offset: Vector2 = world.player.global_position - global_position
-	var limit := radius - 34.0
-	if offset.length() > limit:
-		var normal := offset.normalized()
-		world.player.global_position = global_position + normal * limit
-		if world.player.velocity.dot(normal) > 0.0:
-			world.player.velocity -= normal * world.player.velocity.dot(normal)
+	_constrain_body(world.player, radius - PLAYER_BOUNDARY_MARGIN)
+	if safe_environment_confinement and is_instance_valid(boss) and not bool(boss.dead):
+		_constrain_body(
+			boss,
+			radius - maxf(float(boss.hit_radius), PLAYER_BOUNDARY_MARGIN) - BOSS_BOUNDARY_MARGIN
+		)
 	redraw_timer -= delta
 	if redraw_timer <= 0.0:
 		redraw_timer += HIGH_LOAD_REDRAW_INTERVAL if _use_reduced_detail() else REDRAW_INTERVAL
 		queue_redraw()
+
+
+func _constrain_body(body: CharacterBody2D, radial_limit: float) -> void:
+	var offset := body.global_position - global_position
+	if offset.length() <= radial_limit:
+		return
+	var normal := offset.normalized()
+	var intended_position := global_position + normal * radial_limit
+	var corrected_position := intended_position
+	if safe_environment_confinement and is_instance_valid(world.environment_builder):
+		corrected_position = world.environment_builder.find_safe_arena_confinement_position(
+			global_position, intended_position, radial_limit, body
+		)
+	if is_finite(corrected_position.x) and is_finite(corrected_position.y):
+		body.global_position = corrected_position
+	if body.velocity.dot(normal) > 0.0:
+		body.velocity -= normal * body.velocity.dot(normal)
 
 
 func set_phase(new_phase: int) -> void:

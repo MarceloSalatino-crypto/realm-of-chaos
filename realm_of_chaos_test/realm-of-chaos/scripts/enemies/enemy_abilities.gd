@@ -118,7 +118,9 @@ func ground_slam(radius: float, damage_scale: float) -> void:
 	if enemy.global_position.distance_to(enemy.player.global_position) <= radius + 20.0:
 		enemy.player.take_damage(enemy.contact_damage * damage_scale, (enemy.player.global_position - enemy.global_position).normalized())
 	if enemy.world:
-		enemy.world.spawn_effect(enemy.global_position, enemy.definition_color, radius, 0.48, true)
+		enemy.world.spawn_effect(
+			enemy.global_position, enemy.definition_color, radius, 0.48, true, true
+		)
 		enemy.world.audio.play_explosion()
 		enemy.world.shake_camera(8.0 if enemy.boss else 4.0, 0.24)
 

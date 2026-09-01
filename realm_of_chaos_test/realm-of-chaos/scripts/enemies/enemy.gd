@@ -8,6 +8,7 @@ const EnemyVisualControllerScript = preload("res://scripts/enemies/enemy_visual_
 const PROJECTILE_PREPARE_DURATION := 0.20
 const PROJECTILE_RELEASE_DURATION := 0.12
 const ATTACK_FACING_DEADZONE := 0.12
+const CONTACT_ATTACK_VISUAL_DURATION := 0.18
 
 var enemy_type := "prowler"
 var behavior := "hunter"
@@ -51,6 +52,8 @@ var projectile_attack_speed := 0.0
 var projectile_attack_size := 0.0
 var projectile_radial_phase := 0.0
 var attack_facing_direction := Vector2.RIGHT
+var contact_attack_visual_time := 0.0
+var contact_attack_visual_direction := Vector2.RIGHT
 var explosion_done := false
 var dead := false
 var separation_timer := 0.0
@@ -110,13 +113,14 @@ func _apply_definition() -> void:
 	max_hp = float(data.hp) * power
 	move_speed = float(data.speed) * (1.0 + (power - 1.0) * (0.08 if boss else 0.12))
 	contact_damage = float(data.damage) * (1.0 + (power - 1.0) * (0.18 if boss else 0.28))
-	xp_value = maxi(1, int(round(float(data.xp) * sqrt(power))))
+	var xp_profile := GameDefs.enemy_xp_drop_profile(enemy_type)
+	xp_value = maxi(1, int(round(float(xp_profile.value) * sqrt(power))))
 	hit_radius = float(data.radius)
 	if elite and not boss:
 		max_hp *= 3.2
 		move_speed *= 1.08
 		contact_damage *= 1.55
-		xp_value *= 4
+		xp_value = maxi(1, int(round(xp_value * float(xp_profile.elite_value_multiplier))))
 	hp = max_hp
 
 	visual_controller.configure_sprite(data)
@@ -132,6 +136,9 @@ func _physics_process(delta: float) -> void:
 	if dead or not is_instance_valid(player):
 		velocity = Vector2.ZERO
 		return
+	if contact_attack_visual_time > 0.0:
+		contact_attack_visual_time = maxf(0.0, contact_attack_visual_time - delta)
+		queue_redraw()
 	if hit_freeze > 0.0:
 		hit_freeze -= delta
 		velocity = Vector2.ZERO
@@ -162,10 +169,15 @@ func _physics_process(delta: float) -> void:
 		_try_begin_special(distance)
 
 	var distance_moved: float = motion.integrate_motion(delta, direction)
-	if definition_is_ranged and cast_cooldown <= 0.0 and telegraph_time <= 0.0 and pending_projectile_attack.is_empty() and projectile_release_time <= 0.0 and not behavior in ["glacial", "sovereign"]:
+	var contact_attack_ready := distance <= hit_radius + 22.0 and damage_cooldown <= 0.0 and telegraph_time <= 0.0
+	if definition_is_ranged and not contact_attack_ready and cast_cooldown <= 0.0 and telegraph_time <= 0.0 and pending_projectile_attack.is_empty() and projectile_release_time <= 0.0 and not behavior in ["glacial", "sovereign"]:
 		_cast_projectile(direction)
-	if distance <= hit_radius + 22.0 and damage_cooldown <= 0.0 and telegraph_time <= 0.0:
+	if contact_attack_ready:
 		attack_pulse = 1.0
+		if definition_is_ranged:
+			contact_attack_visual_time = CONTACT_ATTACK_VISUAL_DURATION
+			contact_attack_visual_direction = direction if not direction.is_zero_approx() else Vector2.RIGHT
+			queue_redraw()
 		player.take_damage(contact_damage, direction)
 		damage_cooldown = 1.0 if not boss else 0.72
 

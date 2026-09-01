@@ -10,6 +10,7 @@ var lifetime := 2.2
 var projectile_color := Color("a96cff")
 var critical := false
 var source_weapon := "unknown"
+var visual_style := ""
 var hit_targets: Dictionary = {}
 var world: Node
 
@@ -69,7 +70,28 @@ func _draw() -> void:
 	var outline := Color("1b1022")
 	var shadow := projectile_color.darkened(0.46)
 	var highlight := projectile_color.lightened(0.42)
-	match source_weapon:
+	match visual_style if not visual_style.is_empty() else source_weapon:
+		"crimson_crescent":
+			var crescent_outline := PackedVector2Array([
+				Vector2(-0.92, -0.94), Vector2(-0.18, -1.28), Vector2(0.70, -1.02),
+				Vector2(1.52, -0.38), Vector2(1.78, 0.0), Vector2(1.52, 0.38),
+				Vector2(0.70, 1.02), Vector2(-0.18, 1.28), Vector2(-0.92, 0.94),
+				Vector2(-0.18, 0.62), Vector2(0.52, 0.42), Vector2(1.02, 0.0),
+				Vector2(0.52, -0.42), Vector2(-0.18, -0.62),
+			])
+			var crescent_fill := PackedVector2Array()
+			for point in crescent_outline:
+				crescent_fill.append(point * hit_radius * 0.78)
+			for index in range(crescent_outline.size()):
+				crescent_outline[index] *= hit_radius
+			draw_colored_polygon(crescent_outline, outline)
+			draw_colored_polygon(crescent_fill, projectile_color)
+			draw_colored_polygon(PackedVector2Array([
+				Vector2(-0.15, -0.79) * hit_radius,
+				Vector2(0.58, -0.70) * hit_radius,
+				Vector2(1.18, -0.20) * hit_radius,
+				Vector2(0.48, -0.36) * hit_radius,
+			]), highlight)
 		"shadow_blades":
 			var blade_outline := PackedVector2Array([
 				Vector2(-hit_radius * 1.65, -hit_radius * 0.48),
@@ -164,6 +186,8 @@ func _uses_batch_renderer() -> bool:
 
 
 func projectile_batch_style() -> String:
+	if not visual_style.is_empty():
+		return visual_style
 	match source_weapon:
 		"chaos_bolt":
 			return "chaos"

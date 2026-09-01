@@ -30,6 +30,8 @@ var _quality_zero_fill_indices := PackedInt32Array()
 func setup(container: Node2D) -> void:
 	effect_container = container
 	name = "EffectBatchRenderer"
+	z_index = container.z_index
+	z_as_relative = container.z_as_relative
 	process_priority = 100
 	_prepare_quality_zero_geometry()
 	if DisplayServer.get_name() == "headless":

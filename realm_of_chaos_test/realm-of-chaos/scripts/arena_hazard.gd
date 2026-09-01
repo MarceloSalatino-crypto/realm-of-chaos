@@ -4,7 +4,7 @@ extends Node2D
 const ICE_REDRAW_INTERVAL := 1.0 / 14.0
 const VOID_REDRAW_INTERVAL := 1.0 / 20.0
 
-var hazard_kind := "roots"
+var hazard_kind := ""
 var radius := 105.0
 var animation_time := 0.0
 @warning_ignore("shadowed_global_identifier")
@@ -34,7 +34,7 @@ func setup(kind: String, hazard_position: Vector2, hazard_radius: float, visual_
 	screen_notifier.screen_exited.connect(_on_screen_exited)
 	redraw_interval = VOID_REDRAW_INTERVAL if hazard_kind == "void" else ICE_REDRAW_INTERVAL
 	redraw_timer = redraw_interval * (0.25 + _visual_phase() * 0.75)
-	set_process(hazard_kind != "roots")
+	set_process(true)
 
 
 func _process(delta: float) -> void:
@@ -72,7 +72,7 @@ func effect_data() -> Dictionary:
 		"void":
 			return {"speed": 0.82, "traction": 0.82, "damage": 9.0, "name": "FENDA DO VAZIO"}
 		_:
-			return {"speed": 0.68, "traction": 0.72, "damage": 0.0, "name": "RAÍZES PROFANADAS"}
+			return {"speed": 1.0, "traction": 1.0, "damage": 0.0, "name": ""}
 
 
 func _closed(points: PackedVector2Array) -> PackedVector2Array:
@@ -86,15 +86,6 @@ func _angular_ring(point_count: int, ring_radius: float, phase: float, inset: fl
 		var point_radius := ring_radius - inset if index % 2 == 0 else ring_radius
 		points.append(Vector2.RIGHT.rotated(angle) * point_radius)
 	return points
-
-
-func _draw_segmented_ring(ring_radius: float, angle_offset: float, color: Color, width: float, segment_count: int, coverage: float) -> void:
-	var segment_angle := TAU / float(segment_count)
-	for index in range(segment_count):
-		var start := angle_offset + segment_angle * float(index)
-		var finish := start + segment_angle * coverage
-		draw_arc(Vector2.ZERO, ring_radius, start, finish, 6, Color(0.025, 0.012, 0.04, 0.88), width + 3.0)
-		draw_arc(Vector2.ZERO, ring_radius, start, finish, 6, color, width)
 
 
 func _draw_void_shard(shard_position: Vector2, angle: float) -> void:
@@ -163,14 +154,3 @@ func _draw() -> void:
 			for index in range(shard_count):
 				var angle := -animation_time * 0.23 + TAU * index / float(shard_count)
 				_draw_void_shard(Vector2.RIGHT.rotated(angle) * radius * 0.66, angle + PI * 0.5)
-		_:
-			draw_circle(Vector2.ZERO, radius, Color(0.08, 0.18, 0.065, 0.07))
-			var root_count := 6 if reduced_detail else 9
-			for index in range(root_count):
-				var angle := TAU * index / float(root_count) + seed * 0.21
-				var end := Vector2.RIGHT.rotated(angle) * radius * (0.72 + sin(index * 4.1) * 0.16)
-				var bend := end.rotated(sin(seed + index) * 0.22) * 0.48
-				var root_points := PackedVector2Array([Vector2.ZERO, bend, end])
-				draw_polyline(root_points, Color(0.025, 0.045, 0.02, 0.86), 8.0)
-				draw_polyline(root_points, Color(0.34, 0.48, 0.20, 0.62), 4.0)
-			_draw_segmented_ring(radius, seed * 0.03, Color(0.47, 0.61, 0.29, 0.40), 2.0, 8 if reduced_detail else 12, 0.58)

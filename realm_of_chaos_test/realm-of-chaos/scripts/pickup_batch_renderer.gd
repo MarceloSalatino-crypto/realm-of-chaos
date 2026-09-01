@@ -26,6 +26,8 @@ var _container_was_visible := true
 func setup(container: Node2D) -> void:
 	pickup_container = container
 	name = "PickupBatchRenderer"
+	z_index = container.z_index
+	z_as_relative = container.z_as_relative
 	if DisplayServer.get_name() == "headless":
 		set_process(false)
 		return

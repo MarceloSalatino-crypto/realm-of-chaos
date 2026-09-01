@@ -198,6 +198,8 @@ func _use_reduced_detail() -> bool:
 
 func draw() -> void:
 	var reduced_detail := _use_reduced_detail()
+	if enemy.contact_attack_visual_time > 0.0:
+		_draw_contact_attack()
 	if enemy.behavior in ["ember", "bomber"]:
 		var ember_alpha := 0.10 + (sin(enemy.movement_age * 3.2) + 1.0) * 0.035
 		var ember_center := Vector2(0.0, -12.0)
@@ -227,3 +229,32 @@ func draw() -> void:
 		var aura_point_count := 12 if reduced_detail else 16
 		var aura_points := _ring_points(aura_center, aura_radius, aura_point_count, PI / float(aura_point_count), aura_radius * 0.055)
 		enemy.draw_colored_polygon(aura_points, aura_colors[0])
+
+
+func _draw_contact_attack() -> void:
+	var direction: Vector2 = enemy.contact_attack_visual_direction.normalized()
+	if direction.is_zero_approx():
+		direction = Vector2.RIGHT
+	var side: Vector2 = direction.orthogonal()
+	var remaining := clampf(
+		enemy.contact_attack_visual_time / enemy.CONTACT_ATTACK_VISUAL_DURATION, 0.0, 1.0
+	)
+	var strike_color: Color = enemy.definition_color.lightened(0.38)
+	strike_color.a = 0.36 + remaining * 0.58
+	var outline := Color(0.055, 0.018, 0.035, strike_color.a * 0.96)
+	var origin: Vector2 = Vector2(0.0, -9.0) + direction * (float(enemy.hit_radius) * 0.48)
+	for side_offset in [-6.0, 6.0]:
+		var center: Vector2 = origin + side * float(side_offset)
+		var start: Vector2 = center - direction * 5.0 - side * 2.0
+		var finish: Vector2 = center + direction * 25.0 + side * 3.0
+		var width_direction: Vector2 = side * 4.0
+		var outline_points := PackedVector2Array([
+			start - width_direction, finish - width_direction * 0.48,
+			finish + width_direction * 0.48, start + width_direction,
+		])
+		var fill_points := PackedVector2Array([
+			start - width_direction * 0.48, finish - width_direction * 0.20,
+			finish + width_direction * 0.20, start + width_direction * 0.48,
+		])
+		enemy.draw_colored_polygon(outline_points, outline)
+		enemy.draw_colored_polygon(fill_points, strike_color)

@@ -49,6 +49,24 @@ static func save_config(config: ConfigFile, save_path: String) -> Error:
 	var save_error := config.save(temporary_path)
 	if save_error != OK:
 		return save_error
+	# ConfigFile normaliza a precisão de floats ao escrever texto. O checksum
+	# precisa ser calculado sobre essa representação serializada, não sobre o
+	# double original em memória, ou alguns tempos de partida seriam recusados
+	# como corrompidos logo após a gravação.
+	var canonical_config := ConfigFile.new()
+	var canonical_load_error := canonical_config.load(temporary_path)
+	if canonical_load_error != OK:
+		_remove_file(temporary_path)
+		return canonical_load_error
+	_stamp_integrity(canonical_config)
+	var canonical_save_error := canonical_config.save(temporary_path)
+	if canonical_save_error != OK:
+		_remove_file(temporary_path)
+		return canonical_save_error
+	config.set_value(
+		INTEGRITY_SECTION, "checksum",
+		canonical_config.get_value(INTEGRITY_SECTION, "checksum", "")
+	)
 	var temporary := _inspect_file(temporary_path, false)
 	if not bool(temporary.valid):
 		_remove_file(temporary_path)
@@ -168,7 +186,7 @@ static func _validate_integrity(config: ConfigFile, allow_legacy: bool) -> Dicti
 
 
 static func _has_payload(config: ConfigFile) -> bool:
-	for section in ["record", "progress", "meta", "achievements", "profile", "settings"]:
+	for section in ["record", "progress", "campaign", "meta", "achievements", "profile", "settings"]:
 		if config.has_section(section) and not config.get_section_keys(section).is_empty():
 			return true
 	return false
@@ -186,6 +204,8 @@ static func _known_values_are_sane(config: ConfigFile) -> bool:
 		for key in config.get_section_keys("achievements"):
 			if typeof(config.get_value("achievements", key)) != TYPE_BOOL:
 				return false
+	if config.has_section("campaign") and not _campaign_values_are_sane(config):
+		return false
 	if config.has_section_key("profile", "version"):
 		if not _is_non_negative_number(config.get_value("profile", "version")):
 			return false
@@ -200,6 +220,27 @@ static func _known_values_are_sane(config: ConfigFile) -> bool:
 				if typeof(setting) != TYPE_BOOL:
 					return false
 			elif not _is_number(setting) or float(setting) < 0.0 or float(setting) > 1.0:
+				return false
+	return true
+
+
+static func _campaign_values_are_sane(config: ConfigFile) -> bool:
+	if config.has_section_key("campaign", "schema_version"):
+		var version = config.get_value("campaign", "schema_version")
+		if typeof(version) != TYPE_INT or int(version) < 1:
+			return false
+	if config.has_section_key("campaign", "selected_map_id"):
+		var selected = config.get_value("campaign", "selected_map_id")
+		if typeof(selected) != TYPE_STRING or str(selected).is_empty():
+			return false
+	for key in ["unlocked_maps", "completed_maps"]:
+		if not config.has_section_key("campaign", key):
+			continue
+		var values = config.get_value("campaign", key)
+		if not (values is PackedStringArray) and not (values is Array):
+			return false
+		for value in values:
+			if typeof(value) != TYPE_STRING or str(value).is_empty():
 				return false
 	return true
 

@@ -2,6 +2,7 @@ extends CanvasLayer
 
 const MinimapScript = preload("res://scripts/minimap.gd")
 const AbilityIndicatorScript = preload("res://scripts/ability_indicator.gd")
+const ActiveBuffsPanelScript = preload("res://scripts/active_buffs_panel.gd")
 const UPGRADE_ICON_TEXTURES := {
 	"chaos_bolt": preload("res://assets/ui/upgrade_icons/chaos_bolt.png"),
 	"shadow_blades": preload("res://assets/ui/upgrade_icons/shadow_blades.png"),
@@ -57,6 +58,7 @@ var boss_intro_band: ColorRect
 var boss_intro_label: Label
 var minimap: Control
 var ability_indicator: Control
+var active_buffs_panel: Control
 var stage_banner_tween: Tween
 var boss_intro_tween: Tween
 var damage_flash_tween: Tween
@@ -196,6 +198,13 @@ func _build_navigation_ui() -> void:
 	ability_indicator.size = Vector2(172.0, 96.0)
 	ability_indicator.z_index = -2
 	add_child(ability_indicator)
+	active_buffs_panel = ActiveBuffsPanelScript.new()
+	active_buffs_panel.name = "ActiveBuffsPanel"
+	active_buffs_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	active_buffs_panel.position = Vector2(18.0, 112.0)
+	active_buffs_panel.size = Vector2(232.0, 52.0)
+	active_buffs_panel.z_index = -1
+	add_child(active_buffs_panel)
 
 
 func bind_world(world: Node) -> void:
@@ -209,6 +218,16 @@ func update_navigation(cooldown_progress: float, character_id: String, ability_n
 	var icon := CHARACTER_ABILITY_ICONS.get(character_id, CHARACTER_ABILITY_ICONS.eclipse_hunter) as Texture2D
 	var color := Color(CHARACTER_ABILITY_COLORS.get(character_id, Color("d89cff")))
 	ability_indicator.set_state(cooldown_progress, icon, ability_name, color)
+
+
+func update_active_buffs(buffs: Array[Dictionary]) -> void:
+	if is_instance_valid(active_buffs_panel):
+		active_buffs_panel.set_buffs(buffs)
+
+
+func highlight_active_buff(buff_id: String) -> void:
+	if is_instance_valid(active_buffs_panel):
+		active_buffs_panel.highlight_buff(buff_id)
 
 
 func _pause_card_style(border_color: Color) -> StyleBoxFlat:
@@ -1053,23 +1072,49 @@ func flash_damage(intensity := -1.0) -> void:
 
 func show_end_screen(
 	victory: bool, survived: float, kills: int, level: int, essence := 0,
-	next_biome := "", extra_stats := "", new_achievements: Array[String] = []
+	next_biome := "", extra_stats := "", new_achievements: Array[String] = [],
+	campaign_info: Dictionary = {}
 ) -> void:
 	end_overlay.show()
-	end_title.text = "VITÓRIA!" if victory else "GAME OVER"
+	var save_confirmed := bool(campaign_info.get("save_confirmed", true))
+	end_title.text = "MAPA CONCLUÍDO" if victory else "GAME OVER"
+	if victory and not save_confirmed:
+		end_title.text = "VITÓRIA · NÃO SALVA"
 	end_title.add_theme_color_override("font_color", Color("ffd36b") if victory else Color("ff687d"))
 	var minutes := floori(survived / 60.0)
 	var seconds := int(survived) % 60
-	var result_line := "O chefe final caiu. A próxima fase foi aberta: %s." % next_biome if victory else "Sua jornada terminou, mas você pode reiniciar esta fase."
+	var result_line := "Sua jornada terminou, mas você pode reiniciar este mapa."
+	if victory and not save_confirmed:
+		result_line = (
+			"O chefe final caiu, mas o resultado não pôde ser gravado."
+			+ "\nNenhum progresso persistente desta partida foi registrado."
+		)
+	elif victory:
+		var completed_name := str(campaign_info.get("completed_map_name", "MAPA ATUAL"))
+		var unlocked_name := str(campaign_info.get("unlocked_map_name", ""))
+		result_line = "%s foi concluído." % completed_name
+		if not unlocked_name.is_empty():
+			result_line += "\n\nPRÓXIMO MAPA DESBLOQUEADO\n%s" % unlocked_name
+		elif bool(campaign_info.get("next_coming_soon", false)):
+			result_line += "\n\nPRÓXIMO MAPA EM BREVE"
+		elif not next_biome.is_empty():
+			result_line += "\n\nRetorne à campanha para escolher o próximo ritual."
 	var achievement_text := ""
 	if not new_achievements.is_empty():
 		achievement_text = "\n\nCONQUISTA DESBLOQUEADA  ·  %s" % ", ".join(new_achievements)
 	end_summary.text = "%s\n\nTempo sobrevivido  %02d:%02d  ·  Inimigos mortos  %d  ·  Nível  %d\nEssência conquistada  %d\n\n%s%s" % [result_line, minutes, seconds, kills, level, essence, extra_stats, achievement_text]
-	$EndOverlay/Panel/Margin/VBox/Restart.text = "PRÓXIMA FASE" if victory else "TENTAR NOVAMENTE"
+	$EndOverlay/Panel/Margin/VBox/Restart.text = "VOLTAR À CAMPANHA" if victory else "TENTAR NOVAMENTE"
 	end_summary_scroll.scroll_vertical = 0
 	_update_end_layout()
 	_update_end_layout.call_deferred()
 	$EndOverlay/Panel/Margin/VBox/Restart.grab_focus()
+
+
+func set_scene_transition_locked(locked: bool) -> void:
+	for button in pause_buttons:
+		button.disabled = locked
+	end_restart_button.disabled = locked
+	end_menu_button.disabled = locked
 
 
 func _update_end_layout() -> void:

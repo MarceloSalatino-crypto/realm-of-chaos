@@ -18,6 +18,7 @@ const WEAPON_IDS: Array[String] = [
 	"blood_scythe", "forbidden_grimoire", "rune_hammer", "storm_relic", "swarm_idol"
 ]
 const MAX_WEAPONS := 6
+const MAX_PASSIVES := 6
 const WALK_FRAME_DISTANCE := 21.5
 const WALK_MIN_SPEED := 6.0
 const WALK_MAX_FPS := 15.0
@@ -70,6 +71,7 @@ var dash_direction := Vector2.RIGHT
 var dash_speed := 760.0
 var blessing_time := 0.0
 var blessing_title := ""
+var blessing_kind := ""
 var temporary_damage_multiplier := 1.0
 var temporary_cooldown_multiplier := 1.0
 var temporary_move_multiplier := 1.0
@@ -219,6 +221,7 @@ func _physics_process(delta: float) -> void:
 		velocity = velocity.move_toward(Vector2.ZERO, movement_deceleration * traction * delta)
 	var movement_start_position := global_position
 	move_and_slide()
+	_process_landmark_contacts()
 	global_position.x = clampf(global_position.x, -5550.0, 5550.0)
 	global_position.y = clampf(global_position.y, -5550.0, 5550.0)
 	var distance_moved := movement_start_position.distance_to(global_position)
@@ -260,12 +263,20 @@ func _update_temporary_blessing(delta: float) -> void:
 	blessing_time = maxf(0.0, blessing_time - delta)
 	if blessing_time <= 0.0:
 		blessing_title = ""
+		blessing_kind = ""
 		temporary_damage_multiplier = 1.0
 		temporary_cooldown_multiplier = 1.0
 		temporary_move_multiplier = 1.0
 		temporary_pickup_multiplier = 1.0
 		temporary_crit_bonus = 0.0
 		temporary_armor = 0.0
+
+
+func _process_landmark_contacts() -> void:
+	for collision_index in range(get_slide_collision_count()):
+		var collider := get_slide_collision(collision_index).get_collider()
+		if is_instance_valid(collider) and collider.has_method("activate_from_physical_contact"):
+			collider.activate_from_physical_contact(self)
 
 #endregion
 
@@ -301,6 +312,17 @@ func _spawn_player_projectile(
 	pierce: int, size: float, color: Color, weapon_id := "unknown", force_critical := false
 ) -> void:
 	combat.spawn_player_projectile(direction, amount, projectile_speed, pierce, size, color, weapon_id, force_critical)
+
+
+func _spawn_shadow_dance_projectile(
+	spawn_position: Vector2, direction: Vector2, amount: float,
+	projectile_speed: float, pierce: int, size: float, color: Color,
+	is_critical: bool, returning: bool
+) -> Node:
+	return combat.spawn_shadow_dance_projectile(
+		spawn_position, direction, amount, projectile_speed,
+		pierce, size, color, is_critical, returning
+	)
 
 
 func _damage_orbit(weapon_level: int) -> void:
@@ -383,6 +405,18 @@ func active_weapon_count() -> int:
 	return progression.active_weapon_count()
 
 
+func active_passive_count() -> int:
+	return progression.active_passive_count()
+
+
+func set_upgrade_run_seed(seed_value: int) -> void:
+	progression.set_offer_seed(seed_value)
+
+
+func reset_upgrade_offer_history() -> void:
+	progression.reset_offer_history()
+
+
 func banish_upgrade(upgrade_id: String) -> void:
 	progression.banish_upgrade(upgrade_id)
 
@@ -413,6 +447,10 @@ func apply_meta_bonuses(meta: Dictionary) -> void:
 
 func apply_landmark_blessing(kind: String, duration := 40.0) -> String:
 	return progression.apply_landmark_blessing(kind, duration)
+
+
+func active_landmark_buffs() -> Array[Dictionary]:
+	return progression.active_landmark_buffs()
 
 #endregion
 
