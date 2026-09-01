@@ -52,8 +52,14 @@ func _complete_build(player: Node) -> void:
 	for index in range(player.MAX_WEAPONS):
 		var weapon_id: String = player.WEAPON_IDS[index]
 		player.weapon_levels[weapon_id] = player._upgrade_max(weapon_id)
+	var passive_index := 0
 	for passive_id in player.passive_levels:
-		player.passive_levels[passive_id] = player._upgrade_max(str(passive_id))
+		player.passive_levels[passive_id] = (
+			player._upgrade_max(str(passive_id))
+			if passive_index < player.MAX_PASSIVES
+			else 0
+		)
+		passive_index += 1
 
 
 func _run() -> void:
@@ -67,13 +73,13 @@ func _run() -> void:
 	var common_enemy := DropEnemy.new()
 	common_enemy.global_position = Vector2(900.0, 0.0)
 	var experience_before_drop: int = world.player.experience
-	world.handle_enemy_death(common_enemy, 7, false, false)
+	world.handle_enemy_death(common_enemy, 7, false, false, 0.0)
 	_check(_count_pickups(world, "xp") == 1, "inimigo deixou de dropar XP antes da build completa")
 	_check(world.player.experience == experience_before_drop, "XP foi entregue diretamente antes da build completa")
 	await _clear_pickups(world)
 
 	_complete_build(world.player)
-	_check(world.player.refresh_build_complete(), "seis armas e oito passivos máximos não concluíram a build")
+	_check(world.player.refresh_build_complete(), "seis armas e seis passivos máximos não concluíram a build")
 	_check(world.player.get_upgrade_options(3).is_empty(), "build completa ainda ofereceu upgrade")
 
 	world.player.hp = world.player.max_hp * 0.40
@@ -81,7 +87,7 @@ func _run() -> void:
 	var level_before_reward: int = world.player.level
 	var hp_before_reward: float = world.player.hp
 	var essence_before_reward: int = world.essence_earned
-	world.handle_enemy_death(common_enemy, 1, false, false)
+	world.handle_enemy_death(common_enemy, 1, false, false, 0.0)
 	_check(_count_pickups(world, "xp") == 0, "morte comum criou orb de XP com build completa")
 	await process_frame
 	_check(world.player.level == level_before_reward + 1, "XP direto não preservou o avanço de nível")

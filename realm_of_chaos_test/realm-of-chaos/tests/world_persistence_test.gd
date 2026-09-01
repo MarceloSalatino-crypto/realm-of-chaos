@@ -43,6 +43,10 @@ func _seed_test_config() -> void:
 	config.set_value("meta", "essence", 40)
 	config.set_value("progress", "active_cycle", 4)
 	config.set_value("progress", "highest_cycle", 7)
+	config.set_value("campaign", "schema_version", 1)
+	config.set_value("campaign", "selected_map_id", "profaned_forest")
+	config.set_value("campaign", "unlocked_maps", PackedStringArray(["profaned_forest"]))
+	config.set_value("campaign", "completed_maps", PackedStringArray())
 	config.set_value("achievements", "first_boss", true)
 	_check(config.save(TEST_SAVE_PATH) == OK, "nao foi possivel criar o save exclusivo de teste")
 
@@ -135,15 +139,17 @@ func _run() -> void:
 	for method_name in [&"_load_progression", &"_evaluate_achievements", &"_save_record"]:
 		_check(world.has_method(method_name), "API publica ausente: %s" % method_name)
 
-	var expected_cycle := int(config.get_value("progress", "active_cycle", 0))
+	var campaign_manager = root.get_node("CampaignManager")
+	var expected_map: Dictionary = campaign_manager.selected_map()
 	var stored_character := str(config.get_value("profile", "character", "eclipse_hunter"))
 	var expected_character_definition: Dictionary = GameDefs.character_data(stored_character)
 	var expected_character := str(expected_character_definition.id)
 	var expected_starting_weapon := str(expected_character_definition.starting_weapon)
 	var expected_settings := _expected_settings(config)
 	var expected_player := _expected_player_state(config)
-	_check(world.run_cycle == expected_cycle, "ciclo ativo nao foi carregado")
-	_check(str(world.biome.id) == str(GameDefs.biome_data(expected_cycle).id), "bioma nao corresponde ao ciclo carregado")
+	_check(world.campaign_map_id == str(expected_map.id), "mapa selecionado da campanha não foi carregado")
+	_check(world.run_cycle == int(expected_map.seed_offset), "fachada legada de ciclo não acompanha a seed do mapa")
+	_check(str(world.biome.id) == str(expected_map.biome_id), "bioma não corresponde ao map_id carregado")
 	_check(world.player.character_id == expected_character and world.player.character_applied, "personagem do perfil nao foi aplicado")
 	_check(
 		world.player.equipped_weapon_id == expected_starting_weapon
@@ -209,7 +215,10 @@ func _run() -> void:
 		_check(bool(test_config.get_value("achievements", str(definition.id), false)), "conquista nao foi persistida: %s" % definition.id)
 	_check(world._evaluate_achievements(true).is_empty(), "conquista persistida foi retornada novamente")
 
-	world.run_cycle = 4
+	world.campaign_map_id = "profaned_forest"
+	world.map_seed_offset = 0
+	world.map_boss_power = 1.0
+	world.run_cycle = 0
 	world.time_survived = 1200.0
 	world.enemies_killed = 350
 	world.essence_earned = 15
@@ -231,8 +240,16 @@ func _run() -> void:
 	_check(int(test_config.get_value("record", "best_kills", 0)) == 600, "melhor numero de abates nao foi atualizado")
 	_check(int(test_config.get_value("record", "victories", 0)) == 3, "vitoria nao foi acumulada")
 	_check(int(test_config.get_value("meta", "essence", 0)) == 65, "essencia da vitoria nao foi acumulada")
-	_check(int(test_config.get_value("progress", "active_cycle", 0)) == 5, "vitoria nao avancou o ciclo ativo")
+	_check(int(test_config.get_value("progress", "active_cycle", 0)) == 4, "vitoria alterou o ciclo legado")
 	_check(int(test_config.get_value("progress", "highest_cycle", 0)) == 7, "ciclo menor substituiu o maior ciclo")
+	_check(
+		"profaned_forest" in test_config.get_value("campaign", "completed_maps", PackedStringArray()),
+		"vitoria não marcou o mapa da campanha como concluído"
+	)
+	_check(
+		"frozen_ruins" in test_config.get_value("campaign", "unlocked_maps", PackedStringArray()),
+		"vitoria não desbloqueou o próximo mapa"
+	)
 
 	test_config.set_value("achievements", "cartographer", false)
 	_check(SaveStoreScript.save_config(test_config, TEST_SAVE_PATH) == OK, "nao foi possivel preparar suppress_save no arquivo de teste")
@@ -249,7 +266,7 @@ func _run() -> void:
 	_check(int(test_config.get_value("record", "best_kills", 0)) == 600, "suppress_save alterou recorde de abates")
 	_check(int(test_config.get_value("record", "victories", 0)) == 3, "suppress_save alterou vitorias")
 	_check(int(test_config.get_value("meta", "essence", 0)) == 65, "suppress_save alterou essencia")
-	_check(int(test_config.get_value("progress", "active_cycle", 0)) == 5, "suppress_save alterou progresso")
+	_check(int(test_config.get_value("progress", "active_cycle", 0)) == 4, "suppress_save alterou progresso legado")
 	_check(_save_bytes() == bytes_before, "teste isolado alterou o save real")
 
 	world.suppress_save = false

@@ -95,15 +95,13 @@ func _spawn_pickups_and_validate_tiers(world: Node) -> void:
 
 
 func _validate_hazard_budget(world: Node) -> void:
-	var kinds := ["roots", "ice", "void"]
+	var kinds := ["ice", "void"]
 	for index in range(kinds.size()):
 		var hazard = ArenaHazardScript.new()
 		world.add_child(hazard)
 		hazard.setup(kinds[index], Vector2(4800.0, 4800.0 + index * 180.0), 100.0, 100 + index)
 		_check(is_instance_valid(hazard.screen_notifier), "perigo %s não criou notifier" % kinds[index])
-		if kinds[index] == "roots":
-			_check(not hazard.is_processing(), "raízes ainda processam redesenho contínuo")
-		elif kinds[index] == "ice":
+		if kinds[index] == "ice":
 			_check(is_equal_approx(hazard.redraw_interval, 1.0 / 14.0), "gelo não usa aproximadamente 14 Hz")
 		else:
 			_check(is_equal_approx(hazard.redraw_interval, 1.0 / 20.0), "vazio não usa 20 Hz")
@@ -171,6 +169,7 @@ func _spawn_effect_burst(world: Node) -> void:
 
 func _run() -> void:
 	var world = load("res://scenes/world.tscn").instantiate()
+	world.campaign_map_override_id = "profaned_forest"
 	root.add_child(world)
 	await process_frame
 	world.suppress_save = true
@@ -184,7 +183,7 @@ func _run() -> void:
 	await _validate_hazard_budget(world)
 	await _validate_offscreen_pickup_physics(world)
 	_check(world.pickups.get_child_count() == PICKUP_COUNT, "teto de 520 pickups não foi preservado")
-	_check(get_nodes_in_group("arena_hazards").size() == 18, "mundo não manteve os 18 perigos")
+	_check(get_nodes_in_group("arena_hazards").is_empty(), "Bosque ainda manteve perigos ambientais")
 	_check(
 		world.environment_builder.visual_batcher.visual_instances.size() >= 1200,
 		"cenário de carga não contém pelo menos 1.200 visuais de mapa"
@@ -218,7 +217,7 @@ func _run() -> void:
 		% [average_ms, p95_ms, MAX_AVERAGE_MS, MAX_P95_MS]
 	)
 	print(
-		"VISUAL LOAD: 90 inimigos, 1.200+ decoracoes, 520 pickups, 18 perigos, 180/96 projeteis e 120 efeitos; %d lotes de mapa, %d nos; media %.2f ms, p95 %.2f ms"
+		"VISUAL LOAD: 90 inimigos, 1.200+ decoracoes, 520 pickups, Bosque sem hazards, 180/96 projeteis e 120 efeitos; %d lotes de mapa, %d nos; media %.2f ms, p95 %.2f ms"
 		% [
 			world.environment_builder.visual_batcher.batch_count(),
 			int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),

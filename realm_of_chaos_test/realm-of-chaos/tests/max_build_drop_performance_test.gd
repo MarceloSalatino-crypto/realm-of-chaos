@@ -65,8 +65,14 @@ func _run() -> void:
 	for index in range(world.player.MAX_WEAPONS):
 		var weapon_id: String = world.player.WEAPON_IDS[index]
 		world.player.weapon_levels[weapon_id] = world.player._upgrade_max(weapon_id)
+	var passive_index := 0
 	for passive_id in world.player.passive_levels:
-		world.player.passive_levels[passive_id] = world.player._upgrade_max(str(passive_id))
+		world.player.passive_levels[passive_id] = (
+			world.player._upgrade_max(str(passive_id))
+			if passive_index < world.player.MAX_PASSIVES
+			else 0
+		)
+		passive_index += 1
 	_check(world.player.refresh_build_complete(), "configuração máxima ainda possui upgrade disponível")
 
 	seed(9127)

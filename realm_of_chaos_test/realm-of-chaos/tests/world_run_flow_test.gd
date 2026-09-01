@@ -154,6 +154,9 @@ func _run() -> void:
 		_check(tree_landmark.activated and world.shrines_activated == shrine_count_before + 1, "ativação do santuário mudou")
 		_check(world.essence_earned == essence_before_shrine + 4 and nearby_pickup.attracted, "recompensa ou atração do santuário mudou")
 		_check(audio_spy.calls.has("shrine") and world.player.blessing_time == 40.0, "feedback ou duração da bênção mudou")
+		_check(world.player.blessing_kind == "tree", "identidade da bênção ativa não foi registrada")
+		_check(world.hud.active_buffs_panel.visible, "painel de buffs não apareceu após ativar santuário")
+		_check(world.hud.active_buffs_panel.displayed_buff_ids() == ["tree"], "painel não exibiu a bênção correta")
 		world.activate_landmark(tree_landmark)
 		_check(world.shrines_activated == shrine_count_before + 1, "santuário foi ativado duas vezes")
 
@@ -236,11 +239,10 @@ func _run() -> void:
 	defeat_world.enemies_killed = 44
 	defeat_world.essence_earned = 13
 	defeat_world.damage_by_source = {"chaos_bolt": 250.0}
-	defeat_world.persistence.write_failed = true
 	defeat_world._end_run(false)
 	_check(defeat_world.game_ended and paused and defeat_world.hud.end_overlay.visible, "derrota não encerrou e pausou a partida")
 	_check(defeat_world.hud.end_title.text == "GAME OVER" and "03:04" in defeat_world.hud.end_summary.text, "tela de derrota mudou")
-	_check("NÃO FOI POSSÍVEL SALVAR O PROGRESSO" in defeat_world.hud.end_summary.text, "falha de escrita não apareceu no resumo final")
+	_check("NÃO FOI POSSÍVEL SALVAR" not in defeat_world.hud.end_summary.text, "suppress_save foi tratado como falha de escrita")
 	defeat_world._end_run(true)
 	_check(defeat_world.hud.end_title.text == "GAME OVER", "segunda finalização sobrescreveu o resultado")
 	paused = false
@@ -250,9 +252,9 @@ func _run() -> void:
 	var victory_world = await _create_world()
 	victory_world.time_survived = victory_world.RUN_DURATION
 	victory_world._end_run(true)
-	_check(victory_world.game_ended and paused and victory_world.hud.end_title.text == "VITÓRIA!", "vitória não encerrou corretamente")
-	_check(victory_world.hud.end_restart_button.text == "PRÓXIMA FASE", "ação da vitória mudou")
-	_check("NÃO FOI POSSÍVEL SALVAR O PROGRESSO" not in victory_world.hud.end_summary.text, "resumo normal exibiu aviso de save indevido")
+	_check(victory_world.game_ended and paused and victory_world.hud.end_title.text == "MAPA CONCLUÍDO", "vitória não encerrou corretamente")
+	_check(victory_world.hud.end_restart_button.text == "VOLTAR À CAMPANHA", "vitória não oferece retorno à campanha")
+	_check("NÃO FOI POSSÍVEL SALVAR" not in victory_world.hud.end_summary.text, "resumo normal exibiu aviso de save indevido")
 	paused = false
 	victory_world.queue_free()
 	await process_frame

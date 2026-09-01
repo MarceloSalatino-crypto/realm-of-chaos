@@ -130,6 +130,14 @@ func _run() -> void:
 	_check(str(empty_result.status) == SaveStoreScript.STATUS_FAILED, "arquivo vazio foi aceito como save valido")
 
 	_clean_artifacts()
+	var precision_config := _config_with_essence(29)
+	precision_config.set_value("record", "best_time", 0.12032866666666667)
+	_check(SaveStoreScript.save_config(precision_config, TEST_SAVE_PATH) == OK, "float de alta precisão invalidou a gravação")
+	_check(SaveStoreScript.is_valid_file(TEST_SAVE_PATH), "float normalizado não passou pelo checksum serializado")
+	var precision_result := SaveStoreScript.load_config(TEST_SAVE_PATH)
+	_check(str(precision_result.status) == SaveStoreScript.STATUS_OK, "save com float normalizado não pôde ser recarregado")
+
+	_clean_artifacts()
 	var checksum_config := _config_with_essence(30)
 	_check(SaveStoreScript.save_config(checksum_config, TEST_SAVE_PATH) == OK, "save para teste de checksum falhou")
 	var tampered := _load_raw(TEST_SAVE_PATH)
@@ -152,7 +160,7 @@ func _run() -> void:
 
 	_clean_artifacts()
 	if failures.is_empty():
-		print("SAVE STORE OK: legado, checksum, backup, recuperacao, preservacao e falhas de escrita validados")
+		print("SAVE STORE OK: legado, checksum canônico, backup, recuperação, preservação e falhas de escrita validados")
 		quit(0)
 	else:
 		quit(1)

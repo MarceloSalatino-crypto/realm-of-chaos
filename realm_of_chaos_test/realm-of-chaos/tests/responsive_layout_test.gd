@@ -416,6 +416,42 @@ func _validate_ability_indicator(hud: CanvasLayer, viewport: SubViewport, viewpo
 	await _capture(viewport, "habilidade_" + _viewport_tag(viewport_size))
 
 
+func _validate_active_buffs(hud: CanvasLayer, viewport: SubViewport, viewport_size: Vector2i) -> void:
+	hud.pause_overlay.hide()
+	hud.stage_banner.hide()
+	hud.boss_panel.hide()
+	if is_instance_valid(hud.boss_intro):
+		hud.boss_intro.hide()
+	var buffs: Array[Dictionary] = [{
+		"id": "obelisk",
+		"name": "FLUXO CRONAL",
+		"effect": "-28% recarga · +12% crítico",
+		"remaining": 39.2,
+		"permanent": false,
+	}]
+	hud.update_active_buffs(buffs)
+	hud.highlight_active_buff("obelisk")
+	await _settle()
+	var panel := hud.active_buffs_panel as Control
+	_check(is_instance_valid(panel) and panel.visible, "painel de buffs não apareceu em %s" % _viewport_tag(viewport_size))
+	if is_instance_valid(panel):
+		_inside_viewport(panel, viewport_size, "Buffs/Painel")
+		_check(panel.displayed_buff_ids() == ["obelisk"], "painel de buffs perdeu a entrada ativa em %s" % _viewport_tag(viewport_size))
+		_check(panel.size.x <= 232.0 and panel.size.y <= 52.0, "painel de buffs deixou de ser compacto em %s" % _viewport_tag(viewport_size))
+		_check(panel.get_node_or_null("Background") == null, "painel de buffs recriou fundo ou moldura externa")
+		var buff_row := panel.get_node_or_null("Content/Buff_obelisk")
+		_check(buff_row is HBoxContainer, "buff voltou a usar cartão ou retângulo individual")
+		_check(buff_row.get_node_or_null("Highlight") == null, "buff voltou a usar destaque preenchido")
+	print(
+		"LAYOUT %s BUFFS panel=%dx%d pos=%d,%d entries=%d"
+		% [
+			_viewport_tag(viewport_size), roundi(panel.size.x), roundi(panel.size.y),
+			roundi(panel.position.x), roundi(panel.position.y), panel.displayed_buff_ids().size(),
+		]
+	)
+	await _capture(viewport, "buffs_" + _viewport_tag(viewport_size))
+
+
 func _validate_hud_layouts(viewport_size: Vector2i) -> void:
 	var viewport := _new_viewport(viewport_size)
 	var hud = HUD_SCENE.instantiate()
@@ -425,6 +461,7 @@ func _validate_hud_layouts(viewport_size: Vector2i) -> void:
 	await _validate_pause(hud, viewport, viewport_size)
 	await _validate_stage_banner(hud, viewport, viewport_size)
 	await _validate_boss_banner(hud, viewport, viewport_size)
+	await _validate_active_buffs(hud, viewport, viewport_size)
 	await _validate_ability_indicator(hud, viewport, viewport_size)
 	paused = false
 	root.remove_child(viewport)
@@ -439,7 +476,7 @@ func _run() -> void:
 	paused = false
 	if failures.is_empty():
 		var validation_mode := "com capturas reais" if not capture_dir.is_empty() else "dimensionalmente"
-		print("RESPONSIVE LAYOUT OK: menu, 4 abas do perfil e 7 estados de HUD validados %s em 5 resoluções" % validation_mode)
+		print("RESPONSIVE LAYOUT OK: menu, 4 abas do perfil e 8 estados de HUD validados %s em 5 resoluções" % validation_mode)
 		quit(0)
 	else:
 		quit(1)

@@ -30,6 +30,7 @@ func _capture_biome(cycle: int) -> void:
 	world.set_process(false)
 	world.player.disabled = true
 	world.run_cycle = cycle
+	world.map_seed_offset = cycle
 	world.biome = GameDefs.biome_data(cycle)
 	world._apply_biome()
 	world.ground.position = Vector2.ZERO

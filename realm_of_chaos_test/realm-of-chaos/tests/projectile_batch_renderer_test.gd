@@ -15,10 +15,13 @@ func _check(condition: bool, message: String) -> void:
 		push_error("PROJECTILE BATCH: " + message)
 
 
-func _spawn_player_projectile(world: Node, weapon: String, radius: float) -> Node:
+func _spawn_player_projectile(
+	world: Node, weapon: String, radius: float, visual_style := ""
+) -> Node:
 	var projectile = BulletScene.instantiate()
 	projectile.global_position = Vector2(120.0 + world.projectiles.get_child_count() * 40.0, 0.0)
 	projectile.setup(Vector2.RIGHT, 0.0, 0.0, 99, radius, Color("a96cff"), false, weapon)
+	projectile.visual_style = visual_style
 	projectile.lifetime = 5.0
 	world.add_player_projectile(projectile)
 	return projectile
@@ -43,19 +46,21 @@ func _run() -> void:
 	_spawn_player_projectile(world, "unknown", 7.0)
 	_spawn_player_projectile(world, "shadow_blades", 6.0)
 	_spawn_player_projectile(world, "chaos_bolt", 10.0)
+	_spawn_player_projectile(world, "blood_scythe", 18.0, "crimson_crescent")
 	var generic = world.spawn_enemy_projectile(Vector2(-120.0, 0.0), Vector2.LEFT, 0.0, 0.0, Color("62c7ff"), 8.0, false)
 	world.spawn_enemy_projectile(Vector2(-180.0, 0.0), Vector2.LEFT, 0.0, 0.0, Color("ff496d"), 8.0, true)
 	await process_frame
 	await process_frame
 
-	_check(world.projectiles.get_child_count() == 3, "batch alterou o total lógico de projéteis do jogador")
+	_check(world.projectiles.get_child_count() == 4, "batch alterou o total lógico de projéteis do jogador")
 	_check(world.enemy_projectiles.get_child_count() == 2, "batch alterou o total lógico de projéteis inimigos")
-	_check(player_renderer._entries.size() == 3, "registro do lote do jogador perdeu projéteis")
+	_check(player_renderer._entries.size() == 4, "registro do lote do jogador perdeu projéteis")
 	_check(enemy_renderer._entries.size() == 2, "registro do lote inimigo perdeu projéteis")
 	if player_renderer.rendering_enabled:
 		_check(player_renderer._batches.default.multimesh.visible_instance_count == 1, "sigilo genérico não entrou no lote correto")
 		_check(player_renderer._batches.shadow_small.multimesh.visible_instance_count == 1, "Lâminas Sombrias não entrou no lote correto")
 		_check(player_renderer._batches.chaos.multimesh.visible_instance_count == 1, "Chaos Bolt não entrou no lote correto")
+		_check(player_renderer._batches.crimson_crescent.multimesh.visible_instance_count == 1, "crescente da Ceifadora não entrou no lote próprio")
 		_check(enemy_renderer._batches.generic.multimesh.visible_instance_count == 1, "projétil inimigo genérico não entrou no lote correto")
 		_check(enemy_renderer._batches.danger.multimesh.visible_instance_count == 1, "estrela de perigo não entrou no lote correto")
 		for style in player_renderer._style_order:

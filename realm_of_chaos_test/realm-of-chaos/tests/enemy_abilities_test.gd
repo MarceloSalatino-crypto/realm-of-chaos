@@ -36,13 +36,17 @@ class WorldProbe:
 	var deaths := 0
 	var audio: Node
 
-	func spawn_effect(world_position: Vector2, color: Color, radius: float, duration: float, important := false) -> void:
+	func spawn_effect(
+		world_position: Vector2, color: Color, radius: float, duration: float,
+		filled := false, combat_critical_visual := false
+	) -> void:
 		effects.append({
 			"position": world_position,
 			"color": color,
 			"radius": radius,
 			"duration": duration,
-			"important": important,
+			"filled": filled,
+			"combat_critical": combat_critical_visual,
 		})
 
 	func spawn_enemy_projectile(

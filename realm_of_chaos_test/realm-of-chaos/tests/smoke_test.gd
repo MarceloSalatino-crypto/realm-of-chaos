@@ -89,7 +89,8 @@ func _run() -> void:
 	animated_enemy._animate_sprite(0.15)
 	_check(animated_enemy.sprite.hframes == 4 and animated_enemy.sprite.frame == 1, "asas ou braços inimigos permaneceram estáticos")
 
-	var target = world.spawn_enemy("prowler")
+	# Elites têm XP garantido; comuns agora usam chance orientada por dados.
+	var target = world.spawn_enemy("prowler", true)
 	target.global_position = world.player.global_position + Vector2(90, 0)
 	target.attack_pulse = 1.0
 	target._animate_sprite(0.01)
@@ -103,10 +104,14 @@ func _run() -> void:
 	_check(world.projectiles.get_child_count() > 0, "arma principal não criou projétil")
 
 	var kills_before: int = world.enemies_killed
+	var pickup_radius_before: float = world.player.pickup_radius
+	world.player.pickup_radius = 0.0
+	world.player.experience_needed = 999_999
 	target.take_damage(99999.0)
 	await process_frame
 	_check(world.enemies_killed == kills_before + 1, "morte não incrementou contador")
 	_check(world.pickups.get_child_count() > 0, "morte não gerou cristal de experiência")
+	world.player.pickup_radius = pickup_radius_before
 
 	var old_damage: float = world.player.damage_multiplier
 	world.player.apply_upgrade("might", "COMUM")
@@ -161,7 +166,7 @@ func _run() -> void:
 	_check("12:22" in world.hud.end_summary.text and "99" in world.hud.end_summary.text, "resumo da derrota não mostra tempo e eliminações")
 	world.hud.end_overlay.hide()
 	world.hud.show_end_screen(true, 1500.0, 321, 28)
-	_check(world.hud.end_title.text == "VITÓRIA!" and "25:00" in world.hud.end_summary.text and world.hud.get_node("EndOverlay/Panel/Margin/VBox/Restart").text == "PRÓXIMA FASE", "tela de vitória do chefe final incorreta")
+	_check(world.hud.end_title.text == "MAPA CONCLUÍDO" and "25:00" in world.hud.end_summary.text and world.hud.get_node("EndOverlay/Panel/Margin/VBox/Restart").text == "VOLTAR À CAMPANHA", "tela de conclusão do mapa incorreta")
 	_check(world.hud.get_node("EndOverlay/Panel/Margin/VBox/Restart") != null and world.hud.get_node("EndOverlay/Panel/Margin/VBox/Menu") != null, "telas finais sem reiniciar ou menu")
 	world.hud.end_overlay.hide()
 	world.player.disabled = false

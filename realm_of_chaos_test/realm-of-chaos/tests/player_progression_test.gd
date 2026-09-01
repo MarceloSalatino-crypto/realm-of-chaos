@@ -1,8 +1,8 @@
 extends SceneTree
 
 const WORLD_SCENE = preload("res://scenes/world.tscn")
-const EXPECTED_RARITY_FINGERPRINT := "RARO,COMUM,COMUM,RARO,RARO,RARO,RARO,RARO,COMUM,COMUM,COMUM,COMUM,COMUM,COMUM,COMUM,LENDÁRIO,RARO,COMUM,COMUM,COMUM,COMUM,COMUM,COMUM,COMUM"
-const EXPECTED_OPTION_FINGERPRINT := "critical:COMUM:0:1:1:PASSIVO:COMBINA COM Besta Do Caos|armor:COMUM:0:1:1:PASSIVO:|blood_scythe:COMUM:0:1:1:NOVA ARMA:EVOLUI COM SANGUE ANCESTRAL NV.3|magnet:COMUM:0:1:1:PASSIVO:|haste:RARO:0:1:1:PASSIVO:|vitality:COMUM:0:1:1:PASSIVO:"
+const EXPECTED_RARITY_FINGERPRINT := "RARO,COMUM,RARO,RARO,COMUM,COMUM,COMUM,COMUM,RARO,COMUM,COMUM,COMUM,COMUM,COMUM,COMUM,COMUM,COMUM,COMUM,COMUM,RARO,COMUM,COMUM,LENDÁRIO,COMUM"
+const EXPECTED_OPTION_FINGERPRINT := "blood_scythe:COMUM:0:1:1:NOVA ARMA:EVOLUI COM SANGUE ANCESTRAL NV.3|swiftness:COMUM:0:1:1:PASSIVO:|storm_relic:COMUM:0:1:1:NOVA ARMA:EVOLUI COM RITUAL ACELERADO NV.3|chaos_bolt:COMUM:1:2:1:ARMA:EVOLUI COM OLHAR FATAL NV.3|vitality:RARO:0:1:1:PASSIVO:|magnet:RARO:0:1:1:PASSIVO:"
 
 var failures: Array[String] = []
 
@@ -29,6 +29,8 @@ func _check_close(actual: float, expected: float, message: String) -> void:
 
 
 func _reset_player(player) -> void:
+	player.progression.set_offer_weight_overrides({})
+	player.set_upgrade_run_seed(90210)
 	player.level = 1
 	player.experience = 0
 	player.experience_needed = 12
@@ -74,7 +76,7 @@ func _reset_player(player) -> void:
 
 
 func _rarity_fingerprint(player) -> String:
-	seed(197701)
+	player.set_upgrade_run_seed(197701)
 	var rarities: Array[String] = []
 	for _index in range(24):
 		rarities.append(player._roll_rarity())
@@ -83,7 +85,7 @@ func _rarity_fingerprint(player) -> String:
 
 func _option_fingerprint(player) -> String:
 	_reset_player(player)
-	seed(448921)
+	player.set_upgrade_run_seed(448921)
 	var options: Array[Dictionary] = player.get_upgrade_options(6)
 	var signature: Array[String] = []
 	for option in options:
@@ -108,7 +110,8 @@ func _run() -> void:
 	for method_name in [
 		&"collect_xp", &"get_upgrade_options", &"is_build_complete", &"refresh_build_complete",
 		&"_evolution_hint_for",
-		&"active_weapon_count", &"banish_upgrade", &"_roll_rarity",
+		&"active_weapon_count", &"active_passive_count", &"set_upgrade_run_seed",
+		&"reset_upgrade_offer_history", &"banish_upgrade", &"_roll_rarity",
 		&"get_upgrade_level", &"apply_upgrade", &"_upgrade_max",
 		&"_check_weapon_evolutions", &"apply_meta_bonuses",
 		&"apply_landmark_blessing", &"apply_character", &"get_relic_options",
@@ -161,7 +164,7 @@ func _run() -> void:
 	var initial_options: Array[Dictionary] = player.get_upgrade_options(6)
 	_check(initial_options.size() == 6, "quantidade de opções solicitada mudou")
 	for option in initial_options:
-		_check(option.has_all(["id", "level", "current_level", "levels_gained", "rarity", "category", "evolution_hint", "synergy_items"]), "opção perdeu campos públicos")
+		_check(option.has_all(["id", "level", "current_level", "levels_gained", "rarity", "category", "offer_weight", "offer_tier", "evolution_hint", "synergy_items"]), "opção perdeu campos públicos")
 		_check(option.synergy_items is Array, "opção não entregou sinergias estruturadas")
 		_check(str(option.rarity) in ["COMUM", "RARO", "LENDÁRIO"], "opção recebeu raridade inválida")
 		_check(int(option.levels_gained) >= 1 and int(option.levels_gained) <= 2, "ganho de níveis da opção mudou")
@@ -179,6 +182,22 @@ func _run() -> void:
 		var option_id := str(option.id)
 		if player.weapon_levels.has(option_id):
 			_check(int(player.weapon_levels[option_id]) > 0, "nova arma apareceu após atingir o limite")
+
+	_reset_player(player)
+	var passive_ids: Array[String] = []
+	for passive_id in player.passive_levels:
+		passive_ids.append(str(passive_id))
+	for index in range(player.MAX_PASSIVES):
+		player.passive_levels[passive_ids[index]] = 1
+	_check(player.active_passive_count() == player.MAX_PASSIVES, "contagem do limite de passivos divergiu")
+	var passive_capped_options: Array[Dictionary] = player.get_upgrade_options(GameDefs.upgrades().size())
+	for option in passive_capped_options:
+		var option_id := str(option.id)
+		if player.passive_levels.has(option_id):
+			_check(int(player.passive_levels[option_id]) > 0, "novo passivo apareceu após atingir o limite")
+	var blocked_passive_id: String = passive_ids[player.MAX_PASSIVES]
+	player.apply_upgrade(blocked_passive_id, "LENDÁRIO")
+	_check(int(player.passive_levels[blocked_passive_id]) == 0, "aplicação direta ultrapassou o limite de passivos")
 
 	_reset_player(player)
 	_check(player.get_upgrade_level("chaos_bolt") == 1 and player.get_upgrade_level("might") == 0, "consulta de nível mudou")

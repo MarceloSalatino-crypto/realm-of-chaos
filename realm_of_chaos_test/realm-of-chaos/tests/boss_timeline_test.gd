@@ -40,8 +40,8 @@ func _run() -> void:
 	await process_frame
 	_check(world.boss_spawn_log == ["ossuary_colossus", "glacial_archon", "infernal_reaper", "void_titan", "chaos_sovereign"], "ordem dos cinco confrontos está incorreta")
 	_check(world.game_ended and paused, "morte do chefe final não concluiu a fase")
-	_check(world.hud.end_title.text == "VITÓRIA!", "chefe final não abriu a tela de vitória")
-	_check(world.hud.get_node("EndOverlay/Panel/Margin/VBox/Restart").text == "PRÓXIMA FASE", "vitória não oferece a próxima fase")
+	_check(world.hud.end_title.text == "MAPA CONCLUÍDO", "chefe final não abriu a conclusão do mapa")
+	_check(world.hud.get_node("EndOverlay/Panel/Margin/VBox/Restart").text == "VOLTAR À CAMPANHA", "vitória não oferece retorno à campanha")
 
 	paused = false
 	world.queue_free()

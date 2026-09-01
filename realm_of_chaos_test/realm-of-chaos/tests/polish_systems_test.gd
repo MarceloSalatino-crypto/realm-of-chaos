@@ -48,8 +48,14 @@ func _run() -> void:
 	_check(not world.player.all_weapons_evolved(), "conquista aceitou build parcialmente evoluída")
 	world.player.evolved_weapons[world.player.WEAPON_IDS[0]] = true
 	_check("\n" in world.player.weapon_summary(), "resumo de seis armas não foi dividido em duas linhas")
+	var passive_index := 0
 	for passive_id in world.player.passive_levels:
-		world.player.passive_levels[passive_id] = world.player._upgrade_max(str(passive_id))
+		world.player.passive_levels[passive_id] = (
+			world.player._upgrade_max(str(passive_id))
+			if passive_index < world.player.MAX_PASSIVES
+			else 0
+		)
+		passive_index += 1
 	world.player.hp = world.player.max_hp * 0.50
 	var essence_before_overflow: int = world.essence_earned
 	world._on_level_up_requested()

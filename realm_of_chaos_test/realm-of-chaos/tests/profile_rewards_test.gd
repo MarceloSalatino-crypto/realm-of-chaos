@@ -63,18 +63,21 @@ func _run() -> void:
 	await process_frame
 
 	var world = load("res://scenes/world.tscn").instantiate()
+	world.campaign_map_override_id = "profaned_forest"
 	root.add_child(world)
 	await process_frame
 	world.suppress_save = true
 	world.audio.enabled = false
 	world.set_process(false)
 	_check(world.landmarks.get_child_count() == 4 and world.landmark_positions.size() == 4, "mapa não criou os quatro santuários")
-	_check(world.obstacles.get_child_count() == 36, "mapa não criou os 36 obstáculos físicos")
+	var expected_obstacle_bodies := 91 if str(world.biome.id) == "forest" else 36
+	_check(world.obstacles.get_child_count() == expected_obstacle_bodies, "mapa não criou a população física esperada do bioma")
 	_check(is_instance_valid(world.map_overlay) and is_instance_valid(world.hud.minimap), "caminhos ou minimapa não foram criados")
-	_check(world.hazards.get_child_count() == 18, "perigos do bioma não foram distribuídos")
-	var first_hazard = world.hazards.get_child(0)
-	var environment: Dictionary = world.get_environment_effect(first_hazard.global_position)
-	_check(float(environment.speed) != 1.0 or float(environment.traction) != 1.0 or float(environment.damage) > 0.0, "perigo do bioma não altera a física")
+	_check(world.hazards.get_child_count() == 0, "Bosque ainda distribui Raízes Profanadas")
+	var environment: Dictionary = world.get_environment_effect(world.player.global_position)
+	_check(is_equal_approx(float(environment.speed), 1.0), "Bosque manteve alteração invisível de velocidade")
+	_check(is_equal_approx(float(environment.traction), 1.0), "Bosque manteve alteração invisível de tração")
+	_check(is_zero_approx(float(environment.damage)), "Bosque manteve dano ambiental invisível")
 	_check(world.player.character_applied and not world.player.character_id.is_empty(), "caçador selecionado não foi aplicado")
 	var active_character: Dictionary = GameDefs.character_data(world.player.character_id)
 	var active_starting_weapon := str(active_character.starting_weapon)
