@@ -1,0 +1,2 @@
+# Godot rewrites import sidecars with LF on every platform.
+*.import text eol=lf
