@@ -45,7 +45,7 @@ Uma evolução completa do protótipo original para um loop no estilo survivor: 
 - Sete conquistas persistentes e painel de perfil integrado ao menu.
 - Campanha orientada por dados com dez posições: Bosque Profanado, Ruínas Glaciais e Catedral do Vazio jogáveis, mais sete mapas futuros visíveis como “Em breve”.
 - Desbloqueio sequencial persistente: somente a derrota do chefe final conclui o mapa e libera o próximo; mapas concluídos continuam disponíveis para repetição.
-- Física própria por bioma: raízes reduzem movimento, placas de gelo diminuem tração e fendas do Vazio causam dano contínuo.
+- Física ambiental por bioma: o Bosque permanece livre de hazards de chão, placas de gelo diminuem tração e fendas do Vazio causam dano contínuo.
 - Mapa estruturado em regiões semânticas, com clareira central, caminhos orgânicos, 36 obstáculos físicos e quatro marcos visuais exploráveis.
 - Santuários do Altar Rubro, Obelisco Cronal, Árvore das Almas e Portal Fraturado concedem bênçãos temporárias de combate.
 - Minimap dinâmico mostra jogador, santuários, chefes e baús de recompensa.
@@ -60,6 +60,12 @@ Uma evolução completa do protótipo original para um loop no estilo survivor: 
 
 ## Testes automatizados
 
+Em um clone novo, execute primeiro uma importação headless para registrar as classes globais e gerar o cache local `.godot` (ignorado pelo Git):
+
+```powershell
+godot --headless --editor --path . --quit
+```
+
 Com o Godot disponível no terminal, o smoke test principal pode ser executado assim:
 
 ```powershell
@@ -70,11 +76,16 @@ A suíte funcional está dividida por componente e por sistema. Para executar to
 
 ```powershell
 Get-ChildItem tests -Filter *_test.gd |
-  Where-Object Name -notin @(
-    "performance_test.gd",
-    "visual_load_performance_test.gd",
-    "max_build_drop_performance_test.gd"
-  ) |
+  Where-Object {
+    $_.Name -notin @(
+      "smoke_test.gd",
+      "performance_test.gd",
+      "visual_load_performance_test.gd",
+      "max_build_drop_performance_test.gd",
+      "forest_collision_performance_test.gd"
+    ) -and
+    $_.Name -notmatch "(_visual_test|_graphical_test)\.gd$"
+  } |
   Sort-Object Name |
   ForEach-Object {
     & godot --headless --path . --fixed-fps 60 --script "res://tests/$($_.Name)"
