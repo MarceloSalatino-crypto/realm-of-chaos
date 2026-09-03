@@ -24,13 +24,14 @@ func _remove_file(path: String) -> void:
 
 
 func _cleanup() -> void:
-	for suffix in ["", ".bak", ".swap", ".corrupt", ".bak.corrupt"]:
+	for suffix in ["", ".bak", ".swap", ".bak.swap", ".corrupt", ".bak.corrupt"]:
 		_remove_file(TEST_SAVE_PATH + str(suffix))
-	var temporary_absolute := ProjectSettings.globalize_path(TEST_SAVE_PATH + ".tmp")
-	if DirAccess.dir_exists_absolute(temporary_absolute):
-		DirAccess.remove_absolute(temporary_absolute)
-	else:
-		_remove_file(TEST_SAVE_PATH + ".tmp")
+	for temporary_path in [TEST_SAVE_PATH + ".tmp", TEST_SAVE_PATH + ".bak.tmp"]:
+		var temporary_absolute := ProjectSettings.globalize_path(temporary_path)
+		if DirAccess.dir_exists_absolute(temporary_absolute):
+			DirAccess.remove_absolute(temporary_absolute)
+		else:
+			_remove_file(temporary_path)
 
 
 func _bytes(path: String) -> PackedByteArray:
@@ -86,6 +87,32 @@ func _run() -> void:
 	world.queue_free()
 	await process_frame
 	DirAccess.remove_absolute(temporary_absolute)
+
+	_cleanup()
+	manager.load_progress(TEST_SAVE_PATH, false)
+	var blocked_backup_temporary := ProjectSettings.globalize_path(TEST_SAVE_PATH + ".bak.tmp")
+	_check(DirAccess.make_dir_absolute(blocked_backup_temporary) == OK, "não foi possível bloquear o primeiro backup")
+	var first_save_world = WorldScene.instantiate()
+	first_save_world.persistence_path_override = TEST_SAVE_PATH
+	root.add_child(first_save_world)
+	await process_frame
+	first_save_world.audio.enabled = false
+	first_save_world.set_process(false)
+	first_save_world.bosses_defeated = 5
+	first_save_world.enemies_killed = 600
+	first_save_world.essence_earned = 73
+	first_save_world.time_survived = 1500.0
+	first_save_world.damage_taken = 0.0
+	first_save_world._end_run(true)
+	_check(first_save_world.persistence.write_failed, "falha do primeiro backup não foi registrada")
+	_check(first_save_world.hud.end_title.text == "VITÓRIA · NÃO SALVA", "HUD confirmou vitória com primeiro backup bloqueado")
+	_check(not FileAccess.file_exists(TEST_SAVE_PATH), "falha do primeiro backup deixou progresso parcial no principal")
+	manager.load_progress(TEST_SAVE_PATH, false)
+	_check(not manager.can_start_map("frozen_ruins"), "falha do primeiro backup desbloqueou o mapa 2 em memória")
+	paused = false
+	first_save_world.queue_free()
+	await process_frame
+	DirAccess.remove_absolute(blocked_backup_temporary)
 	manager.load_progress("user://realm_of_chaos.cfg", false)
 	_cleanup()
 	if failures.is_empty():

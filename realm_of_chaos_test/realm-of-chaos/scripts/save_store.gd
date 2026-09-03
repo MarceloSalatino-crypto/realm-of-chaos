@@ -91,15 +91,19 @@ static func save_config(config: ConfigFile, save_path: String) -> Error:
 		if rotate_error != OK:
 			_remove_file(temporary_path)
 			return rotate_error
+	var created_initial_backup := false
+	if not bool(primary.valid) and not bool(backup.valid):
+		var initial_backup_error := _replace_backup_from(temporary_path, backup_save_path)
+		if initial_backup_error != OK:
+			_remove_file(temporary_path)
+			return initial_backup_error
+		created_initial_backup = true
 
 	var promote_error := _promote_file(temporary_path, save_path)
 	if promote_error != OK:
+		if created_initial_backup:
+			_remove_file(backup_save_path)
 		return promote_error
-
-	if not bool(_inspect_file(backup_save_path).valid):
-		var create_backup_error := _replace_backup_from(save_path, backup_save_path)
-		if create_backup_error != OK:
-			return create_backup_error
 	return OK
 
 

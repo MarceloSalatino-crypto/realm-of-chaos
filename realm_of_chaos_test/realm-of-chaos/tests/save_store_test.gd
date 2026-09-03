@@ -159,6 +159,19 @@ func _run() -> void:
 	DirAccess.remove_absolute(temporary_directory)
 
 	_clean_artifacts()
+	var blocked_backup_temporary := ProjectSettings.globalize_path(TEST_SAVE_PATH + ".bak.tmp")
+	_check(DirAccess.make_dir_absolute(blocked_backup_temporary) == OK, "bloqueio do primeiro backup nao foi criado")
+	var first_generation := _config_with_essence(41)
+	var first_generation_error := SaveStoreScript.save_config(first_generation, TEST_SAVE_PATH)
+	_check(first_generation_error != OK, "falha do primeiro backup foi tratada como sucesso")
+	_check(not FileAccess.file_exists(TEST_SAVE_PATH), "falha do primeiro backup promoveu estado parcial ao principal")
+	_check(not SaveStoreScript.is_valid_file(TEST_SAVE_PATH + ".bak"), "falha do primeiro backup deixou backup candidato valido")
+	DirAccess.remove_absolute(blocked_backup_temporary)
+	_check(SaveStoreScript.save_config(first_generation, TEST_SAVE_PATH) == OK, "primeiro save nao se recuperou apos liberar o backup")
+	_check(SaveStoreScript.is_valid_file(TEST_SAVE_PATH), "principal nao foi criado apos recuperar a escrita")
+	_check(SaveStoreScript.is_valid_file(TEST_SAVE_PATH + ".bak"), "backup nao foi criado apos recuperar a escrita")
+
+	_clean_artifacts()
 	if failures.is_empty():
 		print("SAVE STORE OK: legado, checksum canônico, backup, recuperação, preservação e falhas de escrita validados")
 		quit(0)
