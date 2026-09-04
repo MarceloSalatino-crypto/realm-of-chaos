@@ -53,6 +53,13 @@ func _count_pickups(world: Node, pickup_kind: String) -> int:
 	return count
 
 
+func _find_pickup(world: Node, pickup_kind: String) -> Node:
+	for pickup in world.pickups.get_children():
+		if is_instance_valid(pickup) and str(pickup.pickup_kind) == pickup_kind:
+			return pickup
+	return null
+
+
 func _clear_pickups(world: Node) -> void:
 	for pickup in world.pickups.get_children():
 		pickup.queue_free()
@@ -236,15 +243,19 @@ func _test_runtime_drop_path(world: Node) -> void:
 	_check(_count_pickups(world, "xp") == 0, "falha de chance criou uma gema falsa")
 	world.handle_enemy_death(enemy, 5, false, false, 0.0)
 	_check(_count_pickups(world, "xp") == 1, "drop aprovado não criou a gema de XP")
-	var pickup = world.pickups.get_child(0)
-	_check(int(pickup.value) == 5, "gema recebeu valor diferente do perfil")
-	_check(str(pickup.pickup_batch_style()) == "xp_common", "XP comum perdeu o visual verde existente")
+	var pickup := _find_pickup(world, "xp")
+	_check(is_instance_valid(pickup), "drop aprovado não pôde ser localizado entre outros pickups")
+	if is_instance_valid(pickup):
+		_check(int(pickup.value) == 5, "gema recebeu valor diferente do perfil")
+		_check(str(pickup.pickup_batch_style()) == "xp_common", "XP comum perdeu o visual verde existente")
 	await _clear_pickups(world)
 
 	enemy.enemy_type = "brute"
 	world.handle_enemy_death(enemy, 14, false, false, 0.0)
-	pickup = world.pickups.get_child(0)
-	_check(str(pickup.pickup_batch_style()) == "xp_high", "XP alto não utilizou o cristal dourado existente")
+	pickup = _find_pickup(world, "xp")
+	_check(is_instance_valid(pickup), "XP alto aprovado não pôde ser localizado entre outros pickups")
+	if is_instance_valid(pickup):
+		_check(str(pickup.pickup_batch_style()) == "xp_high", "XP alto não utilizou o cristal dourado existente")
 	await _clear_pickups(world)
 	enemy.free()
 
