@@ -7,6 +7,8 @@ const SOUL_DEVOURER_RESERVED_DAMAGE_RATIO := 0.25
 const SOUL_DEVOURER_RELEASE_COOLDOWN := 0.35
 const SOUL_DEVOURER_MAX_TARGETS := 3
 const SOUL_DEVOURER_TARGET_MARGIN := 80.0
+const ORBIT_HIT_COOLDOWN_MSEC := 430
+const ORBIT_HIT_HISTORY_PRUNE_INTERVAL_MSEC := 500
 
 var player
 var legion_cast_count := 0
@@ -15,6 +17,7 @@ var soul_essence_damage := 0.0
 var soul_devourer_release_cooldown := 0.0
 var soul_devourer_release_visual_time := 0.0
 var soul_devourer_release_count := 0
+var next_orbit_hit_history_prune_msec := 0
 
 
 func _init(owner_player) -> void:
@@ -317,6 +320,7 @@ func damage_orbit(weapon_level: int) -> void:
 	if evolved and soul_devourer_release_cooldown <= 0.0 and soul_essence_charges >= SOUL_DEVOURER_CHARGE_LIMIT:
 		release_soul_essence(radius)
 	var now := Time.get_ticks_msec()
+	_prune_orbit_hit_history(now)
 	var sound_played := false
 	for enemy in enemies_near(radius + 60.0):
 		if not is_instance_valid(enemy):
@@ -324,7 +328,7 @@ func damage_orbit(weapon_level: int) -> void:
 		if player.global_position.distance_to(enemy.global_position) > radius + enemy.hit_radius:
 			continue
 		var enemy_id := enemy.get_instance_id()
-		if now - int(player.orbit_hit_times.get(enemy_id, 0)) < 430:
+		if now - int(player.orbit_hit_times.get(enemy_id, 0)) < ORBIT_HIT_COOLDOWN_MSEC:
 			continue
 		for index in range(blade_count):
 			var blade_position: Vector2 = player.global_position + Vector2.RIGHT.rotated(player.orbit_angle + TAU * index / blade_count) * radius
@@ -354,6 +358,15 @@ func damage_orbit(weapon_level: int) -> void:
 						if soul_essence_charges >= SOUL_DEVOURER_CHARGE_LIMIT:
 							release_soul_essence(radius)
 				break
+
+
+func _prune_orbit_hit_history(now_msec: int) -> void:
+	if now_msec < next_orbit_hit_history_prune_msec:
+		return
+	next_orbit_hit_history_prune_msec = now_msec + ORBIT_HIT_HISTORY_PRUNE_INTERVAL_MSEC
+	for enemy_id in player.orbit_hit_times.keys():
+		if now_msec - int(player.orbit_hit_times[enemy_id]) >= ORBIT_HIT_COOLDOWN_MSEC:
+			player.orbit_hit_times.erase(enemy_id)
 
 
 func release_soul_essence(radius: float) -> bool:

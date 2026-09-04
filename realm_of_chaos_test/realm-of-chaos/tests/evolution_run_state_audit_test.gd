@@ -146,14 +146,25 @@ func _run() -> void:
 			effect.queue_free()
 		await process_frame
 
-	var expected_history := ORBIT_CYCLES * ORBIT_TARGETS_PER_CYCLE
 	_check(world.enemies.get_child_count() == 0, "simulação longa manteve inimigos vivos")
-	_check(world.player.orbit_hit_times.size() == expected_history, "histórico da Órbita não cresceu proporcionalmente aos alvos já vistos")
-	var stale_count := 0
+	var expired_time := Time.get_ticks_msec() - 1000
 	for enemy_id in world.player.orbit_hit_times:
-		if not is_instance_valid(instance_from_id(int(enemy_id))):
-			stale_count += 1
-	_check(stale_count == expected_history, "auditoria não confirmou que IDs mortos permanecem durante a run")
+		world.player.orbit_hit_times[enemy_id] = expired_time
+	world.player.combat.next_orbit_hit_history_prune_msec = 0
+	var current_target := _spawn_target(world, Vector2(170.0, 0.0))
+	world._rebuild_spatial_grid()
+	world.player._damage_orbit(6)
+	_check(
+		world.player.orbit_hit_times.size() == 1,
+		"histórico da Órbita manteve IDs expirados depois da janela de recarga (%d entradas)" % world.player.orbit_hit_times.size()
+	)
+	_check(
+		is_instance_valid(current_target)
+		and world.player.orbit_hit_times.has(current_target.get_instance_id()),
+		"limpeza do histórico removeu o alvo atual da Órbita"
+	)
+	current_target.queue_free()
+	await process_frame
 
 	world.queue_free()
 	await process_frame
@@ -171,7 +182,7 @@ func _run() -> void:
 	fresh_world.queue_free()
 	await process_frame
 	if failures.is_empty():
-		print("EVOLUTION RUN STATE AUDIT OK: Legião 1/2/3, desevolução defensiva e %d IDs obsoletos da Órbita isolados no retry" % stale_count)
+		print("EVOLUTION RUN STATE AUDIT OK: Legião 1/2/3, desevolução defensiva e histórico da Órbita limitado durante a run/retry")
 		quit(0)
 	else:
 		quit(1)
