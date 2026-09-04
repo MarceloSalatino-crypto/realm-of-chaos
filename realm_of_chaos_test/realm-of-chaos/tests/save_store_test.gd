@@ -49,9 +49,10 @@ func _bytes(path: String) -> PackedByteArray:
 	return FileAccess.get_file_as_bytes(path) if FileAccess.file_exists(path) else PackedByteArray()
 
 
-func _remove_file(path: String) -> void:
-	if FileAccess.file_exists(path):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+func _remove_path(path: String) -> void:
+	var absolute := ProjectSettings.globalize_path(path)
+	if FileAccess.file_exists(path) or DirAccess.dir_exists_absolute(absolute):
+		DirAccess.remove_absolute(absolute)
 
 
 func _clean_artifacts() -> void:
@@ -65,13 +66,10 @@ func _clean_artifacts() -> void:
 		TEST_SAVE_PATH + ".corrupt",
 		TEST_SAVE_PATH + ".bak.corrupt",
 	]:
-		_remove_file(path)
+		_remove_path(path)
 	for index in range(1, 8):
-		_remove_file("%s.corrupt.%d" % [TEST_SAVE_PATH, index])
-		_remove_file("%s.bak.corrupt.%d" % [TEST_SAVE_PATH, index])
-	var temporary_absolute := ProjectSettings.globalize_path(TEST_SAVE_PATH + ".tmp")
-	if DirAccess.dir_exists_absolute(temporary_absolute):
-		DirAccess.remove_absolute(temporary_absolute)
+		_remove_path("%s.corrupt.%d" % [TEST_SAVE_PATH, index])
+		_remove_path("%s.bak.corrupt.%d" % [TEST_SAVE_PATH, index])
 
 
 func _run() -> void:
@@ -170,6 +168,48 @@ func _run() -> void:
 	_check(SaveStoreScript.save_config(first_generation, TEST_SAVE_PATH) == OK, "primeiro save nao se recuperou apos liberar o backup")
 	_check(SaveStoreScript.is_valid_file(TEST_SAVE_PATH), "principal nao foi criado apos recuperar a escrita")
 	_check(SaveStoreScript.is_valid_file(TEST_SAVE_PATH + ".bak"), "backup nao foi criado apos recuperar a escrita")
+
+	_clean_artifacts()
+	var blocked_first_primary := ProjectSettings.globalize_path(TEST_SAVE_PATH)
+	_check(DirAccess.make_dir_absolute(blocked_first_primary) == OK, "bloqueio da primeira promocao nao foi criado")
+	var first_promotion_candidate := _config_with_essence(51)
+	var first_promotion_error := SaveStoreScript.save_config(first_promotion_candidate, TEST_SAVE_PATH)
+	_check(first_promotion_error != OK, "falha da primeira promocao foi tratada como sucesso")
+	_check(not FileAccess.file_exists(TEST_SAVE_PATH), "falha da primeira promocao criou principal parcial")
+	_check(not SaveStoreScript.is_valid_file(TEST_SAVE_PATH + ".bak"), "falha da primeira promocao manteve backup inicial como progresso confirmado")
+	_check(SaveStoreScript.is_valid_file(TEST_SAVE_PATH + ".tmp"), "candidato temporario valido nao permaneceu disponivel para retry")
+	_check(int(_load_raw(TEST_SAVE_PATH + ".tmp").get_value("meta", "essence", 0)) == 51, "temporario residual nao contem o candidato completo")
+	var first_promotion_load := SaveStoreScript.load_config(TEST_SAVE_PATH, false)
+	_check(str(first_promotion_load.status) == SaveStoreScript.STATUS_MISSING, "load interpretou temporario do primeiro save como progresso")
+	_remove_path(TEST_SAVE_PATH)
+	_check(SaveStoreScript.save_config(first_promotion_candidate, TEST_SAVE_PATH) == OK, "retry do primeiro save falhou depois de liberar a promocao")
+	_check(SaveStoreScript.is_valid_file(TEST_SAVE_PATH), "retry do primeiro save nao criou principal valido")
+	_check(SaveStoreScript.is_valid_file(TEST_SAVE_PATH + ".bak"), "retry do primeiro save nao criou backup valido")
+	_check(not FileAccess.file_exists(TEST_SAVE_PATH + ".tmp"), "retry do primeiro save deixou temporario residual")
+
+	_clean_artifacts()
+	_check(SaveStoreScript.save_config(_config_with_essence(60), TEST_SAVE_PATH) == OK, "geracao inicial do save existente falhou")
+	_check(SaveStoreScript.save_config(_config_with_essence(61), TEST_SAVE_PATH) == OK, "segunda geracao do save existente falhou")
+	var existing_main_before := _bytes(TEST_SAVE_PATH)
+	var blocked_existing_swap := ProjectSettings.globalize_path(TEST_SAVE_PATH + ".swap")
+	_check(DirAccess.make_dir_absolute(blocked_existing_swap) == OK, "bloqueio da promocao com save existente nao foi criado")
+	var existing_promotion_candidate := _config_with_essence(62)
+	var existing_promotion_error := SaveStoreScript.save_config(existing_promotion_candidate, TEST_SAVE_PATH)
+	_check(existing_promotion_error != OK, "falha da promocao com save existente foi tratada como sucesso")
+	_check(_bytes(TEST_SAVE_PATH) == existing_main_before, "falha da promocao alterou o principal existente")
+	_check(SaveStoreScript.is_valid_file(TEST_SAVE_PATH + ".bak"), "falha da promocao invalidou o backup existente")
+	_check(int(_load_raw(TEST_SAVE_PATH + ".bak").get_value("meta", "essence", 0)) == 61, "backup nao preservou a ultima geracao confirmada")
+	_check(SaveStoreScript.is_valid_file(TEST_SAVE_PATH + ".tmp"), "falha da promocao existente descartou o candidato antes do retry")
+	_check(int(_load_raw(TEST_SAVE_PATH + ".tmp").get_value("meta", "essence", 0)) == 62, "temporario do save existente perdeu o candidato completo")
+	var existing_restart := SaveStoreScript.load_config(TEST_SAVE_PATH, false)
+	_check(str(existing_restart.status) == SaveStoreScript.STATUS_OK, "reinicio apos falha nao carregou o principal anterior")
+	_check(int(existing_restart.config.get_value("meta", "essence", 0)) == 61, "reinicio carregou progresso temporario nao confirmado")
+	_remove_path(TEST_SAVE_PATH + ".swap")
+	_check(SaveStoreScript.save_config(existing_promotion_candidate, TEST_SAVE_PATH) == OK, "retry do save existente falhou")
+	_check(int(_load_raw(TEST_SAVE_PATH).get_value("meta", "essence", 0)) == 62, "retry nao promoveu a nova geracao")
+	_check(int(_load_raw(TEST_SAVE_PATH + ".bak").get_value("meta", "essence", 0)) == 61, "retry nao manteve a geracao anterior no backup")
+	_check(not FileAccess.file_exists(TEST_SAVE_PATH + ".tmp"), "retry do save existente deixou temporario residual")
+	_check(not FileAccess.file_exists(TEST_SAVE_PATH + ".swap"), "retry do save existente deixou arquivo de rollback")
 
 	_clean_artifacts()
 	if failures.is_empty():
