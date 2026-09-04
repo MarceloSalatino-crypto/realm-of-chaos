@@ -207,7 +207,7 @@ func _show_save_notice(title: String, message: String) -> void:
 func _show_instructions() -> void:
 	_show_popup(
 		"COMO SOBREVIVER",
-		"WASD, SETAS OU ANALÓGICO\nMova o Caçador; cada caçador possui uma arma inicial própria que ataca automaticamente.\n\nESPAÇO / BOTÃO A · ESQUIVA + HABILIDADE\nAtravesse a horda com um impulso invulnerável e ative o poder exclusivo do personagem.\n\nMAPA E SANTUÁRIOS\nO minimapa mostra marcos, chefes e baús. M oculta ou exibe. Explore os quatro santuários para receber bênçãos temporárias.\n\nEVOLUA ARMAS E RELÍQUIAS\nAs cartas mostram as combinações de evolução. Escolha uma das três cartas apresentadas para desenvolver sua build de até seis armas.\n\nRITUAL DE 25 MINUTOS\nChefes surgem em 5, 10, 15, 20 e 25 minutos. Raízes atrasam, gelo reduz controle e fendas causam dano. ESC pausa."
+		"WASD, SETAS OU ANALÓGICO\nMova o Caçador; cada caçador possui uma arma inicial própria que ataca automaticamente.\n\nESPAÇO / BOTÃO A · ESQUIVA + HABILIDADE\nAtravesse a horda com um impulso invulnerável e ative o poder exclusivo do personagem.\n\nMAPA E SANTUÁRIOS\nO minimapa mostra marcos, chefes e baús. M oculta ou exibe. Explore os quatro santuários para receber bênçãos temporárias.\n\nEVOLUA ARMAS E RELÍQUIAS\nAs cartas mostram as combinações de evolução. Escolha uma das três cartas apresentadas para desenvolver sua build de até seis armas.\n\nRITUAL DE 25 MINUTOS\nChefes surgem em 5, 10, 15, 20 e 25 minutos. O Bosque não possui perigos de chão; gelo reduz controle e fendas causam dano. ESC pausa."
 	)
 
 

@@ -32,7 +32,7 @@ Uma evolução completa do protótipo original para um loop no estilo survivor: 
 - Nove armas evolutivas. Além do arsenal original, existem Foice Hemática, Grimório Proibido, Martelo Rúnico, Relíquia da Tempestade e Ídolo do Enxame.
 - Novas evoluções: Ceifadora Carmesim, Códice do Fim, Martelo do Cataclismo, Tempestade Eterna e Olho da Legião.
 - Oito passivos para dano, velocidade, vida, coleta, armadura, regeneração e crítico.
-- Cristais de experiência, corações, níveis e três escolhas por nível com raridades, receitas de evolução visíveis, três rerolls, três banimentos e duas opções de pular por partida.
+- Cristais de experiência, corações, níveis e três escolhas por nível com raridades e receitas de evolução visíveis.
 - Limite de seis armas simultâneas para tornar cada build uma decisão real.
 - Depois que armas e passivos da build chegam ao máximo, novos níveis viram cura e Essência automaticamente.
 - HUD completo: vida, alerta de perigo, XP, tempo restante, contagem para o próximo chefe, estágio, abates, Essência, eventos, build em duas linhas e barra de chefe/fase.
