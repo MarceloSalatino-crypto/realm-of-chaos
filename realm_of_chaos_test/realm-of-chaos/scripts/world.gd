@@ -17,7 +17,6 @@ const MapEncounterProfileScript = preload("res://scripts/map_encounter_profile.g
 
 const RUN_DURATION := 25.0 * 60.0
 const BOSS_TIMES := [300.0, 600.0, 900.0, 1200.0, 1500.0]
-const EVENT_TIMES := [150.0, 450.0, 750.0, 1050.0, 1350.0]
 const SAVE_PATH := "user://realm_of_chaos.cfg"
 const GRID_CELL_SIZE := 180.0
 const MAX_PLAYER_PROJECTILES := 360

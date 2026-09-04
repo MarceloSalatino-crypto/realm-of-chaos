@@ -473,10 +473,6 @@ func effective_pickup_radius() -> float:
 	return pickup_radius * temporary_pickup_multiplier
 
 
-func dash_status() -> String:
-	return "PRONTA" if dash_cooldown <= 0.0 else "%.1fs" % dash_cooldown
-
-
 func dash_cooldown_progress() -> float:
 	return 1.0 - clampf(dash_cooldown / DASH_COOLDOWN_DURATION, 0.0, 1.0)
 
