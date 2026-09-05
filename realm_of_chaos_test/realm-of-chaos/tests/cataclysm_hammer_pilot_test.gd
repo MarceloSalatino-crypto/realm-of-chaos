@@ -192,6 +192,25 @@ func _run() -> void:
 	_check_close(float(dying_target.hp), hp_when_removed, "fissuras voltaram a atingir inimigo morto")
 
 	await _clear_combat_nodes(world)
+	_prepare_player(world.player, true)
+	var freed_target = _spawn_target(world, Vector2(300.0, 0.0))
+	world._rebuild_spatial_grid()
+	world.player._slam_rune_hammer(6)
+	var freed_rupture = world.effects.get_node_or_null("CataclysmRupture")
+	_check(is_instance_valid(freed_rupture), "ruptura não existe no cenário de alvo liberado")
+	var freed_target_id := freed_target.get_instance_id()
+	freed_target.queue_free()
+	await process_frame
+	_check(not is_instance_valid(freed_target), "alvo do cenário de lifecycle não foi liberado")
+	if is_instance_valid(freed_rupture):
+		freed_rupture.set_process(false)
+		freed_rupture._process(0.11)
+		_check(
+			not freed_rupture.primary_hit_targets.has(freed_target_id),
+			"aftershock reteve referência a alvo já liberado"
+		)
+
+	await _clear_combat_nodes(world)
 	for index in range(world.MAX_EFFECTS):
 		var cosmetic := Node2D.new()
 		cosmetic.name = "Cosmetic%d" % index

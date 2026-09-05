@@ -106,11 +106,15 @@ func _apply_fissure_segment(segment_index: int) -> void:
 
 
 func _apply_primary_aftershock() -> void:
-	for enemy_value in primary_hit_targets.values():
+	for enemy_id_value in primary_hit_targets.keys():
+		var enemy_id := int(enemy_id_value)
+		var enemy_value: Variant = primary_hit_targets.get(enemy_id)
+		if not is_instance_valid(enemy_value):
+			primary_hit_targets.erase(enemy_id)
+			continue
 		var enemy: Node = enemy_value as Node
 		if not _enemy_is_alive(enemy):
 			continue
-		var enemy_id: int = enemy.get_instance_id()
 		if fissure_hit_targets.has(enemy_id):
 			continue
 		fissure_hit_targets[enemy_id] = true
