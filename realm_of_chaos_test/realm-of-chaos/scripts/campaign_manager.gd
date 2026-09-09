@@ -139,6 +139,10 @@ func apply_completion(config: ConfigFile, map_id: String) -> Dictionary:
 
 
 func reset_campaign_progress(path := SAVE_PATH) -> Error:
+	var previous_save_path := save_path
+	var previous_selected_map_id := selected_map_id
+	var previous_unlocked_maps: Array[String] = unlocked_maps.duplicate()
+	var previous_completed_maps: Array[String] = completed_maps.duplicate()
 	save_path = path
 	var result := SaveStoreScript.load_config(path)
 	var config: ConfigFile = result.config
@@ -147,6 +151,11 @@ func reset_campaign_progress(path := SAVE_PATH) -> Error:
 	completed_maps.clear()
 	_write_campaign(config)
 	last_error = SaveStoreScript.save_config(config, path)
+	if last_error != OK:
+		save_path = previous_save_path
+		selected_map_id = previous_selected_map_id
+		unlocked_maps = previous_unlocked_maps
+		completed_maps = previous_completed_maps
 	return last_error
 
 

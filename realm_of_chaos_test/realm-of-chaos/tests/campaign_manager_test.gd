@@ -20,16 +20,65 @@ func _check(condition: bool, message: String) -> void:
 
 
 func _cleanup() -> void:
-	for suffix in ["", ".bak", ".tmp", ".swap", ".corrupt", ".bak.corrupt"]:
-		var path: String = TEST_SAVE_PATH + str(suffix)
-		if FileAccess.file_exists(path):
-			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	for suffix in ["", ".bak", ".tmp", ".swap", ".bak.tmp", ".bak.swap", ".corrupt", ".bak.corrupt"]:
+		_remove_path(TEST_SAVE_PATH + str(suffix))
+
+
+func _remove_path(path: String) -> void:
+	var absolute := ProjectSettings.globalize_path(path)
+	if FileAccess.file_exists(path) or DirAccess.dir_exists_absolute(absolute):
+		DirAccess.remove_absolute(absolute)
+
+
+func _bytes(path: String) -> PackedByteArray:
+	return FileAccess.get_file_as_bytes(path) if FileAccess.file_exists(path) else PackedByteArray()
 
 
 func _load_raw() -> ConfigFile:
 	var config := ConfigFile.new()
 	_check(config.load(TEST_SAVE_PATH) == OK, "save de campanha não pôde ser relido")
 	return config
+
+
+func _check_failed_reset_rollback(manager: CampaignManagerScript) -> void:
+	var selected_before: String = manager.selected_map_id
+	var unlocked_before: Array[String] = manager.unlocked_maps.duplicate()
+	var completed_before: Array[String] = manager.completed_maps.duplicate()
+	var save_path_before: String = manager.save_path
+	var load_status_before: String = manager.load_status
+	var load_message_before: String = manager.load_message
+	var main_before := _bytes(TEST_SAVE_PATH)
+	var backup_before := _bytes(TEST_SAVE_PATH + ".bak")
+	var blocked_temporary := ProjectSettings.globalize_path(TEST_SAVE_PATH + ".tmp")
+	_check(DirAccess.make_dir_absolute(blocked_temporary) == OK, "bloqueio da escrita do reset não foi criado")
+	var failed_reset_error := manager.reset_campaign_progress(TEST_SAVE_PATH)
+	_check(failed_reset_error == ERR_FILE_CANT_OPEN, "reset não retornou a falha de escrita esperada")
+	_check(manager.last_error == failed_reset_error, "erro do reset não permaneceu disponível para diagnóstico")
+	_check(manager.save_path == save_path_before, "falha do reset alterou o caminho de save do manager")
+	_check(manager.selected_map_id == selected_before, "falha do reset alterou o mapa selecionado em memória")
+	_check(manager.unlocked_maps == unlocked_before, "falha do reset alterou mapas desbloqueados em memória")
+	_check(manager.completed_maps == completed_before, "falha do reset alterou mapas concluídos em memória")
+	_check(manager.load_status == load_status_before, "falha do reset alterou o status da carga anterior")
+	_check(manager.load_message == load_message_before, "falha do reset alterou a mensagem da carga anterior")
+	_check(_bytes(TEST_SAVE_PATH) == main_before, "falha do reset alterou o save principal")
+	_check(_bytes(TEST_SAVE_PATH + ".bak") == backup_before, "falha do reset alterou o backup")
+	for suffix in [".tmp", ".swap", ".bak.tmp", ".bak.swap"]:
+		_check(not FileAccess.file_exists(TEST_SAVE_PATH + suffix), "falha do reset deixou arquivo temporário: " + suffix)
+	_remove_path(TEST_SAVE_PATH + ".tmp")
+	_check(not DirAccess.dir_exists_absolute(blocked_temporary), "bloqueio temporário do teste não foi removido")
+
+	var reloaded := CampaignManagerScript.new()
+	reloaded.load_progress(TEST_SAVE_PATH, false)
+	_check(reloaded.selected_map_id == selected_before, "reload após falha perdeu o mapa selecionado anterior")
+	_check(reloaded.unlocked_maps == unlocked_before, "reload após falha perdeu desbloqueios anteriores")
+	_check(reloaded.completed_maps == completed_before, "reload após falha perdeu conclusões anteriores")
+	reloaded.free()
+	print("CAMPAIGN RESET FAILURE: selected=%s unlocked=%s completed=%s error=%d disk_unchanged=%s backup_unchanged=%s memory_rolled_back=%s" % [
+		selected_before, unlocked_before, completed_before, failed_reset_error,
+		_bytes(TEST_SAVE_PATH) == main_before, _bytes(TEST_SAVE_PATH + ".bak") == backup_before,
+		manager.selected_map_id == selected_before and manager.unlocked_maps == unlocked_before
+		and manager.completed_maps == completed_before and manager.save_path == save_path_before,
+	])
 
 
 func _run() -> void:
@@ -69,6 +118,7 @@ func _run() -> void:
 	_check(int(migrated_config.get_value("record", "victories", 0)) == 9, "migração alterou recordes")
 	_check(bool(migrated_config.get_value("achievements", "first_boss", false)), "migração alterou conquistas")
 	_check(float(migrated_config.get_value("settings", "music", 0.0)) == 0.5, "migração alterou opções")
+	_check_failed_reset_rollback(manager)
 
 	var skip_config := _load_raw()
 	var skipped := manager.apply_completion(skip_config, "void_cathedral")
@@ -96,7 +146,13 @@ func _run() -> void:
 	_check("map_05" not in manager.unlocked_maps, "mapa 5 foi desbloqueado antes do mapa 4")
 	_check(SaveStoreScript.save_config(replay_config, TEST_SAVE_PATH) == OK, "progresso dos três mapas não foi salvo")
 
+	manager.save_path = "user://campaign_manager_previous_path.cfg"
+	_check_failed_reset_rollback(manager)
+
 	_check(manager.reset_campaign_progress(TEST_SAVE_PATH) == OK, "reset da campanha falhou")
+	_check(manager.last_error == OK, "reset bem-sucedido manteve erro anterior")
+	_check(manager.save_path == TEST_SAVE_PATH, "reset bem-sucedido não manteve o caminho de destino")
+	_check(manager.selected_map_id == "profaned_forest", "reset bem-sucedido não selecionou o mapa 1 em memória")
 	var reset_config := _load_raw()
 	_check(manager.unlocked_maps == ["profaned_forest"], "reset não restaurou apenas o mapa 1")
 	_check(manager.completed_maps.is_empty(), "reset manteve mapas concluídos")
@@ -104,6 +160,12 @@ func _run() -> void:
 	_check(int(reset_config.get_value("record", "victories", 0)) == 9, "reset apagou recordes")
 	_check(bool(reset_config.get_value("achievements", "first_boss", false)), "reset apagou conquistas")
 	_check(float(reset_config.get_value("settings", "music", 0.0)) == 0.5, "reset apagou opções")
+	var manager_after_successful_reset := CampaignManagerScript.new()
+	manager_after_successful_reset.load_progress(TEST_SAVE_PATH, false)
+	_check(manager_after_successful_reset.selected_map_id == "profaned_forest", "reload após reset não manteve o mapa 1 selecionado")
+	_check(manager_after_successful_reset.unlocked_maps == ["profaned_forest"], "reload após reset não manteve apenas o mapa 1")
+	_check(manager_after_successful_reset.completed_maps.is_empty(), "reload após reset restaurou conclusões antigas")
+	manager_after_successful_reset.free()
 
 	_cleanup()
 	manager.free()
